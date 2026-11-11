@@ -1,0 +1,75 @@
+{
+  "name": "profitlens-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0 <25"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc && cp src/catalogue/xlsx-worker.cjs dist/catalogue/xlsx-worker.cjs",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run tests/app.test.ts tests/paypal-client.test.ts",
+    "test:integration": "vitest run tests/database.test.ts tests/auth.test.ts tests/businesses.test.ts tests/platform.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
+    "mail:send-once": "tsx src/auth/mail-worker.ts",
+    "admin:bootstrap": "tsx src/auth/bootstrap-admin.ts",
+    "test:browser": "tsx scripts/auth-browser.ts",
+    "test:browser:business": "tsx scripts/business-browser.ts",
+    "test:browser:platform": "tsx scripts/platform-browser.ts",
+    "test:browser:billing": "tsx scripts/billing-browser.ts",
+    "billing:webhooks-once": "tsx src/billing/paypal/worker.ts",
+    "test:browser:receipts": "tsx scripts/receipts-browser.ts",
+    "test:browser:cancellation": "tsx scripts/cancellation-browser.ts",
+    "test:browser:locations": "tsx scripts/locations-browser.ts",
+    "test:browser:catalogue": "tsx scripts/catalogue-browser.ts",
+    "test:browser:import": "tsx scripts/import-browser.ts",
+    "catalogue:purge-imports": "tsx src/catalogue/purge-imports.ts",
+    "test:browser:operations": "tsx scripts/operations-browser.ts",
+    "test:browser:transfers": "tsx scripts/transfers-browser.ts",
+    "test:browser:sales": "tsx scripts/sales-browser.ts",
+    "test:browser:completion": "tsx scripts/completion-browser.ts",
+    "migration:analyze": "tsx scripts/legacy-rehearsal.ts",
+    "test:restore": "tsx scripts/restore-rehearsal.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "argon2": "0.45.2",
+    "cors": "2.8.6",
+    "dotenv": "18.0.10",
+    "exceljs": "4.4.0",
+    "express": "5.3.0",
+    "helmet": "8.3.0",
+    "nodemailer": "10.5.0",
+    "otpauth": "9.6.0",
+    "pg": "8.23.1",
+    "pino": "10.4.0",
+    "yauzl": "3.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/nodemailer": "8.0.2",
+    "@types/pg": "8.23.1",
+    "@types/supertest": "7.2.1",
+    "@types/yauzl": "3.4.0",
+    "playwright": "1.65.0",
+    "prisma": "7.10.1",
+    "supertest": "7.3.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
+}

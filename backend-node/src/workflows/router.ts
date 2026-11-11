@@ -1,0 +1,33 @@
+import {Router,type Request} from 'express';
+import {z} from 'zod';
+import type {AuthService} from '../auth/service.js';
+import {authHttp} from '../auth/http.js';
+import {validateBody} from '../errors.js';
+import {fail} from './shared.js';
+import {WorkflowService} from './service.js';
+import {adjustmentSchema,adjustmentAction,kinds} from './contracts.js';
+import {FinanceService} from '../finance/service.js';
+import {paymentSchema,closeSchema} from '../finance/contracts.js';
+import {ReportService} from '../reports/service.js';
+import {MigrationService,previewSchema} from '../migration/service.js';
+export function completionRouter(auth:AuthService){
+ const r=Router({mergeParams:true}),{ctx,origin,attach,full,csrf}=authHttp(auth),workflow=new WorkflowService(auth),finance=new FinanceService(auth),reports=new ReportService(auth),migration=new MigrationService(auth);
+ const bid=(req:Request)=>String(req.params.businessId),id=(req:Request)=>String(req.params.id),page=z.coerce.number().int().min(1).max(10000).default(1);
+ const query=<T extends z.ZodType>(schema:T,value:unknown):z.infer<T>=>{const p=schema.safeParse(value);if(!p.success)fail('VALIDATION_ERROR',422);return p.data;};
+ r.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});r.use(origin,attach,full);r.use((req,res,next)=>req.method==='GET'?next():csrf(req,res,next));r.use((req,_res,next)=>{if(!z.uuid().safeParse(bid(req)).success)fail('INVALID_ID',400);next();});r.param('id',(_req,_res,next,value)=>{if(!z.uuid().safeParse(value).success)fail('INVALID_ID',400);next();});
+ r.get('/snapshot',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),productId:z.uuid()}).strict(),req.query);res.json(await workflow.snapshot(ctx(res),bid(req),q.locationId,q.productId));});
+ r.get('/adjustments',async(req,res)=>{const q=query(z.object({kind:kinds,page,locationId:z.uuid().optional(),status:z.enum(['DRAFT','COMPLETED','CANCELLED']).optional(),supplierId:z.uuid().optional()}).strict(),req.query);res.json(await workflow.list(ctx(res),bid(req),q.kind,q.page,q.locationId,q.status,q.supplierId));});
+ r.get('/adjustments/source/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['CUSTOMER_RETURN','SUPPLIER_RETURN'])}).strict(),req.query);res.json(await workflow.sourceView(ctx(res),bid(req),q.kind,id(req)));});
+ r.get('/adjustments/:id',async(req,res)=>res.json(await workflow.read(ctx(res),bid(req),id(req))));
+ r.post('/adjustments',validateBody(adjustmentSchema),async(req,res)=>res.status(201).json(await workflow.create(ctx(res),bid(req),req.body)));
+ r.post('/adjustments/:id/status',validateBody(adjustmentAction),async(req,res)=>res.json(await workflow.transition(ctx(res),bid(req),id(req),req.body)));
+ r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId));});
+ r.post('/payments',validateBody(paymentSchema),async(req,res)=>res.status(201).json(await finance.create(ctx(res),bid(req),req.body)));
+ r.get('/balances/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['SUPPLIER','CUSTOMER'])}).strict(),req.query);res.json(await finance.balance(ctx(res),bid(req),q.kind,id(req)));});
+ r.get('/cash',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),day:z.iso.date()}).strict(),req.query);res.json(await finance.cash(ctx(res),bid(req),q.locationId,q.day));});
+ r.post('/cash',validateBody(closeSchema),async(req,res)=>res.json(await finance.close(ctx(res),bid(req),req.body)));
+ r.get('/reports',async(req,res)=>{const q=query(z.object({page,from:z.iso.date(),to:z.iso.date(),locationId:z.uuid().optional(),view:z.enum(['summary','stock','sales','purchases','returns','payments','balances','refunds']).default('summary'),lowStock:z.enum(['true','false']).default('false').transform(v=>v==='true'),export:z.enum(['true','false']).default('false').transform(v=>v==='true')}).strict(),req.query);res.json(await reports.read(ctx(res),bid(req),q));});
+ r.get('/migration',async(req,res)=>res.json(await migration.readiness(ctx(res),bid(req))));
+ r.post('/migration/preview',validateBody(previewSchema),async(req,res)=>res.status(201).json(await migration.preview(ctx(res),bid(req),req.body)));
+ r.post('/migration/:id/confirm',validateBody(z.object({confirm:z.literal(true)}).strict()),async(req,res)=>res.json(await migration.confirm(ctx(res),bid(req),id(req))));return r;
+}

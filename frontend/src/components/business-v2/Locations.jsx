@@ -1,0 +1,25 @@
+import { useRef, useState } from 'react';
+import { Field } from '../auth-v2/Fields';
+import { useResource } from './useBusinessApi';
+import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass } from './UI';
+import LocationForm from './LocationForm';
+import LocationAssignments from './LocationAssignments';
+export default function Locations({ context, api, c, lang }) {
+  const path=`/businesses/${context.business.id}/locations`,manage=context.permissions['locations.manage'];
+  const [page,setPage]=useState(1),[state,setState]=useState('active'),[kind,setKind]=useState(''),[search,setSearch]=useState(''),[query,setQuery]=useState('');
+  const [dialog,setDialog]=useState(null),[busy,setBusy]=useState(false),[failure,setFailure]=useState(''),[notice,setNotice]=useState('');const trigger=useRef(null);
+  const {data,error,reload}=useResource(api,`${path}?page=${page}&state=${state}${kind?`&kind=${kind}`:''}&search=${encodeURIComponent(query)}`);
+  function open(e,type,location){trigger.current=e.currentTarget;setFailure('');setNotice('');setDialog({type,location});}
+  function done(saved=true){setDialog(null);setNotice(saved?'saved':'');reload();}
+  async function changeStatus(){setBusy(true);setFailure('');try{await api(`${path}/${dialog.location.id}`,{method:'PATCH',body:{revision:dialog.location.revision,active:!!dialog.location.archivedAt}});done();}catch(e){setFailure(e.message);}finally{setBusy(false);}}
+  return <section className="space-y-4">
+    <div className="flex flex-wrap justify-between items-center gap-3"><div><h2 className="text-lg font-bold">{c('locations')}</h2><p className="text-sm text-slate-500 mt-1">{c(manage?'locationsHint':'assignedLocationsHint')}</p></div>{manage && <button className={primaryClass} onClick={e=>open(e,'create')}>{c('addLocation')}</button>}</div>
+    <form className="flex flex-wrap gap-3 items-end" onSubmit={e=>{e.preventDefault();setQuery(search.trim());setPage(1);}}><div className="w-full sm:w-64"><Field id="location-search" label={c('searchLocations')} placeholder={c('locationSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)} maxLength={120}/></div><Select id="location-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>{['active','archived','all'].map(v=><option key={v} value={v}>{c(v)}</option>)}</Select><Select id="location-type-filter" label={c('locationKind')} value={kind} onChange={e=>{setKind(e.target.value);setPage(1);}}><option value="">{c('all')}</option>{['WAREHOUSE','SHOP'].map(v=><option key={v} value={v}>{c(v)}</option>)}</Select><button className={buttonClass}>{c('search')}</button></form>
+    <Feedback error={error} notice={notice} c={c} retry={reload}/>
+    {!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+    {data && <><Table tableClassName="min-w-[680px]" headers={['locationName','locationCode','locationKind','status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(l=><tr key={l.id}><td className="px-5 py-3"><p className="font-semibold text-slate-800">{l.name}</p>{l.address && <p className="text-xs text-slate-500 mt-1 max-w-xs break-words">{l.address}</p>}</td><td className="px-5 py-3"><span dir="ltr">{l.code}</span></td><td className="px-5 py-3 whitespace-nowrap">{c(l.kind)}</td><td className="px-5 py-3 whitespace-nowrap">{c(l.archivedAt?'archived':'active')}</td>{manage && <td className="px-5 py-3"><div className="flex flex-wrap gap-2"><button className={buttonClass} onClick={e=>open(e,'edit',l)}>{c('editLocation')}</button>{!l.archivedAt && <button className={buttonClass} onClick={e=>open(e,'assign',l)}>{c('locationAssignments')}</button>}<button className={buttonClass} onClick={e=>open(e,'status',l)}>{c(l.archivedAt?'reactivateLocation':'archiveLocation')}</button></div></td>}</tr>)}</Table><Pager data={data} setPage={setPage} c={c}/></>}
+    {['create','edit'].includes(dialog?.type) && <LocationForm location={dialog.location} {...{path,api,c,lang,done}} close={()=>setDialog(null)} returnFocus={trigger.current}/>}
+    {dialog?.type==='assign' && <LocationAssignments location={dialog.location} {...{path,api,c,lang}} close={()=>done(false)} returnFocus={trigger.current}/>}
+    {dialog?.type==='status' && <Modal title={c(dialog.location.archivedAt?'reactivateLocation':'archiveLocation')} description={c(dialog.location.archivedAt?'reactivateLocationHint':'archiveLocationHint')} {...{c,lang,busy}} close={()=>setDialog(null)} returnFocus={trigger.current}><p className="font-semibold">{dialog.location.name}</p><Feedback error={failure} c={c} retry={failure==='REVISION_CONFLICT'?()=>done(false):undefined}/><div className="flex flex-wrap justify-end gap-2"><button className={buttonClass} disabled={busy} onClick={()=>setDialog(null)}>{c('cancel')}</button><button className={primaryClass} disabled={busy || failure==='REVISION_CONFLICT'} onClick={changeStatus}>{c(busy?'saving':'confirm')}</button></div></Modal>}
+  </section>;
+}

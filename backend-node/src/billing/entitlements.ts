@@ -1,0 +1,24 @@
+import type { Tx } from '../auth/service.js';
+import { ApiError } from '../errors.js';
+// Call from the same serializable transaction as the protected creation or change.
+export async function billingState(tx: Tx, businessId: string, now = new Date()) {
+  const subscription = await tx.businessSubscription.findUnique({ where: { businessId }, include: { plan: true } });
+  const active = !!subscription && subscription.status === 'TRIAL' && subscription.trialStartedAt <= now && subscription.trialEndsAt > now;
+  return { subscription, active, status: !subscription ? 'NOT_STARTED' : active ? 'TRIAL' : 'EXPIRED' };
+}
+export async function lockCapacity(tx: Tx, businessId: string) {
+  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${`billing:${businessId}`}, 0))`;
+}
+export async function memberUsage(tx: Tx, businessId: string, exclude: { email?: string; invitationId?: string } = {}) {
+  const activeMembers = await tx.membership.count({ where: { businessId, disabledAt: null } });
+  const pendingInvitations = await tx.invitation.count({ where: { businessId, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() },
+    ...(exclude.email ? { email: { not: exclude.email } } : {}), ...(exclude.invitationId ? { id: { not: exclude.invitationId } } : {}) } });
+  return { activeMembers, pendingInvitations, reservedMembers: activeMembers + pendingInvitations };
+}
+export async function requireMemberCapacity(tx: Tx, businessId: string, exclude: { email?: string; invitationId?: string } = {}) {
+  await lockCapacity(tx, businessId);
+  const state = await billingState(tx, businessId);
+  if (!state.active || !state.subscription) throw new ApiError(402, 'SUBSCRIPTION_REQUIRED', 'Start or renew your business subscription before adding team members');
+  const usage = await memberUsage(tx, businessId, exclude);
+  if (usage.reservedMembers >= state.subscription.plan.maxMembers) throw new ApiError(409, 'MEMBER_LIMIT_REACHED', 'Your plan team limit has been reached');
+}

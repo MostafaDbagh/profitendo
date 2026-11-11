@@ -1,0 +1,1 @@
+CREATE INDEX stock_movements_business_id_location_id_product_id_idx ON stock_movements(business_id,location_id,product_id);

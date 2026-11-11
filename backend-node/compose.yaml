@@ -1,0 +1,19 @@
+# Local development only. Never use this password/deployment for production.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: profitlens
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: profitlens
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - profitlens_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U profitlens -d profitlens"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  profitlens_pg:

@@ -1,0 +1,12 @@
+import { z } from 'zod';
+import { positive } from '../operations/contracts.js';
+import { decimal } from '../catalogue/contracts.js';
+const lines=z.array(z.object({productId:z.uuid(),packId:z.uuid().nullable().default(null),quantity:positive,discount:decimal.default('0'),discountReason:z.string().trim().max(500).default('')}).strict()).min(1).max(100).refine(rows=>new Set(rows.map(l=>`${l.productId}:${l.packId??'BASE'}`)).size===rows.length);
+const content={customerName:z.string().trim().max(150).default(''),notes:z.string().trim().max(2000).default(''),lines};
+export const saleSchema=z.object({clientKey:z.uuid(),locationId:z.uuid(),...content}).strict();
+export const salePatch=z.object({revision:z.number().int().nonnegative(),...content}).strict();
+export const cancelSchema=z.object({revision:z.number().int().nonnegative(),confirm:z.literal(true)}).strict();
+export const checkoutSchema=z.object({clientKey:z.uuid(),revision:z.number().int().nonnegative(),expectedTotal:decimal,confirm:z.literal(true),payment:z.object({method:z.enum(['CASH','CARD','TRANSFER']),received:decimal,reference:z.string().trim().max(150).default('')}).strict()}).strict();
+export type SaleInput=z.infer<typeof saleSchema>;
+export type SalePatch=z.infer<typeof salePatch>;
+export type Checkout=z.infer<typeof checkoutSchema>;

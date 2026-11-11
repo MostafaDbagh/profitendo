@@ -1,0 +1,98 @@
+{
+  "theme": "dark",
+  "identity": {
+    "name": "ProfitLens",
+    "primary": "#F59E0B",
+    "primary_hover": "#D97706",
+    "accent_teal": "#0D9488",
+    "background": "#020617",
+    "surface": "#0F172A",
+    "border": "#1E293B",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8"
+  },
+  "typography": {
+    "font_family": "Tajawal, Cairo, IBM Plex Sans Arabic, sans-serif",
+    "headings": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-semibold text-slate-100",
+      "h3": "text-xl sm:text-2xl font-semibold text-slate-200",
+      "card_title": "text-lg sm:text-xl font-bold text-white"
+    },
+    "body": "text-base text-slate-300 leading-relaxed",
+    "small": "text-sm text-slate-400"
+  },
+  "colors": {
+    "background": "bg-slate-950",
+    "surface": "bg-slate-900",
+    "surface_glass": "bg-slate-900/60 backdrop-blur-xl",
+    "border": "border-slate-800",
+    "primary_text": "text-amber-400",
+    "primary_bg": "bg-amber-500",
+    "primary_bg_hover": "hover:bg-amber-400",
+    "accent_text": "text-teal-400",
+    "accent_bg": "bg-teal-600",
+    "danger_text": "text-red-400",
+    "danger_bg": "bg-red-500/10 border-red-500/20"
+  },
+  "grids": {
+    "pricing_cards": "grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto",
+    "metadata_8_tile": "grid grid-cols-2 sm:grid-cols-4 gap-4",
+    "trust_bar": "grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto"
+  },
+  "layouts": {
+    "page_container": "dark bg-slate-950 text-slate-50 min-h-screen py-16 px-4 sm:px-6 lg:px-8",
+    "hero_section": "text-center mb-16 space-y-6 flex flex-col items-center",
+    "status_card": "max-w-4xl mx-auto mt-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl shadow-amber-900/5",
+    "comparison_table_wrapper": "max-w-4xl mx-auto mt-24 overflow-x-auto",
+    "help_card": "max-w-2xl mx-auto mt-24 bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center"
+  },
+  "visual_enhancers": {
+    "card_glow": "relative before:absolute before:inset-0 before:-z-10 before:bg-gradient-to-br before:from-amber-500/10 before:to-transparent before:blur-xl before:rounded-3xl",
+    "active_card_border": "border-amber-500/50 shadow-[0_0_30px_-5px_rgba(245,158,11,0.2)]",
+    "subtle_borders": "border border-white/5",
+    "glass_effect": "backdrop-blur-md bg-white/5"
+  },
+  "motion": {
+    "hover_lift": "transition-transform duration-300 hover:-translate-y-1",
+    "button_scale": "active:scale-95 transition-transform",
+    "fade_in": "animate-in fade-in duration-500"
+  },
+  "components": {
+    "hero_badge": "inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-6",
+    "primary_button": "w-full py-4 px-6 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors shadow-lg shadow-amber-500/20",
+    "secondary_button": "w-full py-4 px-6 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors",
+    "status_badge": "px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider",
+    "trust_item": "flex flex-col items-center text-center space-y-3 p-4 text-slate-400 hover:text-slate-200 transition-colors"
+  },
+  "instructions_to_main_agent": [
+    "Wrap the entire page content in a top-level `div` with `className='dark bg-slate-950 min-h-screen font-sans'` and `dir='rtl'` to encapsulate the dark theme independently from the light-theme app shell.",
+    "Ensure all predefined data-testids are strictly preserved exactly as provided in the problem statement.",
+    "Use Phosphor Icons or Lucide-react for trust bar and feature list icons (e.g., CheckCircle, ShieldCheck, Lifebuoy, Lightning).",
+    "For the 8-tile metadata grid in the status card, use a subtle 1px border grid pattern (border-slate-800/50) with inner padding for each cell to resemble a technical financial dashboard.",
+    "Do NOT use HTML `<select>` or `<input type='date'>`. Use provided shadcn components if needed, but this page is mostly display and buttons.",
+    "Keep BOTH pricing cards visible. Conditionally render the 'الخطة الحالية / Current Plan' badge and 'يرجى إلغاء الخطة الحالية أولاً' note based on the active plan state.",
+    "The Annual plan card MUST feature the 'الأكثر توفيراً' badge, the $299 strikethrough, and the $99/year text clearly styled to highlight the discount.",
+    "Add 'data-testid' to all buttons, links, and major layout sections as per requirement."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use generic centered layouts except for the hero section.",
+    "Create depth through layered design elements with z-index hierarchy and glass-morphism effects.",
+    "NEVER use AI assistant Emoji characters (except the explicitly requested 🚀 in the hero badge).",
+    "Apply specific transitions for interactive elements (e.g., transition-colors, transition-transform). DO NOT use `transition-all`.",
+    "Always use modern button styles (rounded-xl or pill-shaped) with interaction animations.",
+    "Do not alter the global `index.css` to center text universally."
+  ],
+  "accessibility": {
+    "focus_ring": "focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-slate-950",
+    "aria_roles": "Ensure all buttons have clear aria-labels if text is ambiguous. Pricing cards should use section tags with aria-labelledby.",
+    "contrast": "Maintain APCA contrast ratio. Text-slate-400 on bg-slate-950 is generally compliant for small text, but use text-slate-300 for body."
+  },
+  "media": {
+    "image_urls": {
+      "hero_background": "https://images.unsplash.com/photo-1709377195538-5522ed0f9e10?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRhcmslMjBnb2xkJTIwYmFja2dyb3VuZCUyMHNhYXN8ZW58MHx8fHwxNzg5NTU2NTczfDA&ixlib=rb-4.1.0&q=85",
+      "decorative_element": "https://images.pexels.com/photos/31650383/pexels-photo-31650383.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    "instructions": "Use the hero_background image as an ultra-low opacity (e.g., opacity-5) absolute background layer with a radial gradient mask to add subtle texture to the dark canvas, avoiding flatness. Do not let it interfere with text legibility."
+  }
+}
