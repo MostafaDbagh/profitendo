@@ -11,7 +11,7 @@ export class ImageService {
   const row=await tx.productImage.findFirst({where:{businessId,productId}});return {dataUrl:row?`data:image/webp;base64,${row.data}`:null};
  });}
  async save(ctx:AuthContext,businessId:string,productId:string,revision:number,file:string|null){
-  await this.auth.transaction(tx=>requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage'));
+  await this.auth.transaction(tx=>requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit'));
   let data:string|null=null;
   if(file!==null){
    if(decoding>=2)throw new ApiError(429,'IMAGE_BUSY','Try again shortly');
@@ -26,7 +26,7 @@ export class ImageService {
    }catch{throw new ApiError(422,'INVALID_IMAGE','Use a JPEG, PNG or WebP under 1 MB and twelve megapixels');}finally{decoding--;}
   }
   return this.auth.transaction(async tx=>{
-   await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+   await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit');
    const changed=await tx.product.updateMany({where:{id:productId,businessId,revision},data:{revision:{increment:1}}});
    if(!changed.count)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
    if(data===null)await tx.productImage.deleteMany({where:{productId,businessId}});

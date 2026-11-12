@@ -39,7 +39,7 @@ export class CatalogueService {
   }
   async create(ctx:AuthContext,businessId:string,input:ProductInput){
     try{return await this.auth.transaction(async tx=>{
-      const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+      const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.create');
       if(!access.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required to add products');
       await validateReferences(tx,businessId,input);
@@ -55,7 +55,7 @@ export class CatalogueService {
   }
   async update(ctx:AuthContext,businessId:string,id:string,input:ProductPatch){
     try{return await this.auth.transaction(async tx=>{
-      const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+      const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit');
       if(input.purchasePrice!==undefined && !access.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
       const current=await tx.product.findFirst({where:{id,businessId}});
       if(!current)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');

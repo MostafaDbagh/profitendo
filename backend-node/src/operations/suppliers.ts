@@ -15,7 +15,7 @@ export class SupplierService {
  }
  async save(ctx:AuthContext,businessId:string,input:z.infer<typeof supplierSchema>|z.infer<typeof supplierPatch>,id?:string){
   try{return await this.auth.transaction(async tx=>{
-   await requireBusiness(this.auth,tx,ctx,businessId,'suppliers.manage');
+   await requireBusiness(this.auth,tx,ctx,businessId,id?'suppliers.edit':'suppliers.create');
    if(id){
     const row=await tx.supplier.findFirst({where:{businessId,id}});
     if(!row)throw new ApiError(404,'NOT_FOUND','Supplier not found');

@@ -457,3 +457,34 @@ remain available. CSV neutralizes formula prefixes and excludes action columns.
 Verified isolated integration tests (32), staging product warnings/filters/CSV,
 shared-table search/filter/CSV, AR/EN desktop/mobile. Screenshots in
  tmp/mfa-settings-design/products-*.png. Existing design tokens/components retained.
+
+Permission configuration now uses the existing Edit access modal. All assignable
+business capabilities are returned by the API and grouped by section in bilingual
+collapsible panels, with role-default / allow / deny selectors. Added independent
+product and supplier create/edit permissions, retaining existing role defaults.
+The owner can delegate team permission administration; delegates cannot modify
+the owner, themselves, peer administrators or grant authority beyond their own.
+Changes retain revision checks, audit before/after and session revocation.
+Verified 178 integration tests, separate product create/edit endpoint tests, and
+staging modal save/persistence at AR/EN desktop/mobile with disposable accounts.
+Screenshots: tmp/mfa-settings-design/permissions-*.png.
+
+Product table quantity clarification: units sold and actual on-hand stock now sit
+immediately beside the product name. Available stock is secondary when reserved
+quantities differ. Quantities omit unnecessary decimal zeros; low-stock warnings,
+location permissions and all-results CSV remain intact. Verified 24 integration
+tests, typecheck/build, staging reserved-stock scenario (3 on hand / 2 available),
+AR/EN desktop/mobile and seeded rice (12 sold / 0 stock).
+
+Sales receipt refinement: completed receipts use full content width instead of an
+empty checkout column. Print and close actions share the header. Receipt metadata
+uses a responsive three-column row, restrained item typography, aligned amounts,
+and a compact emerald total. Draft checkout retains its two-column layout.
+Verified frontend build, AR/EN at 320/390/768/1024/1440px, no page overflow/errors,
+and printable receipt navigation. Evidence: tmp/tab-order-design/receipt-refined-*.
+
+Tab scroll follow-up: reset immediately on selection and when async workspace
+content mounts; briefly suppress browser scroll anchoring while content sizes
+settle. Stop stabilization on wheel/touch/pointer/keyboard input to preserve
+intentional scrolling. Supplier regression checks include repeated selections,
+AR/EN desktop/mobile, delayed supplier responses and nested scroll containers.

@@ -11,7 +11,7 @@ import { columns, parseWorkbook } from './workbook.js';
 type Issue={row:number;field:string;code:string};
 type Parsed={row:number;product:ProductInput};
 async function access(auth:AuthService,tx:Tx,ctx:AuthContext,businessId:string){
-  const result=await requireBusiness(auth,tx,ctx,businessId,'catalogue.manage');
+  const result=await requireBusiness(auth,tx,ctx,businessId,'catalogue.create');
   if(!result.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
   return result;
 }

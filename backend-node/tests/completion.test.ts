@@ -182,7 +182,7 @@ it('shows product sale frequency, scoped available stock, low stock and filtered
  const sale=await sold('3'),productId=sale.lines[0].productId;
  await db.product.update({where:{id:productId},data:{minimumStock:'98',name:'Insight test product'}});
  const insights=(query:string,who=owner,bid=business)=>request(app).get(`/api/businesses/${bid}/products/insights?${query}`).set('Cookie',cookie(who));
- const result=await insights('search=Insight%20test%20product');expect(result.status,result.text).toBe(200);const row=result.body.items.find((p:{id:string})=>p.id===productId);expect(row.saleCount).toBe(1);expect(row.unitsSold).toBe('3.0000');expect(row.available).toBe('97.0000');expect(row.lowStock).toBe(true);
+ const result=await insights('search=Insight%20test%20product');expect(result.status,result.text).toBe(200);const row=result.body.items.find((p:{id:string})=>p.id===productId);expect(row.saleCount).toBe(1);expect(row.unitsSold).toBe('3.0000');expect(row.available).toBe('97.0000');expect(row.onHand).toBe('97.0000');expect(row.lowStock).toBe(true);
  const top=await insights('filter=top&search=Insight%20test%20product');expect(top.body.items[0].id).toBe(productId);
  const low=await insights('filter=low&search=Insight%20test%20product');expect(low.body.total).toBe(1);
  const csv=await insights('export=true&search=Insight%20test%20product');expect(csv.body.csv).toContain('Insight test product');expect(csv.body.csv).toContain('saleCount');

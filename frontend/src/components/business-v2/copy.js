@@ -66,5 +66,8 @@ export const staffRoles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGE
 Object.assign(businessCopy.ar, {catalogue:'المنتجات',sales:'المبيعات',purchases:'المشتريات',inventory:'المخزون',returns:'المرتجعات',expenses:'المصروفات',payments:'الخزينة'});
 Object.assign(businessCopy.en, {catalogue:'Products',sales:'Sales',purchases:'Purchases',inventory:'Inventory',returns:'Returns',expenses:'Expenses',payments:'Treasury'});
 
-Object.assign(businessCopy.en,{productSaleCount:'Sales count',productUnitsSold:'Units sold',productAvailable:'Available stock'});
-Object.assign(businessCopy.ar,{productSaleCount:'مرات البيع',productUnitsSold:'الوحدات المباعة',productAvailable:'المخزون المتاح'});
+Object.assign(businessCopy.en,{productSaleCount:'Sales count',productUnitsSold:'Units sold',productAvailable:'Available stock',productOnHand:'In stock'});
+Object.assign(businessCopy.ar,{productSaleCount:'مرات البيع',productUnitsSold:'الوحدات المباعة',productAvailable:'المخزون المتاح',productOnHand:'الكمية في المخزون'});
+
+Object.assign(businessCopy.ar,{'catalogue.create':'إضافة المنتجات واستيرادها','catalogue.edit':'تعديل المنتجات والعبوات والصور','suppliers.create':'إضافة مورد','suppliers.edit':'تعديل الموردين','team.manage':'تفويض إدارة صلاحيات الموظفين'});
+Object.assign(businessCopy.en,{'catalogue.create':'Add and import products','catalogue.edit':'Edit products, packs and images','suppliers.create':'Add suppliers','suppliers.edit':'Edit suppliers','team.manage':'Delegate staff permission management'});

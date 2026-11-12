@@ -16,7 +16,7 @@ try{
  const location=await db.location.create({data:{businessId:bid,name:'Test warehouse',code:'TEST',kind:'WAREHOUSE'}});
  const product=await db.product.create({data:{businessId:bid,name:'Stock alert test',sku:'ALERT-TEST',unit:'PIECE',purchasePrice:'2',sellingPrice:'4',minimumStock:'5'}});
  await db.stockBalance.create({data:{businessId:bid,locationId:location.id,productId:product.id,onHand:'3',reserved:'1'}});
- await page.goto('http://localhost:3200/business-v2?tab=catalogue');await page.getByRole('cell',{name:'Stock alert test',exact:true}).waitFor();const row=page.getByRole('row').filter({hasText:'Stock alert test'});assert(await row.locator('.bg-red-50').count());assert((await row.innerText()).includes('2.0000'));
+ await page.goto('http://localhost:3200/business-v2?tab=catalogue');await page.getByRole('cell',{name:'Stock alert test',exact:true}).waitFor();const row=page.getByRole('row').filter({hasText:'Stock alert test'});assert(await row.locator('.bg-red-50').count());assert.equal(await row.locator('td').nth(1).innerText(),'0');assert((await row.locator('td').nth(2).innerText()).startsWith('3'));assert((await row.innerText()).includes('Available stock: 2'));
  await page.locator('#catalogue-filter').selectOption('low');await page.getByRole('cell',{name:'Stock alert test',exact:true}).waitFor();
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export all results CSV',exact:true}).click();assert.equal((await download).suggestedFilename(),'products.csv');
  await page.locator('#catalogue-filter').selectOption('top');await page.getByRole('cell',{name:'Nothing here yet.',exact:true}).waitFor();

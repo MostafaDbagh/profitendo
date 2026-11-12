@@ -121,7 +121,7 @@ describe('tenant authorization', () => {
     expect((await write(`/${a}/members/${other.membershipId}`, { revision: 0, active: false }, ownerA)).status).toBe(404);
     const staff = await actor('CASHIER');
     expect((await write(`/${a}/members/${staff.membershipId}`, { revision: 0, role: 'OWNER' }, ownerA)).status).toBe(422);
-    expect((await write(`/${a}/members/${staff.membershipId}`, { revision: 0, permissionOverrides: { 'team.manage': true } }, ownerA)).status).toBe(422);
+    expect((await write(`/${a}/members/${staff.membershipId}`, { revision: 0, permissionOverrides: { 'billing.manage': true } }, ownerA)).status).toBe(422);
     expect((await write(`/${a}/members/${staff.membershipId}`, { revision: 0, permissionOverrides: { 'unknown.permission': true } }, ownerA)).status).toBe(422);
     expect((await write(`/${a}/members/${ownerA.membershipId}`, { revision: 0, active: false }, ownerA)).status).toBe(403);
     expect((await db.membership.findUniqueOrThrow({ where: { id: other.membershipId } })).disabledAt).toBeNull();
@@ -190,4 +190,22 @@ describe('personal dashboard preferences', () => {
     expect((await write(`/${a}/preferences`, {hiddenTabs:[],userId:ownerB.id}, ownerA)).status).toBe(422);
     expect((await write(`/${a}/preferences`, {hiddenTabs:[]}, ownerA)).body.hiddenTabs).toEqual([]);
   });
+});
+describe('delegated permission administrators',()=>{
+ it('allows an owner to delegate, limits grants, protects peers and self, and audits changes',async()=>{
+  let manager=await actor('OPERATIONS_MANAGER'),staff=await actor('CASHIER');
+  expect((await write(`/${a}/members/${staff.membershipId}`,{revision:0,permissionOverrides:{'catalogue.create':true}},manager)).status).toBe(403);
+  expect((await write(`/${a}/members/${manager.membershipId}`,{revision:0,permissionOverrides:{'team.manage':true,'catalogue.cost':false}},ownerA)).status).toBe(200);
+  manager={...await session(manager.id),membershipId:manager.membershipId};
+  const members=await get(`/${a}/members`,manager);expect(members.status).toBe(200);expect(members.body.permissionKeys).toContain('catalogue.create');expect(members.body.permissionKeys).not.toContain('team.manage');
+  expect((await write(`/${a}/members/${staff.membershipId}`,{revision:0,permissionOverrides:{'catalogue.cost':true}},manager)).status).toBe(403);
+  expect((await write(`/${a}/members/${staff.membershipId}`,{revision:0,permissionOverrides:{'team.manage':true}},manager)).status).toBe(403);
+  expect((await write(`/${a}/members/${manager.membershipId}`,{revision:1,active:false},manager)).status).toBe(403);
+  expect((await write(`/${a}/members/${ownerA.membershipId}`,{revision:0,active:false},manager)).status).toBe(403);
+  const result=await write(`/${a}/members/${staff.membershipId}`,{revision:0,permissionOverrides:{'catalogue.create':true,'catalogue.edit':false,'returns.approve':true}},manager);
+  expect(result.status,result.text).toBe(200);expect(result.body.permissions['catalogue.create']).toBe(true);expect(result.body.permissions['catalogue.edit']).toBe(false);
+  expect((await get(`/${a}`,staff)).status).toBe(401);
+  expect(await db.authAudit.count({where:{userId:manager.id,targetId:staff.membershipId,action:'membership.updated'}})).toBe(1);
+  const other=await actor('CASHIER',b);expect((await write(`/${a}/members/${other.membershipId}`,{revision:0,active:false},manager)).status).toBe(404);
+ });
 });

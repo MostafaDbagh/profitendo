@@ -30,6 +30,10 @@ export const PERMISSIONS = {
   'receiving.create': { ownerOnly: false },
   'receiving.confirm': { ownerOnly: false },
   'catalogue.view': { ownerOnly: false },
+  'catalogue.create': { ownerOnly: false },
+  'catalogue.edit': { ownerOnly: false },
+  'suppliers.create': { ownerOnly: false },
+  'suppliers.edit': { ownerOnly: false },
   'catalogue.manage': { ownerOnly: false },
   'catalogue.cost': { ownerOnly: false },
   'billing.manage': { ownerOnly: true },
@@ -39,7 +43,7 @@ export const PERMISSIONS = {
   'business.view': { ownerOnly: false },
   'business.edit': { ownerOnly: true },
   'team.view': { ownerOnly: false },
-  'team.manage': { ownerOnly: true },
+  'team.manage': { ownerOnly: false },
   'invitations.manage': { ownerOnly: true },
   'roles.view': { ownerOnly: false },
   'audit.view': { ownerOnly: false },
@@ -55,11 +59,12 @@ export const ROLE_DEFAULTS: Record<MembershipRole, readonly Permission[]> = {
   CASHIER: ['returns.view','returns.create','sales.view','sales.create','business.view', 'locations.view', 'catalogue.view'],
   VIEWER: ['reports.view','transfers.view','inventory.view','business.view', 'locations.view', 'catalogue.view'],
 };
+const inherited: Partial<Record<Permission,Permission>> = {'catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
 export function effectivePermissions(role: MembershipRole, overrides: Prisma.JsonValue) {
   const changes = overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {};
   return Object.fromEntries(permissionKeys.map(key => [key,
     role === 'OWNER' ? true : PERMISSIONS[key].ownerOnly ? false
-      : typeof changes[key] === 'boolean' ? changes[key] : ROLE_DEFAULTS[role].includes(key),
+      : typeof changes[key] === 'boolean' ? changes[key] : inherited[key] ? (typeof changes[inherited[key]!] === 'boolean' ? changes[inherited[key]!] : ROLE_DEFAULTS[role].includes(inherited[key]!)) : ROLE_DEFAULTS[role].includes(key),
   ])) as Record<Permission, boolean>;
 }
 export function roleCatalog() {

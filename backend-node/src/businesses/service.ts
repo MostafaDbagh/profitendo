@@ -3,7 +3,7 @@ import type { AuthService, AuthContext } from '../auth/service.js';
 import { requireMemberCapacity } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
 import { requireBusiness } from './access.js';
-import { effectivePermissions, PERMISSIONS, roleCatalog, type Permission } from './permissions.js';
+import { effectivePermissions, PERMISSIONS, permissionKeys, roleCatalog, type Permission } from './permissions.js';
 export type Page = { page: number; pageSize: number };
 export type BusinessPatch = { revision: number; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
 export type MemberPatch = { revision: number; role?: 'OPERATIONS_MANAGER' | 'WAREHOUSE_STAFF' | 'SHOP_MANAGER' | 'CASHIER' | 'VIEWER'; permissionOverrides?: Partial<Record<Permission, boolean>>; active?: boolean };
@@ -54,24 +54,31 @@ export class BusinessService {
   }
   async members(ctx: AuthContext, businessId: string, paging: Page) {
     return this.auth.transaction(async tx => {
-      const { permissions } = await requireBusiness(this.auth, tx, ctx, businessId, 'team.view');
+      const { permissions, membership: actor } = await requireBusiness(this.auth, tx, ctx, businessId, 'team.view');
       const where = { businessId };
       const rows = await tx.membership.findMany({ where, skip: (paging.page - 1) * paging.pageSize, take: paging.pageSize, orderBy: { id: 'asc' },
         select: { id: true, role: true, disabledAt: true, revision: true, permissionOverrides: true, user: { select: { id: true, name: true, email: true, disabledAt: true } } } });
-      return { ...paging, total: await tx.membership.count({ where }), items: rows.map(row => ({
+      return { ...paging, permissionKeys: permissions['team.manage'] ? permissionKeys.filter(key=>!PERMISSIONS[key].ownerOnly && (actor.role==='OWNER'||key!=='team.manage')) : [], roleDefaults: permissions['team.manage'] ? roleCatalog() : [], total: await tx.membership.count({ where }), items: rows.map(row => ({
+        canEdit: permissions['team.manage'] && row.role!=='OWNER' && (actor.role==='OWNER'||row.user.id!==ctx.user.id&&!effectivePermissions(row.role,row.permissionOverrides)['team.manage']),
         id: row.id, userId: row.user.id, name: row.user.name, email: row.user.email, role: row.role,
         active: !row.disabledAt, accountDisabled: !!row.user.disabledAt, revision: row.revision,
-        // Only owners managing permissions need the stored per-user overrides.
+        // Only authorized permission administrators receive stored overrides.
         ...(permissions['team.manage'] ? { permissionOverrides: row.permissionOverrides, permissions: effectivePermissions(row.role, row.permissionOverrides) } : {}),
       })) };
     });
   }
   async updateMember(ctx: AuthContext, businessId: string, memberId: string, patch: MemberPatch) {
     return this.auth.transaction(async tx => {
-      await requireBusiness(this.auth, tx, ctx, businessId, 'team.manage');
+      const actor = await requireBusiness(this.auth, tx, ctx, businessId, 'team.manage');
       const member = await tx.membership.findFirst({ where: { id: memberId, businessId }, include: { user: { select: { disabledAt: true } } } });
       if (!member) throw missing();
       if (member.role === 'OWNER') throw new ApiError(403, 'OWNER_PROTECTED', 'Owner membership cannot be changed here');
+      if(actor.membership.role!=='OWNER'){
+        const before=effectivePermissions(member.role,member.permissionOverrides);
+        if(member.userId===ctx.user.id||before['team.manage']||patch.permissionOverrides?.['team.manage']!==undefined)throw new ApiError(403,'FORBIDDEN','Only the owner may change delegated administrators');
+        const after=effectivePermissions(patch.role??member.role,patch.permissionOverrides??(patch.role?{}:member.permissionOverrides));
+        if(permissionKeys.some(key=>after[key]&&!actor.permissions[key]&&(!before[key]||patch.active&&member.disabledAt)))throw new ApiError(403,'FORBIDDEN','Cannot grant permissions beyond your own access');
+      }
       if (member.revision !== patch.revision) throw conflict();
       if (patch.active && member.user.disabledAt) throw new ApiError(409, 'ACCOUNT_DISABLED', 'The platform account is disabled');
       if (patch.active && member.disabledAt) await requireMemberCapacity(tx, businessId);

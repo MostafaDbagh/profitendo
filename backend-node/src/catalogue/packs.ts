@@ -33,7 +33,7 @@ export class PackService {
   }
   async create(ctx:AuthContext,businessId:string,productId:string,input:z.infer<typeof packSchema>){
     try{return await this.auth.transaction(async tx=>{
-      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit');
       const product=await tx.product.findFirst({where:{businessId,id:productId}});
       if(!product)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
       if(!product.active)throw new ApiError(409,'PRODUCT_INACTIVE','Product is inactive');
@@ -49,7 +49,7 @@ export class PackService {
   }
   async retire(ctx:AuthContext,businessId:string,productId:string,id:string){
     return this.auth.transaction(async tx=>{
-      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit');
       const pack=await tx.productPack.findFirst({where:{id,businessId,productId}});
       if(!pack)throw new ApiError(404,'PACK_NOT_FOUND','Pack not found');
       if(pack.retiredAt)return {ok:true};

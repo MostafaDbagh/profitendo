@@ -132,3 +132,12 @@ it('manages tenant units and images, and retires packs without rewriting history
  expect((await get(`${path}/packs`)).body.items[0].retiredAt).toBeTruthy();
  expect((await write(`${path}/packs/${pack.body.id}/convert`,{quantity:'2'})).body.baseQuantity).toBe('24.0000');
 });
+it('enforces add and edit product grants independently at the API',async()=>{
+ const creator=await actor('CASHIER');
+ await db.membership.updateMany({where:{userId:creator.user.id,businessId:business},data:{permissionOverrides:{'catalogue.create':true,'catalogue.edit':false,'catalogue.cost':true}}});
+ const made=await write('',input(`GRANT-${randomUUID().slice(0,8)}`,[]),creator);expect(made.status,made.text).toBe(201);
+ expect((await write(`/${made.body.id}`,{revision:0,name:'Denied edit'},creator,'patch')).status).toBe(403);
+ await db.membership.updateMany({where:{userId:creator.user.id,businessId:business},data:{permissionOverrides:{'catalogue.create':false,'catalogue.edit':true,'catalogue.cost':true}}});
+ expect((await write('',input(`DENY-${randomUUID().slice(0,8)}`,[]),creator)).status).toBe(403);
+ expect((await write(`/${made.body.id}`,{revision:0,name:'Allowed edit'},creator,'patch')).status).toBe(200);
+});
