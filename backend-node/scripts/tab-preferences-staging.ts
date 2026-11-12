@@ -11,8 +11,8 @@ const origin=process.env.APP_ORIGIN!;
 const folder='../tmp/tab-order-design';await mkdir(folder,{recursive:true});
 try {
  await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});
- await page.goto(origin+'/auth-v2');await page.locator('#v2-email').fill('owner-trial@demo.example.test');await page.locator('#v2-password').fill(process.env.SEED_PASSWORD!);await page.locator('[data-testid="auth-v2-form"] button[type="submit"]').click();await page.locator('#v2-code').fill('123456');await page.locator('[data-testid="auth-v2-form"] button[type="submit"]').click();await page.getByTestId('business-dashboard').waitFor();
- await page.goto(origin+'/business-v2?tab=settings');const form=page.getByTestId('tab-preferences');await form.waitFor();
+ await page.goto(origin+'/auth-v2',{waitUntil:'domcontentloaded',timeout:60000});await page.locator('#v2-email').fill('owner-trial@demo.example.test');await page.locator('#v2-password').fill(process.env.SEED_PASSWORD!);await page.locator('[data-testid="auth-v2-form"] button[type="submit"]').click();await page.locator('#v2-code').fill('123456');await page.locator('[data-testid="auth-v2-form"] button[type="submit"]').click();await page.getByTestId('business-dashboard').waitFor();
+ await page.getByRole('link',{name:'Settings & tab configuration',exact:true}).click();const form=page.getByTestId('tab-preferences');await form.waitFor();
  const originalOrder=await form.locator('[data-tab-key]').evaluateAll(els=>els.map(el=>el.getAttribute('data-tab-key')!));
  const original=await form.getByRole('checkbox').evaluateAll(els=>els.map(el=>(el as HTMLInputElement).checked));
  async function save(){const response=page.waitForResponse(r=>r.url().endsWith('/preferences')&&r.request().method()==='PATCH');await form.getByRole('button',{name:'Save changes',exact:true}).click();assert.equal((await response).status(),200);}
