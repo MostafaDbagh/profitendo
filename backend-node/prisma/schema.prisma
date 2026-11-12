@@ -52,6 +52,7 @@ model AuthUser {
 model Business {
   id           String @id @default(uuid()) @db.Uuid
   name         String
+  salesTaxRate Decimal @default(0) @map("sales_tax_rate") @db.Decimal(7,4)
   baseCurrency String @default("USD") @map("base_currency")
   timezone     String @default("UTC")
   dateFormat   String @default("dmy") @map("date_format")
@@ -650,6 +651,8 @@ model Sale {
   currencyDigits Int @map("currency_digits")
   customerName String @default("") @map("customer_name")
   notes String @default("")
+  taxRate Decimal @default(0) @map("tax_rate") @db.Decimal(7,4)
+  tax Decimal @default(0) @db.Decimal(18,4)
   subtotal Decimal @db.Decimal(18,4)
   discount Decimal @db.Decimal(18,4)
   total Decimal @db.Decimal(18,4)
@@ -692,6 +695,7 @@ model SaleLine {
   baseQuantity Decimal @map("base_quantity") @db.Decimal(18,4)
   unitPrice Decimal @map("unit_price") @db.Decimal(18,4)
   unitCost Decimal @map("unit_cost") @db.Decimal(18,4)
+  tax Decimal @default(0) @db.Decimal(18,4)
   gross Decimal @db.Decimal(18,4)
   discount Decimal @db.Decimal(18,4)
   discountReason String @default("") @map("discount_reason")
@@ -764,6 +768,7 @@ model AdjustmentLine {
  expected Decimal @default(0) @db.Decimal(18,4)
  snapshotToken String? @map("snapshot_movement_id") @db.Uuid
  delta Decimal @default(0) @db.Decimal(18,4)
+ tax Decimal @default(0) @db.Decimal(18,4)
  amount Decimal @default(0) @db.Decimal(18,4)
  unitCost Decimal @default(0) @map("unit_cost") @db.Decimal(18,4)
  document Adjustment @relation(fields:[businessId,documentId],references:[businessId,id],onDelete:Restrict)

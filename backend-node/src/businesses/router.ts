@@ -9,6 +9,7 @@ import { BusinessService } from './service.js';
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) }).strict();
 const currency = z.enum(['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY']);
 const businessPatch = z.object({
+  salesTaxRate: z.string().regex(/^(0|[1-9]\d?)(\.\d{1,4})?$|^100(?:\.0{1,4})?$/).optional(),
   revision: z.number().int().nonnegative(), name: z.string().trim().min(2).max(120).optional(), baseCurrency: currency.optional(),
   timezone: z.string().max(80).refine(v => { try { new Intl.DateTimeFormat('en', { timeZone: v }); return true; } catch { return false; } }).optional(),
   dateFormat: z.enum(['dmy','mdy','ymd']).optional(), numberFormat: z.enum(['western','european','arabic']).optional(),

@@ -6,7 +6,7 @@ import { ApiError } from '../errors.js';
 import { requireBusiness } from './access.js';
 import { effectivePermissions, PERMISSIONS, permissionKeys, roleCatalog, type Permission } from './permissions.js';
 export type Page = { page: number; pageSize: number };
-export type BusinessPatch = { revision: number; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
+export type BusinessPatch = { revision: number; salesTaxRate?: string; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
 export type MemberPatch = { revision: number; customRoleId?: string | null; role?: 'OPERATIONS_MANAGER' | 'WAREHOUSE_STAFF' | 'SHOP_MANAGER' | 'CASHIER' | 'VIEWER'; permissionOverrides?: Partial<Record<Permission, boolean>>; active?: boolean };
 const conflict = () => new ApiError(409, 'REVISION_CONFLICT', 'This record changed. Reload it before saving.');
 const missing = () => new ApiError(404, 'NOT_FOUND', 'Record not found');

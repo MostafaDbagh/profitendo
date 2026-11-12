@@ -537,3 +537,23 @@ remain unchanged. Before/after captures: `tmp/billing-restyle-before` and
 `tmp/team-billing-e2e`. Browser integration verified trial activation, invitation
 acceptance, capacity limits, paid approval requests, MFA setup guidance, and
 active/expired Arabic/English views at 390/1440 pixels; no real mail or payments.
+
+## Configurable sales tax (2026-11-12)
+
+Business Settings adds a percentage field using the existing Field component,
+white panel and emerald save action, with Arabic/English helper text. Zero
+means disabled. Sales receipts show the saved tax rate and amount between the
+discount and paid total. Existing shell and layouts are preserved. Captured
+baseline and updated settings/receipts at 320/390/768/1024/1440px in both languages:
+`tmp/tax-design`. Browser checks verify persistence, invalid-rate blocking and
+no overflow/page errors. Backend coverage verifies permissions, snapshots,
+partial returns and profit exclusion; migration is required before deployment.
+
+## Password visibility (2026-11-12)
+
+Shared auth-v2 Field now provides a Lucide eye/eye-off button for password inputs.
+Passwords start masked; each field toggles independently. The trailing control
+has localized accessible labels, keyboard focus, and type="button" to avoid form
+submission. Reserve space on the actual trailing side in Arabic, including inputs
+with explicit LTR value direction. Existing input styling is retained. Login
+before/after screenshots and AR/EN desktop/mobile checks: `tmp/password-toggle`.

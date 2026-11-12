@@ -1,3 +1,4 @@
+import { exclusiveTax } from './tax.js';
 import { lockCash } from '../finance/cash.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService, Tx } from '../auth/service.js';
@@ -36,7 +37,7 @@ export class SalesService{
   if(doc.status!=='DRAFT')fail('SALE_STATE');if(doc.revision!==revision)fail('REVISION_CONFLICT');
  }
  private async price(tx:Tx,bid:string,input:SalePatch['lines'],access:Access){
-  const digits=currencyDigits(access.business.baseCurrency),lines=[];let subtotal=0n,discount=0n;
+  const digits=currencyDigits(access.business.baseCurrency),lines=[],taxRate=access.business.salesTaxRate.toFixed(4);let subtotal=0n,discount=0n,tax=0n;
   for(const entry of input){
    const p=await tx.product.findFirst({where:{businessId:bid,id:entry.productId,active:true},include:{barcodes:true,packs:true}});if(!p)fail('PRODUCT_INACTIVE');
    const pack=entry.packId?p.packs.find(p=>p.id===entry.packId&&!p.retiredAt):null;if(entry.packId&&!pack)fail('PACK_NOT_FOUND',404);
@@ -44,9 +45,10 @@ export class SalesService{
    if(reduction>0n){if(!access.permissions['sales.discount'])fail('FORBIDDEN',403);if(entry.discountReason.length<5)fail('DISCOUNT_REASON_REQUIRED',422);}
    if(reduction>scaled(gross))fail('DISCOUNT_EXCEEDED',422);
    subtotal+=scaled(gross);discount+=reduction;
-   lines.push({businessId:bid,productId:p.id,packId:entry.packId,unitKey:entry.packId??'BASE',sku:p.sku,name:p.name,unit:p.unit,barcodes:p.barcodes.map(b=>b.value),packName:pack?.name??null,factor,quantity:entry.quantity,baseQuantity,unitPrice:p.sellingPrice.toFixed(4),unitCost:p.purchasePrice.toFixed(4),gross,discount:checked(reduction),discountReason:entry.discountReason,total:checked(scaled(gross)-reduction)});
+   const lineTax=exclusiveTax(checked(scaled(gross)-reduction),taxRate,digits);tax+=scaled(lineTax);
+   lines.push({businessId:bid,productId:p.id,packId:entry.packId,unitKey:entry.packId??'BASE',sku:p.sku,name:p.name,unit:p.unit,barcodes:p.barcodes.map(b=>b.value),packName:pack?.name??null,factor,quantity:entry.quantity,baseQuantity,unitPrice:p.sellingPrice.toFixed(4),unitCost:p.purchasePrice.toFixed(4),gross,discount:checked(reduction),discountReason:entry.discountReason,tax:lineTax,total:checked(scaled(gross)-reduction+scaled(lineTax))});
   }
-  return {lines,subtotal:checked(subtotal),discount:checked(discount),total:checked(subtotal-discount),currency:access.business.baseCurrency,currencyDigits:digits,expiresAt:new Date(Date.now()+15*60*1000)};
+  return {lines,taxRate,tax:checked(tax),subtotal:checked(subtotal),discount:checked(discount),total:checked(subtotal-discount+tax),currency:access.business.baseCurrency,currencyDigits:digits,expiresAt:new Date(Date.now()+15*60*1000)};
  }
  async products(ctx:AuthContext,bid:string,q:{locationId:string;page:number;search:string;barcode?:string}){
   return this.auth.transaction(async tx=>{

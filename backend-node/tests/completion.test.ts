@@ -317,3 +317,20 @@ it('treasury: payment pagination has no overlap and expense filter excludes cash
  expect(first.body.total).toBe(32);expect(first.body.items).toHaveLength(25);expect(second.body.items).toHaveLength(7);expect(empty.body.items).toHaveLength(0);expect(new Set([...first.body.items,...second.body.items].map(r=>r.id)).size).toBe(32);
  const expenses=await get(`/payments?locationId=${locationId}&kind=EXPENSE`);expect(expenses.body.total).toBe(31);expect(expenses.body.items.every((r:any)=>r.kind==='EXPENSE')).toBe(true);
 });
+it('refunds snapshotted tax across partial returns and excludes it from estimated profit',async()=>{
+ const day=new Date().toISOString().slice(0,10),summary=()=>get(`/reports?from=${day}&to=${day}`);
+ const before=(await summary()).body;
+ try{
+  await db.business.update({where:{id:business},data:{salesTaxRate:'5'}});
+  const sale=await sold('3','10'),line=sale.lines[0];expect(Number(sale.total)).toBe(31.5);
+  const after=(await summary()).body;expect(Number(after.estimatedProfit)-Number(before.estimatedProfit)).toBeCloseTo(30-29.63,4);
+  await db.business.update({where:{id:business},data:{salesTaxRate:'20'}});
+  let refunded=0,tax=0;
+  for(let i=0;i<3;i++){
+   const ret=await adjustment('CUSTOMER_RETURN',[{productId:line.productId,sourceLineId:line.id,quantity:'1'}],{sourceId:sale.id});
+   const approved=await approve(ret);expect(approved.status,approved.text).toBe(200);refunded+=Number(approved.body.total);tax+=Number(approved.body.lines[0].tax);
+  }
+  expect(refunded).toBe(31.5);expect(tax).toBe(1.5);
+  const final=(await summary()).body;expect(Number(final.netSales)).toBe(Number(before.netSales));
+ }finally{await db.business.update({where:{id:business},data:{salesTaxRate:'0'}});}
+});

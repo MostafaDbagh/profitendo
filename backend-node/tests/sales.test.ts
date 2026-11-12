@@ -159,3 +159,22 @@ it('requires a separate delete permission to cancel drafts while preserving edit
   expect((await write(`/${d.id}/cancel`,{revision:0,confirm:true},cashier)).status).toBe(200);
  } finally {await db.membership.update({where:{id:member.id},data:{permissionOverrides:member.permissionOverrides!}});}
 });
+
+it('configures tax per business, validates access and snapshots discounted tax on quotes and receipts',async()=>{
+ const configure=async(value:unknown,who=owner,bid=business,revision?:number)=>request(app).patch(`/api/businesses/${bid}`).set('Cookie',cookie(who)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,who.token)).send({revision:revision??(await db.business.findUniqueOrThrow({where:{id:bid}})).revision,salesTaxRate:value});
+ try{
+  for(const who of [cashier,foreign,admin])expect((await configure('5',who)).status).toBe(403);
+  for(const rate of ['-1','100.0001','1e2','5.12345','',5,null])expect((await configure(rate)).status).toBe(422);
+  expect((await configure('5')).status).toBe(200);
+  expect((await db.business.findUniqueOrThrow({where:{id:other}})).salesTaxRate.toString()).toBe('0');
+  const p=await funded(),d=await draft({lines:[{productId:p,quantity:'2',discount:'4',discountReason:'Test discount'}]});
+  expect(Number(d.subtotal)).toBe(24);expect(Number(d.tax)).toBe(1);expect(Number(d.total)).toBe(21);expect(Number(d.lines[0].tax)).toBe(1);
+  const rev=(await db.business.findUniqueOrThrow({where:{id:business}})).revision;
+  expect((await configure('10')).status).toBe(200);expect((await configure('15',owner,business,rev)).status).toBe(409);
+  const completed=await checkout(d);expect(completed.status,completed.text).toBe(200);expect(Number(completed.body.taxRate)).toBe(5);expect(Number(completed.body.payment.amount)).toBe(21);
+  const next=await draft({lines:[{productId:p,quantity:'1'}]});expect(Number(next.tax)).toBe(1.2);
+  expect((await configure('0')).status).toBe(200);
+  const refreshed=await write(`/${next.id}`,{revision:next.revision,lines:[{productId:p,quantity:'1'}]},owner,'patch');expect(refreshed.status).toBe(200);expect(Number(refreshed.body.tax)).toBe(0);expect(Number(refreshed.body.total)).toBe(12);
+  expect(Number((await get(`/${d.id}`)).body.tax)).toBe(1);
+ }finally{await configure('0');}
+});

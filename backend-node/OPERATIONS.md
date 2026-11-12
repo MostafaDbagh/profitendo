@@ -138,3 +138,21 @@ reports and migration/pilot. This batch does not implement payments, tax handlin
 valuation reports, serial/batch/expiry tracking, offline posting or supplier return
 documents. Service 7 images, managed categories/units and pack UI remain separately
 pending. Billing lifecycle and commercial rollout gates remain unchanged.
+
+### Configurable sales tax
+
+Business Settings exposes `salesTaxRate` (0–100%, up to four decimal places).
+Only members with `business.edit` can update it through the revision-checked,
+audited business PATCH endpoint. Zero disables tax and is the migration default
+for existing businesses and historical documents.
+
+Prices are tax-exclusive. Sales calculate tax after each line's discount, round
+half-up at the sale currency's precision, and snapshot the rate and line/document
+tax amounts. New and repriced drafts use the current setting; an existing quote
+keeps its rate until repriced, and completed receipts never change. Checkout and
+payments use the tax-inclusive total. Customer returns allocate original tax
+cumulatively across refunds; estimated profit excludes collected tax and adds
+back returned tax. This setting is for business sales, not platform subscriptions.
+
+Deploy the new Prisma migration before running the updated API. Integration
+coverage is in `sales.test.ts`, `completion.test.ts`, and `tax.test.ts`.

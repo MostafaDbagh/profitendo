@@ -10,8 +10,8 @@ export default function Settings({ context, api, c, reload, onName }) {
   const save = async event => {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
-      const { revision, name, baseCurrency, timezone, dateFormat, numberFormat } = form;
-      const updated = await api(`/businesses/${business.id}`, { method: 'PATCH', body: { revision, name, baseCurrency, timezone, dateFormat, numberFormat } });
+      const { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate } = form;
+      const updated = await api(`/businesses/${business.id}`, { method: 'PATCH', body: { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate } });
       setForm(updated); onName(updated.name); setNotice('saved');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
@@ -22,6 +22,7 @@ export default function Settings({ context, api, c, reload, onName }) {
     <fieldset disabled={!editable || busy || error === 'REVISION_CONFLICT'} className="grid sm:grid-cols-2 gap-5 disabled:opacity-75">
       <div className="sm:col-span-2"><Field id="business-name" label={c('business')} placeholder={c('businessPlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required /></div>
       <div><Select id="business-currency" label={c('currency')} value={form.baseCurrency} onChange={set('baseCurrency')} disabled={!!business.currencyLockedAt}>{currencies.map(v => <option key={v}>{v}</option>)}</Select><p className="text-xs text-slate-500 mt-1.5">{c('currencyHint')}</p></div>
+      <div><Field id="business-tax" label={c('salesTaxRate')} type="number" dir="ltr" min="0" max="100" step="0.0001" value={form.salesTaxRate ?? '0'} onChange={set('salesTaxRate')} required aria-describedby="business-tax-hint" /><p id="business-tax-hint" className="text-xs text-slate-500 mt-1.5">{c('salesTaxHint')}</p></div>
       <Field id="business-timezone" label={c('timezone')} placeholder={c('timezonePlaceholder')} dir="ltr" value={form.timezone} onChange={set('timezone')} maxLength={80} required />
       <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
