@@ -21,9 +21,9 @@ export class FinanceService{
   if(kind==='SUPPLIER'){const b=await supplierBalance(tx,bid,id),a=await requireLocation(this.auth,tx,ctx,bid,b.doc.locationId,'payments.view',false);if(!a.permissions['catalogue.cost']||!a.permissions['purchasing.view'])fail('FORBIDDEN',403);return {id,locationId:b.doc.locationId,reference:b.doc.reference,currency:b.doc.currency,currencyDigits:currencyDigits(b.doc.currency),gross:checked(b.gross),credit:checked(b.credits),paid:checked(b.paid),refunded:checked(b.refunded),outstanding:checked(b.outstanding),refundDue:checked(b.refundDue)};}
   const b=await refundBalance(tx,bid,id);await requireLocation(this.auth,tx,ctx,bid,b.doc.locationId,'payments.view',false);return {id,locationId:b.doc.locationId,reference:b.doc.reference,currency:b.doc.currency,currencyDigits:b.doc.currencyDigits,total:b.doc.total,paid:checked(b.paid),outstanding:checked(b.remaining)};
  });}
- async list(ctx:AuthContext,bid:string,page:number,locationId?:string){return this.auth.transaction(async tx=>{
+ async list(ctx:AuthContext,bid:string,page:number,locationId?:string,kind?:'EXPENSE'){return this.auth.transaction(async tx=>{
   const {where,access}=await locationScope(this.auth,tx,ctx,bid,'payments.view');if(locationId)await requireLocation(this.auth,tx,ctx,bid,locationId,'payments.view',false);
-  const filter={...where,...(locationId?{locationId}:{}),...(!access.permissions['catalogue.cost']||!access.permissions['purchasing.view']?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
+  const filter={...where,...(kind?{kind}:{}),...(locationId?{locationId}:{}),...(!kind&&(!access.permissions['catalogue.cost']||!access.permissions['purchasing.view'])?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
   return {page,pageSize:25,total:await tx.moneyEntry.count({where:filter}),items:(await tx.moneyEntry.findMany({where:filter,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{location:{select:{name:true}}}})).map(({clientKey,requestHash,...e})=>e)};
  });}
  async create(ctx:AuthContext,bid:string,input:PaymentInput,retry=true):Promise<{id:string}>{try{return await this.auth.transaction(async tx=>{

@@ -421,3 +421,26 @@ localized, keyboard-accessible up/down buttons. The stored order is per
 membership; visibility and permission filtering remain independent. Essential
 tabs can move but cannot be hidden. Unknown/new tabs append in default order.
 Verification artifacts: tmp/tab-order-design, both languages at five widths.
+
+User refinement: Security and Settings are pinned as the last two navigation
+items, in that order, and their top-header duplicates are removed for active
+business workspaces. Their customization rows remain visible with disabled move
+controls and a bilingual “Pinned to bottom” hint. Other tabs remain reorderable.
+
+Owner navigation simplification: after Reports, use Products, Sales, Purchases,
+Inventory, Returns, Expenses, Treasury (المنتجات، المبيعات، المشتريات، المخزون،
+المرتجعات، المصروفات، الخزينة). Match existing Lucide outline icons. Expenses
+uses the payments permission and an expense-only server-filtered list and form;
+Treasury retains payment history and cash closing. Saved orders are adjusted by
+an additive migration while remaining customizable. Security/Settings stay last.
+Verified exact Arabic labels/order and expense form in staging Chrome; financial
+integration suite: 23 passed. Screenshots: tmp/tab-order-design/simple-nav-*.
+
+Account security now includes optional MFA for subscribers/owners, per user
+request. Super Admin MFA remains mandatory. Existing enrolled accounts stay
+enrolled. Inline panels reuse shared fields/buttons and show QR/manual secret,
+six ASCII digit verification and one-time recovery codes. Disable requires the
+current password and authenticator code; rotates the session, clears recovery
+codes and revokes other sessions. Browser verification used a disposable staging
+owner (cleaned up), covering enable/QR/recovery/disable and AR/EN desktop/mobile;
+artifacts tmp/mfa-settings-design. Auth integration tests: 19 passed.

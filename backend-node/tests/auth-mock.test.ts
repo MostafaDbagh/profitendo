@@ -46,7 +46,7 @@ it('limits incorrect email code attempts',async()=>{const otp=await code(`missin
 it('enrolls via QR, requires MFA, rotates sessions and resets passwords through a one-time grant',async()=>{
  const u=await register();await post('/mock-code/confirm',await code(u.email));
  expect((await post('/login',{email:u.email,password:'incorrect'})).status).toBe(401);
- const login=await post('/login',{email:u.email,password:pass});expect(login.body.stage).toBe('mfa_setup_required');const pending=session(login);
+ const login=await post('/login',{email:u.email,password:pass});expect(login.body.stage).toBe('authenticated');const pending=session(login);
  expect((await post('/mfa/confirm',{code:'123456'},pending)).status).toBe(409);
  const setup=await post('/mfa/setup',{password:pass},pending);expect(setup.body.uri).toMatch(/^otpauth:\/\/totp\//);expect(setup.body.qrCode).toMatch(/^data:image\/png;base64,/);expect(setup.body.uri).toContain(setup.body.secret);
  const png=await sharp(Buffer.from(setup.body.qrCode.split(',')[1],'base64')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
@@ -64,4 +64,19 @@ it('enrolls via QR, requires MFA, rotates sessions and resets passwords through 
  expect((await request(app).get('/api/auth/me').set('Cookie',full.cookie)).status).toBe(401);
  expect((await post('/login',{email:u.email,password:pass})).status).toBe(401);
  expect((await post('/login',{email:u.email,password:pass+' new'})).body.stage).toBe('mfa_required');
+});
+it('allows optional owner MFA and safely disables it while protecting platform admins',async()=>{
+ const u=await register();await post('/mock-code/confirm',await code(u.email));
+ const login=await post('/login',{email:u.email,password:pass});expect(login.body.stage).toBe('authenticated');expect(login.body.mfaEnabled).toBe(false);
+ const initial=session(login);await post('/mfa/setup',{password:pass},initial);const enabled=await post('/mfa/confirm',{code:'123456'},initial);expect(enabled.body.mfaEnabled).toBe(true);const full=session(enabled);
+ expect((await post('/mfa/disable',{password:'wrong',code:'123456'},full)).status).toBe(401);
+ expect((await post('/mfa/disable',{password:pass,code:'12345'},full)).status).toBe(422);
+ expect((await post('/mfa/disable',{password:pass,code:'000000'},full)).status).toBe(401);
+ await db.authUser.update({where:{id:u.id},data:{platformRole:'SUPER_ADMIN'}});
+ expect((await post('/mfa/disable',{password:pass,code:'123456'},full)).status).toBe(403);
+ await db.authUser.update({where:{id:u.id},data:{platformRole:'USER'}});
+ const disabled=await post('/mfa/disable',{password:pass,code:'123456'},full);expect(disabled.status).toBe(200);expect(disabled.body.mfaEnabled).toBe(false);expect(disabled.body.stage).toBe('authenticated');
+ expect((await request(app).get('/api/auth/me').set('Cookie',full.cookie)).status).toBe(401);
+ const user=await db.authUser.findUniqueOrThrow({where:{id:u.id}});expect(user.mfaSecret).toBeNull();expect(user.recoveryHashes).toEqual([]);
+ expect((await post('/login',{email:u.email,password:pass})).body.stage).toBe('authenticated');
 });

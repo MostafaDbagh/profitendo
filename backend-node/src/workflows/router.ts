@@ -21,7 +21,7 @@ export function completionRouter(auth:AuthService){
  r.get('/adjustments/:id',async(req,res)=>res.json(await workflow.read(ctx(res),bid(req),id(req))));
  r.post('/adjustments',validateBody(adjustmentSchema),async(req,res)=>res.status(201).json(await workflow.create(ctx(res),bid(req),req.body)));
  r.post('/adjustments/:id/status',validateBody(adjustmentAction),async(req,res)=>res.json(await workflow.transition(ctx(res),bid(req),id(req),req.body)));
- r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId));});
+ r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional(),kind:z.literal('EXPENSE').optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId,q.kind));});
  r.post('/payments',validateBody(paymentSchema),async(req,res)=>res.status(201).json(await finance.create(ctx(res),bid(req),req.body)));
  r.get('/balances/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['SUPPLIER','CUSTOMER'])}).strict(),req.query);res.json(await finance.balance(ctx(res),bid(req),q.kind,id(req)));});
  r.get('/cash',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),day:z.iso.date()}).strict(),req.query);res.json(await finance.cash(ctx(res),bid(req),q.locationId,q.day));});

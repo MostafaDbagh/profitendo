@@ -85,6 +85,10 @@ export function authRouter(auth: AuthService) {
     await auth.changePassword(ctx(res), req.body.currentPassword, req.body.password);
     res.clearCookie(auth.settings.cookieName, cookieOptions).json({ ok: true });
   });
+  router.post('/mfa/disable', ...signedWrite, validateBody(z.object({ password: z.string().min(1).max(128), code: otpCode }).strict()), async (req,res) => {
+    await auth.limit('mfa', ctx(res).user.id, 10);
+    await sendSession(res, await auth.disableMfa(ctx(res), req.body.password, req.body.code));
+  });
   router.post('/mfa/setup', attach, csrf, validateBody(z.object({ password: z.string().max(128) }).strict()), async (req, res) => {
     await auth.limit('mfa', ctx(res).user.id, 10);
     const setup = await auth.beginMfa(ctx(res), req.body.password);

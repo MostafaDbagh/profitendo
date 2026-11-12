@@ -62,3 +62,6 @@ export const businessCopy = {
   },
 };
 export const staffRoles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGER', 'CASHIER', 'VIEWER'];
+
+Object.assign(businessCopy.ar, {catalogue:'المنتجات',sales:'المبيعات',purchases:'المشتريات',inventory:'المخزون',returns:'المرتجعات',expenses:'المصروفات',payments:'الخزينة'});
+Object.assign(businessCopy.en, {catalogue:'Products',sales:'Sales',purchases:'Purchases',inventory:'Inventory',returns:'Returns',expenses:'Expenses',payments:'Treasury'});

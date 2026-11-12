@@ -107,7 +107,9 @@ it('customer refunds are capped and payment recording never changes stock',async
 });
 it('expense and cash movements are immutable, require precise amounts and references',async()=>{
  expect((await pay('EXPENSE','1.001')).body.error.code).toBe('MONEY_PRECISION');expect((await pay('EXPENSE','2',{reference:''})).status).toBe(422);
- const r=await pay('EXPENSE','3');expect(r.status).toBe(201);await expect(db.moneyEntry.update({where:{id:r.body.id},data:{amount:'1'}})).rejects.toThrow();
+ const r=await pay('EXPENSE','3');expect(r.status).toBe(201);
+ const expenses=await get('/payments?kind=EXPENSE');expect(expenses.status).toBe(200);expect(expenses.body.items.length).toBeGreaterThan(0);expect(expenses.body.items.every((row:{kind:string})=>row.kind==='EXPENSE')).toBe(true);expect((await get('/payments?kind=INVALID')).status).toBe(422);
+await expect(db.moneyEntry.update({where:{id:r.body.id},data:{amount:'1'}})).rejects.toThrow();
 });
 it('cash closing reconciles opening/in/out, explains variances and blocks later cash only',async()=>{
  const {businessDay}=await import('../src/finance/cash.js'),b=await db.business.findUniqueOrThrow({where:{id:business}}),day=businessDay(new Date(),b.timezone);

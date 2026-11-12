@@ -55,7 +55,7 @@ async function owner(tag: string): Promise<Session> {
   const identity = await register(tag);
   expect((await post('/verification/confirm', { token: await findMail(identity.email, 'verify') })).status).toBe(200);
   const login = await post('/login', { email: identity.email, password: pass });
-  expect(login.body.stage).toBe('mfa_setup_required');
+  expect(login.body.stage).toBe('authenticated');
   const pending = { cookie: cookie(login), csrf: login.body.csrfToken };
   const setup = await post('/mfa/setup', { password: pass }, pending);
   expect(setup.status).toBe(200);
@@ -86,13 +86,13 @@ describe('authentication with real PostgreSQL', () => {
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/); expect(stored.passwordHash).not.toContain(pass);
     expect((await db.authToken.findFirstOrThrow({ where: { userId: u.userId } })).tokenHash).not.toBe(token);
   });
-  it('enforces owner MFA, rotates cookies, and guards authenticated writes with CSRF', async () => {
+  it('supports optional owner MFA, rotates cookies, and guards authenticated writes with CSRF', async () => {
     const u = await register('mfa');
     await post('/verification/confirm', { token: await findMail(u.email, 'verify') });
     const login = await post('/login', { email: u.email, password: pass });
     const pending = { cookie: cookie(login), csrf: login.body.csrfToken };
-    expect(login.body.memberships).toEqual([]);
-    expect((await post('/invitations', { businessId: u.businessId, email: 'a@example.test', role: 'CASHIER' }, pending)).status).toBe(403);
+    expect(login.body.memberships).toHaveLength(1);
+    expect((await post('/invitations', { businessId: u.businessId, email: 'a@example.test', role: 'CASHIER' }, { ...pending, csrf: 'wrong' })).status).toBe(403);
     expect((await post('/mfa/setup', { password: pass }, { ...pending, csrf: 'wrong' })).status).toBe(403);
     const setup = await post('/mfa/setup', { password: pass }, pending);
     const code = totp(setup.body.secret, u.email).generate();

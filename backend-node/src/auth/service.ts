@@ -101,7 +101,7 @@ export class AuthService {
     });
   }
   async requiresMfa(tx: Tx | PrismaClient, user: AuthUser) {
-    return !!user.mfaSecret || user.platformRole === 'SUPER_ADMIN' || !!await tx.membership.findFirst({ where: { userId: user.id, role: 'OWNER', disabledAt: null } });
+    return !!user.mfaSecret || user.platformRole === 'SUPER_ADMIN';
   }
   async makeSession(tx: Tx, user: AuthUser, mfaVerified = false) {
     const token = randomToken(), required = await this.requiresMfa(tx, user);
@@ -138,7 +138,7 @@ export class AuthService {
   async sessionResult(ctx: AuthContext) {
     const stage = this.stage(ctx);
     const memberships = stage === 'authenticated' ? await this.db.membership.findMany({ where: { userId: ctx.user.id, disabledAt: null, business: { suspendedAt: null } }, select: { businessId: true, role: true, business: { select: { name: true } } } }) : [];
-    return { user: publicUser(ctx.user), stage, memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
+    return { user: publicUser(ctx.user), stage, mfaEnabled: !!ctx.user.mfaSecret, mfaMandatory: ctx.user.platformRole === 'SUPER_ADMIN', memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
   }
   async assertSession(tx: Tx, ctx: AuthContext) {
     const user = await this.lockUser(tx, ctx.user.id);
@@ -169,6 +169,20 @@ export class AuthService {
       const result = await this.makeSession(tx, updated, true);
       await this.audit(tx, 'mfa.enabled', user.id);
       return { ...result, recoveryCodes };
+    });
+  }
+  async disableMfa(ctx: AuthContext, password: string, code: string) {
+    if (!await passwordMatches(ctx.user.passwordHash, password)) throw fail();
+    return this.transaction(async tx => {
+      const { user, session } = await this.assertSession(tx, ctx);
+      if (user.platformRole === 'SUPER_ADMIN') throw new ApiError(403, 'MFA_MANDATORY', 'MFA is required for platform administrators');
+      if (!session.mfaVerified || !user.mfaSecret || user.passwordHash !== ctx.user.passwordHash) throw fail();
+      const step = this.settings.mockOtp ? (code === '123456' ? 0 : null) : totpStep(decrypt(this.settings.key, user.mfaSecret, `mfa:${user.id}`), user.email, code);
+      if (step === null || (!this.settings.mockOtp && step <= user.mfaLastStep)) throw fail();
+      const updated = await tx.authUser.update({ where: { id: user.id }, data: { mfaSecret: null, mfaLastStep: -1, recoveryHashes: [], securityVersion: { increment: 1 } } });
+      await tx.authSession.deleteMany({ where: { userId: user.id } });
+      await this.audit(tx, 'mfa.disabled', user.id);
+      return this.makeSession(tx, updated);
     });
   }
   async verifyMfa(ctx: AuthContext, code: string) {
