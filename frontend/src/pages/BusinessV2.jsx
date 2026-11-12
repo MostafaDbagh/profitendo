@@ -1,3 +1,4 @@
+import {useTabScroll} from '../hooks/useTabScroll';
 import TabPreferences from '../components/business-v2/TabPreferences';
 import Dashboard from '../components/business-v2/Dashboard';
 import Security from '../components/business-v2/Security';
@@ -29,8 +30,8 @@ function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const { data: context, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [params,setParams]=useSearchParams();
   const [savedPreferences,setSavedPreferences]=useState(null);
-  const section=params.get('tab')||'dashboard',setSection=tab=>{setParams({tab});window.scrollTo({top:0,left:0,behavior:'instant'});};
-  useEffect(()=>{window.scrollTo({top:0,left:0,behavior:'instant'});},[section]);
+  const section=params.get('tab')||'dashboard',setSection=tab=>{setParams({tab});requestScroll();};
+  const {contentRef,requestScroll}=useTabScroll(section);
   useEffect(() => { if (context) onName(context.business.name); }, [context, onName]);
   if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <p role="status">{c('loading')}</p>}</div>;
   const tabOrder = savedPreferences?.tabOrder ?? context.tabOrder ?? [];
@@ -42,7 +43,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const Component = { dashboard:Dashboard,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, invitations: Invitations, audit: Audit }[current];
   return <div className="md:flex min-w-0">
     <nav aria-label={c('title')} className="md:w-72 shrink-0 bg-white border-b md:border-b-0 md:border-e border-slate-200 p-4 md:p-6"><div className="flex flex-wrap md:flex-col gap-2">{visible.map(([key, , Icon]) => <button key={key} type="button" aria-current={current === key ? 'page' : undefined} onClick={() => setSection(key)} className={`flex items-center gap-3 text-start px-4 py-3 rounded-xl border text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${key === 'security' ? 'mt-4 border-t border-slate-200' : ''} ${current === key ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'text-slate-600 border-transparent hover:bg-slate-50'}`}><Icon className="w-5 h-5" aria-hidden="true" />{c(key)}</button>)}</div></nav>
-    <main className="flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6">{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}<Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></div></main>
+    <main ref={contentRef} tabIndex={-1} className="outline-none flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6">{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}<Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></div></main>
   </div>;
 }
 export default function BusinessV2() {
