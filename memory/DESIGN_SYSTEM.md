@@ -488,3 +488,24 @@ content mounts; briefly suppress browser scroll anchoring while content sizes
 settle. Stop stabilization on wheel/touch/pointer/keyboard input to preserve
 intentional scrolling. Supplier regression checks include repeated selections,
 AR/EN desktop/mobile, delayed supplier responses and nested scroll containers.
+
+Tab selection now uses native smooth scrolling, with instant movement when the
+OS prefers reduced motion. Initial workspace mounting stays instant; selection
+starts scrolling after React commits, avoiding duplicate animation starts.
+
+Dashboard layout organization (user-requested, content/header scope only): moved
+business selection into the top bar, removed the duplicated large dashboard
+banner, and retained one content heading with business context. Monthly metrics
+use balanced spacing and tabular numbers; quick actions share a compact row.
+Navigation markup, labels, ordering and icons remain unchanged. Existing
+slate/white/emerald and Cairo/Outfit styling retained. AR/EN viewport checks and
+screenshots: tmp/tab-order-design/layout-*.
+
+Header refinement: business name is a compact emerald pill selector on the left,
+with an accessible label instead of a separate visible field label. Header stays
+one row on mobile; long names truncate. Language action and business switching
+remain available. AR/EN mobile/tablet/desktop overflow checks and build passed.
+
+User clarified the chip request targets the dashboard content heading: dashboard
+title at right and business-name emerald pill at left in one row, replacing the
+three stacked title/name/description lines. Verified AR/EN responsive layouts.

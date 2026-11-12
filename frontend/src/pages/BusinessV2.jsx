@@ -18,7 +18,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Seo } from '../components/Seo';
 import { businessCopy } from '../components/business-v2/copy';
 import { useBusinessApi, useResource } from '../components/business-v2/useBusinessApi';
-import { Feedback, Select, buttonClass } from '../components/business-v2/UI';
+import { Feedback, buttonClass } from '../components/business-v2/UI';
 import Subscription from '../components/billing-v2/Subscription';
 import Settings from '../components/business-v2/Settings';
 import Locations from '../components/business-v2/Locations';
@@ -64,8 +64,15 @@ export default function BusinessV2() {
   }, [api, navigate, version]);
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <Seo title={`${c('title')} | ProfitLens`} path="/business-v2" noindex />
-    <header className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-wrap items-center justify-between gap-3"><span className="font-bold text-lg">ProfitLens</span><div className="flex flex-wrap gap-2">{businesses?.length === 0 && <Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}<button className={buttonClass} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar', false)}>{c('language')}</button></div></header>
-    <div className="px-4 md:px-8 py-6 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl md:text-3xl font-bold">{c('dashboard')}</h1><p className="text-sm text-slate-500 mt-2">{c('subtitle')}</p></div>{businesses?.length > 0 && <div className="w-full sm:w-72"><Select id="active-business" label={c('chooseBusiness')} value={selected} onChange={e => setSelected(e.target.value)}>{businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></div>}</div>
+    <header dir="ltr" className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0" dir={lang==='ar'?'rtl':'ltr'}>
+        <button className={`${buttonClass} shrink-0`} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar', false)}>{c('language')}</button>
+        {businesses?.length > 0 && <select id="active-business" aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-w-0 max-w-64 truncate rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>}
+        {businesses?.length===0&&<Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}
+      </div>
+      <span className="font-bold text-base sm:text-lg shrink-0">ProfitLens</span>
+    </header>
+    <h1 className="sr-only">{c('title')}</h1>
     <div className="px-4 md:px-8"><Feedback error={error} c={c} retry={() => setVersion(v => v + 1)} /></div>
     {!businesses && !error && <p role="status" className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</p>}
     {businesses?.length === 0 && params.get('tab')==='security'&&<main className="p-4 md:p-8 max-w-5xl mx-auto"><Security {...{api,lang}}/></main>}

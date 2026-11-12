@@ -1,12 +1,13 @@
 import {useCallback,useLayoutEffect,useReducer,useRef} from 'react';
 
-function resetScroll(content) {
+function resetScroll(content,animate=true) {
   if(!content)return;
+  const behavior=animate&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches?'smooth':'instant';
   content.focus({preventScroll:true});
   for(let node=content;node;node=node.parentElement){
-    node.scrollTo({top:0,behavior:'instant'});
+    if(node!==document.documentElement&&node!==document.body&&node.scrollTop)node.scrollTo({top:0,behavior});
   }
-  window.scrollTo({top:0,left:0,behavior:'instant'});
+  window.scrollTo({top:0,left:0,behavior});
 }
 
 // Reset on navigation AND when async business loading mounts the content later.
@@ -15,10 +16,9 @@ export function useTabScroll(section) {
   const [selection,select]=useReducer(value=>value+1,0);
   const contentRef=useCallback(node=>{
     content.current=node;
-    if(node)resetScroll(node);
+    if(node)resetScroll(node,false);
   },[]);
   const requestScroll=useCallback(()=>{
-    resetScroll(content.current);
     select();
   },[]);
   useLayoutEffect(()=>{
