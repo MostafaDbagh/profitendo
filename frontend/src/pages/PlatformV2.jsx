@@ -16,7 +16,8 @@ export default function PlatformV2() {
   const { lang, setLang } = useLanguage(), api = useBusinessApi(), navigate = useNavigate();
   const c = key => platformCopy[lang]?.[key] || platformCopy.en[key] || platformCopy[lang]?.failed;
   const [allowed, setAllowed] = useState(false), [error, setError] = useState(''), [version, setVersion] = useState(0);
-  const [params,setParams]=useSearchParams(),section=params.get('tab')||'overview',setSection=tab=>setParams({tab});
+  const [params,setParams]=useSearchParams(),section=params.get('tab')||'overview',setSection=tab=>{setParams({tab});window.scrollTo({top:0,left:0,behavior:'instant'});};
+  useEffect(()=>{window.scrollTo({top:0,left:0,behavior:'instant'});},[section]);
   useEffect(() => {
     const controller = new AbortController(); setAllowed(false); setError('');
     api('/auth/me', { signal: controller.signal }).then(session => {

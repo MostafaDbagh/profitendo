@@ -29,7 +29,8 @@ function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const { data: context, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [params,setParams]=useSearchParams();
   const [savedPreferences,setSavedPreferences]=useState(null);
-  const section=params.get('tab')||'dashboard',setSection=tab=>setParams({tab});
+  const section=params.get('tab')||'dashboard',setSection=tab=>{setParams({tab});window.scrollTo({top:0,left:0,behavior:'instant'});};
+  useEffect(()=>{window.scrollTo({top:0,left:0,behavior:'instant'});},[section]);
   useEffect(() => { if (context) onName(context.business.name); }, [context, onName]);
   if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <p role="status">{c('loading')}</p>}</div>;
   const tabOrder = savedPreferences?.tabOrder ?? context.tabOrder ?? [];
