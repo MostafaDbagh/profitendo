@@ -1,3 +1,4 @@
+import TabPreferences from '../components/business-v2/TabPreferences';
 import Dashboard from '../components/business-v2/Dashboard';
 import Security from '../components/business-v2/Security';
 import Adjustments from '../components/completion-v2/Adjustments';
@@ -27,15 +28,20 @@ const sections = [ ['dashboard',null,BarChart3], ['security',null,ShieldCheck], 
 function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const { data: context, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [params,setParams]=useSearchParams();
+  const [savedPreferences,setSavedPreferences]=useState(null);
   const section=params.get('tab')||'dashboard',setSection=tab=>setParams({tab});
   useEffect(() => { if (context) onName(context.business.name); }, [context, onName]);
   if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <p role="status">{c('loading')}</p>}</div>;
-  const visible = sections.filter(([, permission]) => !permission||context.permissions[permission]);
+  const tabOrder = savedPreferences?.tabOrder ?? context.tabOrder ?? [];
+  const orderedSections = [...sections].sort((a,b) => {const rank = key => tabOrder.includes(key) ? tabOrder.indexOf(key) : tabOrder.length + sections.findIndex(([id])=>id===key);return rank(a[0])-rank(b[0]);});
+  const availableTabs = orderedSections.filter(([, permission]) => !permission||context.permissions[permission]);
+  const hiddenTabs = savedPreferences?.hiddenTabs ?? context.hiddenTabs ?? [];
+  const visible = availableTabs.filter(([key]) => ['dashboard','security','settings'].includes(key) || !hiddenTabs.includes(key));
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const Component = { dashboard:Dashboard,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, payments:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, invitations: Invitations, audit: Audit }[current];
   return <div className="md:flex min-w-0">
     <nav aria-label={c('title')} className="md:w-72 shrink-0 bg-white border-b md:border-b-0 md:border-e border-slate-200 p-4 md:p-6"><div className="flex flex-wrap md:flex-col gap-2">{visible.map(([key, , Icon]) => <button key={key} type="button" aria-current={current === key ? 'page' : undefined} onClick={() => setSection(key)} className={`flex items-center gap-3 text-start px-4 py-3 rounded-xl border text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${current === key ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'text-slate-600 border-transparent hover:bg-slate-50'}`}><Icon className="w-5 h-5" aria-hidden="true" />{c(key)}</button>)}</div></nav>
-    <main className="flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><Component onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></main>
+    <main className="flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6">{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}<Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></div></main>
   </div>;
 }
 export default function BusinessV2() {

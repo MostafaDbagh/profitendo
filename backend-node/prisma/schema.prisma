@@ -79,6 +79,8 @@ model Membership {
   businessId String @map("business_id") @db.Uuid
   role       MembershipRole
   permissionOverrides Json @default("{}") @map("permission_overrides")
+  tabOrder String[] @default([]) @map("tab_order")
+  hiddenTabs String[] @default([]) @map("hidden_tabs")
   revision   Int @default(0)
   disabledAt DateTime? @map("disabled_at") @db.Timestamptz(3)
   user       AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -23,7 +23,14 @@ export class BusinessService {
   async get(ctx: AuthContext, businessId: string) {
     return this.auth.transaction(async tx => {
       const access = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
-      return { business: access.business, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
+      return { business: access.business, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
+    });
+  }
+  async preferences(ctx: AuthContext, businessId: string, hiddenTabs: string[], tabOrder?: string[]) {
+    return this.auth.transaction(async tx => {
+      const { membership } = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
+      const updated = await tx.membership.update({ where: { id: membership.id }, data: { hiddenTabs: [...new Set(hiddenTabs)], ...(tabOrder !== undefined ? { tabOrder } : {}) } });
+      return { hiddenTabs: updated.hiddenTabs, tabOrder: updated.tabOrder };
     });
   }
   async update(ctx: AuthContext, businessId: string, patch: BusinessPatch) {

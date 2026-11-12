@@ -168,3 +168,26 @@ describe('tenant authorization', () => {
     expect((await get(`/${b}/invitations`, ownerB)).body.items[0].status).toBe('revoked');
   });
 });
+
+describe('personal dashboard preferences', () => {
+  it('persists per membership without changing permissions or another user’s preferences', async () => {
+    const viewer = await actor('VIEWER', a);
+    const before = (await get(`/${a}`, ownerA)).body;
+    expect((await write(`/${a}/preferences`, {hiddenTabs:['sales','locations','sales']}, ownerA)).body.hiddenTabs).toEqual(['sales','locations']);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:['sales','locations'],tabOrder:['settings','dashboard','sales']}, ownerA)).body.tabOrder).toEqual(['settings','dashboard','sales']);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],tabOrder:['sales','sales']}, ownerA)).status).toBe(422);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],tabOrder:['unknown']}, ownerA)).status).toBe(422);
+    const after = (await get(`/${a}`, ownerA)).body;
+    expect(after.tabOrder).toEqual(['settings','dashboard','sales']);
+    expect((await get(`/${a}`, viewer)).body.tabOrder).toEqual([]);
+    expect(after.hiddenTabs).toEqual(['sales','locations']);
+    expect(after.permissions).toEqual(before.permissions);
+    expect((await get(`/${a}`, viewer)).body.hiddenTabs).toEqual([]);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:['reports']}, viewer)).status).toBe(200);
+    expect((await write(`/${b}/preferences`, {hiddenTabs:['sales']}, ownerA)).status).toBe(403);
+    expect((await get(`/${b}`, ownerB)).body.hiddenTabs).toEqual([]);
+    for(const key of ['settings','security','dashboard','unknown'])expect((await write(`/${a}/preferences`, {hiddenTabs:[key]}, ownerA)).status).toBe(422);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],userId:ownerB.id}, ownerA)).status).toBe(422);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[]}, ownerA)).body.hiddenTabs).toEqual([]);
+  });
+});

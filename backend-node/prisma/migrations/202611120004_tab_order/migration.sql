@@ -1,0 +1,1 @@
+ALTER TABLE "memberships" ADD COLUMN "tab_order" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

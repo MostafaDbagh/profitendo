@@ -403,3 +403,21 @@ User-provided screenshot is the before reference. New screenshots:
 `tmp/dashboard-design` (actual staging owner) and `tmp/auth-mock-design`
 (AR/EN dashboard/security at five widths). Mock and real auth browser flows,
 password confirmation/change, session logout and staging metrics were verified.
+
+### Personal dashboard tabs — 2026-11-12
+
+Added a bilingual preference panel above Business settings using existing white
+panels, emerald native checkboxes, shared feedback/buttons and responsive grids.
+Preferences are stored per membership (user + business), not as permissions or
+business-wide feature switches. Dashboard, Security and Settings stay visible;
+other permitted tabs and dashboard shortcuts follow the saved choices.
+Before evidence: tmp/owner-tabs-audit/*-settings.png. After evidence:
+tmp/tab-preferences-design (AR/EN at 320/390/768/1024/1440px). Browser verification
+covered saving, reload persistence, hidden links, essential tabs and restoration
+of the staging owner's original choices. Backend tests cover tenant/user isolation.
+
+Dashboard tab ordering now uses one numbered vertical list (1, 2, 3…) with
+localized, keyboard-accessible up/down buttons. The stored order is per
+membership; visibility and permission filtering remain independent. Essential
+tabs can move but cannot be hidden. Unknown/new tabs append in default order.
+Verification artifacts: tmp/tab-order-design, both languages at five widths.
