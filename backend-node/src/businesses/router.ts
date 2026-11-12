@@ -14,7 +14,7 @@ const businessPatch = z.object({
   dateFormat: z.enum(['dmy','mdy','ymd']).optional(), numberFormat: z.enum(['western','european','arabic']).optional(),
 }).strict().refine(v => Object.keys(v).length > 1);
 const overrides = z.record(z.string(), z.boolean()).refine(values => Object.keys(values).every(k => permissionKeys.includes(k as typeof permissionKeys[number]) && !PERMISSIONS[k as typeof permissionKeys[number]].ownerOnly));
-const memberPatch = z.object({ revision: z.number().int().nonnegative(), role: z.enum(staffRoles).optional(), permissionOverrides: overrides.optional(), active: z.boolean().optional() }).strict().refine(v => Object.keys(v).length > 1);
+const memberPatch = z.object({ revision: z.number().int().nonnegative(), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().nullable().optional(), permissionOverrides: overrides.optional(), active: z.boolean().optional() }).strict().refine(v => Object.keys(v).length > 1);
 export function businessRouter(auth: AuthService) {
   const router = Router(), service = new BusinessService(auth);
   const { ctx, attach, csrf, full, origin } = authHttp(auth);
@@ -32,10 +32,11 @@ export function businessRouter(auth: AuthService) {
   router.patch('/:businessId/preferences', validateBody(z.object({ hiddenTabs: z.array(z.enum(['expenses','reports','returns','counts','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit'])).max(18), tabOrder: z.array(z.enum(['dashboard','security','settings','expenses','reports','returns','counts','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit'])).max(21).refine(v => new Set(v).size === v.length).optional() }).strict()), async (req, res) => { res.json(await service.preferences(ctx(res), String(req.params.businessId), req.body.hiddenTabs, req.body.tabOrder)); });
   router.patch('/:businessId', validateBody(businessPatch), async (req, res) => { res.json(await service.update(ctx(res), String(req.params.businessId), req.body)); });
   router.get('/:businessId/roles', async (req, res) => { res.json(await service.roles(ctx(res), String(req.params.businessId))); });
+  router.post('/:businessId/roles', validateBody(z.object({ name: z.string().trim().min(2).max(80), permissions: overrides }).strict()), async (req, res) => { res.status(201).json(await service.createRole(ctx(res), String(req.params.businessId), req.body)); });
   router.get('/:businessId/members', async (req, res) => { res.json(await service.members(ctx(res), String(req.params.businessId), paging(req.query))); });
   router.patch('/:businessId/members/:memberId', validateBody(memberPatch), async (req, res) => { res.json(await service.updateMember(ctx(res), String(req.params.businessId), String(req.params.memberId), req.body)); });
   router.get('/:businessId/invitations', async (req, res) => { res.json(await service.invitations(ctx(res), String(req.params.businessId), paging(req.query))); });
-  router.post('/:businessId/invitations', validateBody(z.object({ email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles) }).strict()), async (req, res) => {
+  router.post('/:businessId/invitations', validateBody(z.object({ password: z.string().min(12).max(128).optional(), name: z.string().trim().min(2).max(100).optional(), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().optional() }).strict().refine(v => Boolean(v.role) !== Boolean(v.customRoleId))), async (req, res) => {
     await auth.limit('invitations', ctx(res).user.id, 20);
     await invite(auth, ctx(res), { ...req.body, businessId: String(req.params.businessId) }); res.status(202).json({ detail: 'Invitation queued.' });
   });

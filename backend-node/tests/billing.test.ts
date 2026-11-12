@@ -109,3 +109,11 @@ it('reports concurrent duplicate plan codes as a conflict without duplicating te
   expect(results.map(r => r.status).sort()).toEqual([201,409]);
   expect(await db.billingPlan.count({ where: { code: input.code } })).toBe(1);
 });
+
+
+it('distinguishes missing MFA setup from a session challenge for subscription navigation',async()=>{
+ const user=await db.authUser.findUniqueOrThrow({where:{id:owner.id}});
+ await db.authUser.update({where:{id:owner.id},data:{mfaSecret:null}});
+ try {const response=await get(`/billing/businesses/${business}`,owner);expect(response.status).toBe(403);expect(response.body.error.code).toBe('BILLING_MFA_SETUP_REQUIRED');}
+ finally{await db.authUser.update({where:{id:owner.id},data:{mfaSecret:user.mfaSecret}});}
+});

@@ -10,7 +10,7 @@ import {fail,hash,entitled,permission,isReturn,locationScope,stockSnapshot} from
 import type {AdjustmentInput} from './contracts.js';
 type Doc=Prisma.AdjustmentGetPayload<{include:{lines:true}}>;
 type Access=Awaited<ReturnType<typeof requireLocation>>;
-const present=(d:Doc,a:Access)=>({...d,clientKey:undefined,requestHash:undefined,total:d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?undefined:d.total,lines:d.lines.map(({unitCost,amount,...l})=>({...l,...(d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?{}:{amount}),...(a.permissions['catalogue.cost']?{unitCost}:{})})),capabilities:{confirm:d.status==='DRAFT'&&a.permissions[permission(d.kind,'approve')]&&(d.kind!=='SUPPLIER_RETURN'||a.permissions['purchasing.manage']),cancel:d.status==='DRAFT'&&(d.actorId===a.user.id&&a.permissions[permission(d.kind,'create')]||a.permissions[permission(d.kind,'approve')])}});
+const present=(d:Doc,a:Access)=>({...d,clientKey:undefined,requestHash:undefined,total:d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?undefined:d.total,lines:d.lines.map(({unitCost,amount,...l})=>({...l,...(d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?{}:{amount}),...(a.permissions['catalogue.cost']?{unitCost}:{})})),capabilities:{confirm:d.status==='DRAFT'&&a.permissions[permission(d.kind,'approve')]&&(d.kind!=='SUPPLIER_RETURN'||a.permissions['purchasing.manage']),cancel:d.status==='DRAFT'&&a.permissions[permission(d.kind,'delete')]&&(d.actorId===a.user.id&&a.permissions[permission(d.kind,'create')]||a.permissions[permission(d.kind,'approve')])}});
 // Cumulative proportional credit means the final return receives exactly the
 // original discounted line amount, without rounding drift over partial returns.
 export function credit(total:string,qty:string,returned:bigint,credited:bigint,next:bigint,digits:number){const step=10n**BigInt(4-digits),units=scaled(total)/step,den=scaled(qty);const cumulative=(units*(returned+next)*2n+den)/(2n*den);return checked(cumulative*step-credited);}
@@ -66,6 +66,7 @@ export class WorkflowService{
  }
  async transition(ctx:AuthContext,bid:string,id:string,input:{revision:number;action:'confirm'|'cancel'}){return this.auth.transaction(async tx=>{
   const {doc:d,access:a}=await this.doc(tx,ctx,bid,id,true);
+  if(input.action==='cancel'&&!a.permissions[permission(d.kind,'delete')])fail('FORBIDDEN',403);
   if(input.action==='confirm'){await requireLocation(this.auth,tx,ctx,bid,d.locationId,permission(d.kind,'approve'),false);if(d.kind==='SUPPLIER_RETURN'&&!a.permissions['purchasing.manage'])fail('FORBIDDEN',403);}else if(!(d.actorId===a.user.id&&a.permissions[permission(d.kind,'create')]||a.permissions[permission(d.kind,'approve')]))fail('FORBIDDEN',403);
   if(input.action==='confirm'&&d.status==='COMPLETED'||input.action==='cancel'&&d.status==='CANCELLED')return present(d,a);
   if(d.status!=='DRAFT')fail('DOCUMENT_STATE');if(d.revision!==input.revision)fail('REVISION_CONFLICT');

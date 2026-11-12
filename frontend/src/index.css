@@ -75,3 +75,15 @@
     background: #cbd5e1;
     border-radius: 8px;
 }
+
+/* All input values and placeholders align right in Arabic, including fields
+   whose content keeps LTR ordering (phone, email, barcode and numbers). */
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  text-align: right !important;
+}
+html[dir="rtl"] input::placeholder,
+html[dir="rtl"] textarea::placeholder {
+  text-align: right !important;
+}

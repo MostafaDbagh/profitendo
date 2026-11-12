@@ -130,6 +130,7 @@ export class PurchasingService{
    if(doc.revision!==input.revision)throw conflict();
    let status:string;
    if(input.action==='cancel'){
+    if(!access.permissions[doc.kind==='ORDER'?'purchasing.delete':'receiving.delete'])throw new ApiError(403,'FORBIDDEN','Cancellation permission required');
     if(!['DRAFT','PENDING','OPEN','PARTIAL'].includes(doc.status))throw stateError();
     if(doc.kind==='ORDER'&&await tx.purchaseDocument.count({where:{businessId,orderId:id,status:{in:['DRAFT','PENDING']}}}))throw new ApiError(409,'OPEN_RECEIPTS','Cancel outstanding receipts first');
     status='CANCELLED';

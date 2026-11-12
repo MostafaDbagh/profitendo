@@ -9,7 +9,7 @@ export const hash=(input:unknown)=>createHash('sha256').update(JSON.stringify(in
 export async function entitled(tx:Tx,bid:string){if(!(await billingState(tx,bid)).active)fail('SUBSCRIPTION_REQUIRED',402);}
 export async function locationScope(auth:AuthService,tx:Tx,ctx:AuthContext,bid:string,permission:Permission){const a=await requireBusiness(auth,tx,ctx,bid,permission);if(!a.permissions['locations.view'])fail('FORBIDDEN',403);return {access:a,where:{businessId:bid,...(a.permissions['locations.all']?{}:{location:{assignments:{some:{businessId:bid,membershipId:a.membership.id}}}})}};}
 export const isReturn=(kind:string)=>kind==='CUSTOMER_RETURN'||kind==='SUPPLIER_RETURN';
-export const permission=(kind:string,action:'view'|'create'|'approve'):Permission=>kind==='OPENING'?'migration.manage':`${isReturn(kind)?'returns':'counts'}.${action}` as Permission;
+export const permission=(kind:string,action:'view'|'create'|'approve'|'delete'):Permission=>kind==='OPENING'?'migration.manage':`${isReturn(kind)?'returns':'counts'}.${action}` as Permission;
 // Append-only history makes its row count a monotonic revision. Unlike sorting
 // timestamps/UUIDs, this also detects movements posted in the same millisecond.
 export async function stockSnapshot(tx:Tx,bid:string,locationId:string,productId:string){

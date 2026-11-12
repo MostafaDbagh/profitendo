@@ -1,13 +1,15 @@
+import { BusinessService } from '../src/businesses/service.js';
+import { acceptInvitation } from '../src/auth/invitations.js';
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import { pino } from 'pino';
 import { createDatabase } from '../src/database.js';
 import { createApp } from '../src/app.js';
 import { AuthService } from '../src/auth/service.js';
 import { readAuthSettings } from '../src/auth/settings.js';
-import { passwordHash, csrfFor, encrypt, randomToken, digest } from '../src/auth/crypto.js';
+import { passwordMatches, passwordHash, csrfFor, encrypt, randomToken, digest } from '../src/auth/crypto.js';
 import type { MembershipRole, PlatformRole } from '../src/generated/prisma/client.js';
 import { effectivePermissions, permissionKeys } from '../src/businesses/permissions.js';
 const url = process.env.TEST_DATABASE_URL;
@@ -142,6 +144,28 @@ describe('tenant authorization', () => {
     const stale = await write(`/${a}/members/${id}`, { revision: 1, active: false }, ownerA);
     expect(stale.status).toBe(409);
   });
+  it('lets owners remove every staff role, custom roles and delegated admins with immediate access revocation', async () => {
+    const custom = await write(`/${a}/roles`, { name: 'Removal test admin', permissions: { 'team.manage': true, 'team.view': true } }, ownerA, 'post');
+    expect(custom.status).toBe(201);
+    for (const role of ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGER', 'CASHIER', 'VIEWER', 'CUSTOM'] as const) {
+      let staff = await actor(role === 'CUSTOM' ? 'VIEWER' : role);
+      let revision = 0;
+      if (role === 'CUSTOM') {
+        expect((await write(`/${a}/members/${staff.membershipId}`, { revision, customRoleId: custom.body.role }, ownerA)).status).toBe(200);
+        revision++;
+        staff = { ...await session(staff.id), membershipId: staff.membershipId };
+      }
+      const listed = await get(`/${a}/members?pageSize=100`, ownerA);
+      expect(listed.body.items.find((m: { id: string }) => m.id === staff.membershipId).canEdit).toBe(true);
+      const removed = await write(`/${a}/members/${staff.membershipId}`, { revision, active: false }, ownerA);
+      expect(removed.status, removed.text).toBe(200);
+      expect(removed.body.active).toBe(false);
+      expect((await get(`/${a}`, staff)).status).toBe(401);
+      expect((await get(`/${a}`, await session(staff.id))).status).toBe(403);
+      expect(await db.authUser.count({ where: { id: staff.id } })).toBe(1);
+      expect(await db.authAudit.count({ where: { businessId: a, targetId: staff.membershipId, action: 'membership.updated' } })).toBeGreaterThan(0);
+    }
+  });
   it('disables and restores memberships without reusing old sessions', async () => {
     const staff = await actor('SHOP_MANAGER');
     expect((await write(`/${a}/members/${staff.membershipId}`, { revision: 0, active: false }, ownerA)).status).toBe(200);
@@ -208,4 +232,164 @@ describe('delegated permission administrators',()=>{
   expect(await db.authAudit.count({where:{userId:manager.id,targetId:staff.membershipId,action:'membership.updated'}})).toBe(1);
   const other=await actor('CASHIER',b);expect((await write(`/${a}/members/${other.membershipId}`,{revision:0,active:false},manager)).status).toBe(404);
  });
+});
+
+
+describe('custom business roles', () => {
+  it('creates tenant-local roles, validates names/grants, and audits successful creation', async () => {
+    const payload = { name: 'Inventory supervisor', permissions: { 'inventory.view': true, 'catalogue.view': true } };
+    const created = await write(`/${a}/roles`, payload, ownerA, 'post');
+    expect(created.status, created.text).toBe(201);
+    expect(created.body.permissions['inventory.view']).toBe(true);
+    expect(created.body.permissions['business.view']).toBe(true);
+    expect(created.body.permissions['reports.view']).toBe(false);
+    expect(created.body.permissions['billing.manage']).toBe(false);
+    expect((await get(`/${a}/roles`, ownerA)).body.roles.some((r: { role: string }) => r.role === created.body.role)).toBe(true);
+    expect((await get(`/${b}/roles`, ownerB)).body.roles.some((r: { role: string }) => r.role === created.body.role)).toBe(false);
+    expect((await write(`/${a}/roles`, { ...payload, name: ' INVENTORY   supervisor ' }, ownerA, 'post')).status).toBe(409);
+    expect((await write(`/${a}/roles`, { ...payload, name: ' ' }, ownerA, 'post')).status).toBe(422);
+    for (const key of ['billing.manage', 'unknown.permission']) expect((await write(`/${a}/roles`, { ...payload, permissions: { [key]: true } }, ownerA, 'post')).status).toBe(422);
+    const outsider = await actor(undefined, a, 'SUPER_ADMIN'), viewer = await actor('VIEWER');
+    expect((await write(`/${a}/roles`, payload, outsider, 'post')).status).toBe(403);
+    expect((await write(`/${a}/roles`, payload, viewer, 'post')).status).toBe(403);
+    expect((await write(`/${b}/roles`, payload, ownerA, 'post')).status).toBe(403);
+    expect((await request(app).post(`/api/businesses/${a}/roles`).set('Cookie', ownerA.cookie).set('Origin', settings.appOrigin).send(payload)).status).toBe(403);
+    expect(await db.authAudit.count({ where: { businessId:a, action:'role.created', targetId:created.body.role } })).toBe(1);
+  });
+  it('assigns custom access, revokes old sessions and rejects cross-tenant role identifiers', async () => {
+    const role = await write(`/${a}/roles`, { name:'Stock reader', permissions:{ 'inventory.view':true } }, ownerA, 'post');
+    const staff = await actor('CASHIER'), other = await actor('CASHIER', b);
+    expect((await write(`/${b}/members/${other.membershipId}`, { revision:0, customRoleId:role.body.role }, ownerB)).status).toBe(404);
+    const assigned = await write(`/${a}/members/${staff.membershipId}`, { revision:0, customRoleId:role.body.role }, ownerA);
+    expect(assigned.status, assigned.text).toBe(200);
+    expect(assigned.body.customRoleId).toBe(role.body.role);
+    expect(assigned.body.permissions['inventory.view']).toBe(true);
+    expect(assigned.body.permissions['sales.create']).toBe(false);
+    expect((await get(`/${a}`, staff)).status).toBe(401);
+    expect((await get(`/${a}`, await session(staff.id))).body.permissions['sales.create']).toBe(false);
+    expect((await write(`/${a}/members/${staff.membershipId}`, { revision:0, customRoleId:role.body.role }, ownerA)).status).toBe(409);
+    const reset = await write(`/${a}/members/${staff.membershipId}`, { revision:1, role:'CASHIER', customRoleId:null }, ownerA);
+    expect(reset.body.customRoleId).toBeNull();
+    expect(reset.body.permissions['sales.create']).toBe(true);
+  });
+  it('allows delegated admins to create roles only within their grants and protects administrator assignment', async () => {
+    let manager = await actor('OPERATIONS_MANAGER');
+    await write(`/${a}/members/${manager.membershipId}`, { revision:0, permissionOverrides:{ 'team.manage':true, 'catalogue.cost':false } }, ownerA);
+    manager = { ...await session(manager.id), membershipId:manager.membershipId };
+    expect((await get(`/${a}/roles`, manager)).body.canCreate).toBe(true);
+    for (const key of ['team.manage','catalogue.cost']) expect((await write(`/${a}/roles`, { name:`Forbidden ${key}`, permissions:{ [key]:true } }, manager, 'post')).status).toBe(403);
+    const role = await write(`/${a}/roles`, { name:'Delegated stock reader', permissions:{ 'inventory.view':true } }, manager, 'post');
+    expect(role.status).toBe(201);
+    const adminRole = await write(`/${a}/roles`, { name:'Team administrator', permissions:{ 'team.manage':true, 'team.view':true, 'roles.view':true } }, ownerA, 'post');
+    const staff = await actor('CASHIER');
+    expect((await write(`/${a}/members/${staff.membershipId}`, { revision:0, customRoleId:adminRole.body.role }, manager)).status).toBe(403);
+    expect((await write(`/${a}/members/${staff.membershipId}`, { revision:0, customRoleId:role.body.role }, manager)).status).toBe(200);
+  });
+  it('accepts invitations with the saved custom permissions and keeps the tenant relation', async () => {
+    const role = await write(`/${a}/roles`, { name:'Invited stock reader', permissions:{ 'inventory.view':true } }, ownerA, 'post');
+    const invited = await actor(), user = await db.authUser.findUniqueOrThrow({where:{id:invited.id}}), token=randomToken();
+    await db.invitation.create({data:{businessId:a,email:user.email,role:'VIEWER',customRoleId:role.body.role,invitedBy:ownerA.id,tokenHash:digest(token),expiresAt:new Date(Date.now()+3600000)}});
+    // Exercise the invitation endpoint without sending or queuing real mail.
+    const mail = vi.spyOn(auth, 'queueMail').mockResolvedValue(undefined);
+    try {
+      expect((await write(`/${b}/invitations`, { email:user.email, customRoleId:role.body.role }, ownerB, 'post')).status).toBe(404);
+      expect((await write(`/${a}/invitations`, { email:`second-${user.email}`, customRoleId:role.body.role }, ownerA, 'post')).status).toBe(202);
+      expect((await db.invitation.findFirstOrThrow({where:{businessId:a,email:`second-${user.email}`}})).customRoleId).toBe(role.body.role);
+    } finally { mail.mockRestore(); }
+    const ctx = await auth.transaction(tx=>auth.makeSession(tx,user,true));
+    await acceptInvitation(auth,{token},ctx);
+    const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:a,userId:user.id}}});
+    expect(member.customRoleId).toBe(role.body.role);
+    expect(effectivePermissions(member.role,member.permissionOverrides)['reports.view']).toBe(false);
+    expect(effectivePermissions(member.role,member.permissionOverrides)['inventory.view']).toBe(true);
+  });
+});
+
+describe('adding people through team invitations', () => {
+  it('allows delegated admins, checks grant limits again at acceptance, and enforces subscription capacity', async () => {
+    let manager = await actor('OPERATIONS_MANAGER');
+    await write(`/${a}/members/${manager.membershipId}`, {revision:0,permissionOverrides:{'team.manage':true,'catalogue.cost':false}}, ownerA);
+    manager = {...await session(manager.id),membershipId:manager.membershipId};
+    const invited = await actor(), user = await db.authUser.findUniqueOrThrow({where:{id:invited.id}});
+    let token = '';
+    const mail = vi.spyOn(auth,'queueMail').mockImplementation(async (_tx,_email,_subject,_action,value) => { token=value; });
+    try {
+      expect((await write(`/${a}/invitations`,{email:user.email,role:'OPERATIONS_MANAGER'},manager,'post')).status).toBe(403);
+      const viewer=await actor('VIEWER');
+      expect((await write(`/${a}/invitations`,{email:user.email,role:'CASHIER'},viewer,'post')).status).toBe(403);
+      expect((await write(`/${b}/invitations`,{email:user.email,role:'CASHIER'},manager,'post')).status).toBe(403);
+      const sent=await write(`/${a}/invitations`,{name:'Invited colleague',email:user.email,role:'CASHIER'},manager,'post');
+      expect(sent.status,sent.text).toBe(202);
+      expect((await db.invitation.findFirstOrThrow({where:{businessId:a,email:user.email,revokedAt:null}})).name).toBe('Invited colleague');
+      const ctx=await auth.transaction(tx=>auth.makeSession(tx,user,true));
+      await db.membership.update({where:{id:manager.membershipId},data:{permissionOverrides:{'team.manage':true,'sales.create':false}}});
+      await expect(acceptInvitation(auth,{token},ctx)).rejects.toMatchObject({code:'INVALID_INVITATION'});
+      expect(await db.membership.findUnique({where:{businessId_userId:{businessId:a,userId:user.id}}})).toBeNull();
+      await db.membership.update({where:{id:manager.membershipId},data:{permissionOverrides:{'team.manage':true}}});
+      await acceptInvitation(auth,{token},ctx);
+      expect((await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:a,userId:user.id}}})).role).toBe('CASHIER');
+      expect((await write(`/${a}/invitations`,{email:user.email,role:'CASHIER'},manager,'post')).body.error.code).toBe('MEMBER_EXISTS');
+      await db.billingPlan.update({where:{id:planId},data:{maxMembers:1}});
+      expect((await write(`/${a}/invitations`,{email:`limit-${randomUUID()}@example.test`,role:'CASHIER'},manager,'post')).body.error.code).toBe('MEMBER_LIMIT_REACHED');
+      await db.businessSubscription.update({where:{businessId:a},data:{trialStartedAt:new Date(Date.now()-86400000),trialEndsAt:new Date(Date.now()-1000)}});
+      expect((await write(`/${a}/invitations`,{email:`expired-${randomUUID()}@example.test`,role:'CASHIER'},manager,'post')).body.error.code).toBe('SUBSCRIPTION_REQUIRED');
+    } finally {
+      mail.mockRestore();
+      await db.billingPlan.update({where:{id:planId},data:{maxMembers:100}});
+      await db.businessSubscription.update({where:{businessId:a},data:{trialEndsAt:new Date(Date.now()+86400000)}});
+    }
+  });
+});
+
+
+it('makes deletion independently denyable for every supported module',()=>{
+ for(const key of ['returns.delete','counts.delete','sales.delete','purchasing.delete','receiving.delete','transfers.delete','catalogue.delete','suppliers.delete'] as const){
+  expect(effectivePermissions('OPERATIONS_MANAGER',{})[key]).toBe(true);
+  expect(effectivePermissions('OPERATIONS_MANAGER',{[key]:false})[key]).toBe(false);
+  expect(effectivePermissions('VIEWER',{[key]:true})[key]).toBe(true);
+  expect(effectivePermissions('OWNER',{[key]:false})[key]).toBe(true);
+ }
+});
+
+
+it('stores only a password hash, applies it on acceptance, and never resets existing accounts',async()=>{
+ const password='Invitation test '+randomUUID(), email=`password-${randomUUID()}@example.test`;
+ let token='';const mail=vi.spyOn(auth,'queueMail').mockImplementation(async(_tx,_email,_subject,_action,value)=>{token=value;});
+ try {
+  expect((await write(`/${a}/invitations`,{name:'New colleague',email,role:'CASHIER',password:'short'},ownerA,'post')).status).toBe(422);
+  expect((await write(`/${a}/invitations`,{name:'New colleague',email,role:'CASHIER',password},ownerA,'post')).status).toBe(202);
+  const invitation=await db.invitation.findFirstOrThrow({where:{email,businessId:a}});
+  expect(invitation.initialPasswordHash).not.toBe(password);
+  expect(await passwordMatches(invitation.initialPasswordHash!,password)).toBe(true);
+  const list=JSON.stringify((await get(`/${a}/invitations`,ownerA)).body);
+  expect(list).not.toContain('initialPasswordHash');expect(list).not.toContain(password);
+  await acceptInvitation(auth,{token});
+  const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
+  expect(user.name).toBe('New colleague');expect(await passwordMatches(user.passwordHash,password)).toBe(true);
+  expect((await db.invitation.findUniqueOrThrow({where:{id:invitation.id}})).initialPasswordHash).toBeNull();
+  const existing=await actor(), existingUser=await db.authUser.findUniqueOrThrow({where:{id:existing.id}});
+  expect((await write(`/${a}/invitations`,{name:'Do not overwrite',email:existingUser.email,role:'CASHIER',password},ownerA,'post')).status).toBe(202);
+  await expect(acceptInvitation(auth,{token})).rejects.toMatchObject({code:'INVITATION_LOGIN_REQUIRED'});
+  await acceptInvitation(auth,{token},await auth.transaction(tx=>auth.makeSession(tx,existingUser,true)));
+  const after=await db.authUser.findUniqueOrThrow({where:{id:existing.id}});
+  expect(after.passwordHash).toBe(existingUser.passwordHash);expect(after.name).toBe(existingUser.name);
+ }finally{mail.mockRestore();}
+});
+
+
+it('resolves delegated custom-role assignment from the original request after a transaction retry',async()=>{
+ let manager=await actor('OPERATIONS_MANAGER');const staff=await actor('CASHIER');
+ await write(`/${a}/members/${manager.membershipId}`,{revision:0,permissionOverrides:{'team.manage':true}},ownerA);
+ manager={...await session(manager.id),membershipId:manager.membershipId};
+ const role=await write(`/${a}/roles`,{name:'Retry-safe role',permissions:{'inventory.view':true}},manager,'post');expect(role.status).toBe(201);
+ const user=await db.authUser.findUniqueOrThrow({where:{id:manager.id}}),ctx=await auth.transaction(tx=>auth.makeSession(tx,user,true));
+ const original=auth.transaction.bind(auth),rollback=new Error('simulated transaction retry');let attempted=false;
+ const spy=vi.spyOn(auth,'transaction').mockImplementation(async fn=>{
+  if(!attempted){attempted=true;try{await original(async tx=>{await fn(tx);throw rollback;});}catch(error){if(error!==rollback)throw error;}}
+  return original(fn);
+ });
+ try{
+  const result=await new BusinessService(auth).updateMember(ctx,a,staff.membershipId!,{revision:0,customRoleId:role.body.role});
+  expect(result.customRoleId).toBe(role.body.role);expect(result.revision).toBe(1);
+ }finally{spy.mockRestore();}
 });

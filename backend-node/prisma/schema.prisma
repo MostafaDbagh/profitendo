@@ -63,6 +63,7 @@ model Business {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   memberships  Membership[]
   invitations  Invitation[]
+  customRoles BusinessRole[]
   subscription BusinessSubscription?
   checkout BillingCheckout?
   locations Location[]
@@ -78,6 +79,8 @@ model Membership {
   userId     String @map("user_id") @db.Uuid
   businessId String @map("business_id") @db.Uuid
   role       MembershipRole
+  customRoleId String? @map("custom_role_id") @db.Uuid
+  customRole BusinessRole? @relation(fields: [businessId, customRoleId], references: [businessId, id], onDelete: NoAction, map: "memberships_custom_role_fkey")
   permissionOverrides Json @default("{}") @map("permission_overrides")
   tabOrder String[] @default([]) @map("tab_order")
   hiddenTabs String[] @default([]) @map("hidden_tabs")
@@ -160,11 +163,15 @@ model AuthToken {
   @@map("auth_tokens")
 }
 model Invitation {
+  initialPasswordHash String? @map("initial_password_hash")
+  name        String? @db.VarChar(100)
   id          String @id @default(uuid()) @db.Uuid
   tokenHash   String @unique @map("token_hash")
   businessId  String @map("business_id") @db.Uuid
   email       String
   role        MembershipRole
+  customRoleId String? @map("custom_role_id") @db.Uuid
+  customRole BusinessRole? @relation(fields: [businessId, customRoleId], references: [businessId, id], onDelete: NoAction, map: "invitations_custom_role_fkey")
   invitedBy   String @map("invited_by") @db.Uuid
   expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
   usedAt      DateTime? @map("used_at") @db.Timestamptz(3)
@@ -888,4 +895,21 @@ model SupportMessage {
   ticket SupportTicket @relation(fields:[ticketId],references:[id],onDelete:Cascade)
   @@index([ticketId, createdAt])
   @@map("support_messages")
+}
+
+// Custom roles are immutable permission presets. Assignment copies their grants
+// into membership overrides so all existing live authorization paths agree.
+model BusinessRole {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String @db.VarChar(80)
+  nameKey String @map("name_key") @db.VarChar(80)
+  permissions Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  members Membership[]
+  invitations Invitation[]
+  @@unique([businessId, id])
+  @@unique([businessId, nameKey])
+  @@map("business_roles")
 }

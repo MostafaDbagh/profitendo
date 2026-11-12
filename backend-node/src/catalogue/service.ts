@@ -59,6 +59,7 @@ export class CatalogueService {
       if(input.purchasePrice!==undefined && !access.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
       const current=await tx.product.findFirst({where:{id,businessId}});
       if(!current)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
+      if(input.active===false&&current.active&&!access.permissions['catalogue.delete'])throw new ApiError(403,'FORBIDDEN','Deactivation permission required');
       if(current.revision!==input.revision)throw conflict();
       if(input.active && !current.active && !(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required to reactivate products');
       await validateReferences(tx,businessId,{category:input.category},current.category);

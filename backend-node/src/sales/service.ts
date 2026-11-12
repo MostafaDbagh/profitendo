@@ -19,7 +19,7 @@ type Access=Awaited<ReturnType<typeof requireLocation>>;
 function present(doc:Sale,access:Access){
  const {requestHash,clientKey,checkoutKey,checkoutHash,...data}=doc;
  const edit=doc.status==='DRAFT'&&access.permissions['sales.create']&&(doc.actorId===access.user.id||access.permissions['sales.manage']);
- return {...data,lines:doc.lines.map(({unitCost,...line})=>line),capabilities:{edit,cancel:edit,checkout:edit}};
+ return {...data,lines:doc.lines.map(({unitCost,...line})=>line),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
 }
 async function entitled(tx:Tx,bid:string){if(!(await billingState(tx,bid)).active)fail('SUBSCRIPTION_REQUIRED',402);}
 export class SalesService{
@@ -85,7 +85,7 @@ export class SalesService{
   await tx.sale.update({where:{id},data:{...pricing,customerName:input.customerName,notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.repriced',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  });}
- async cancel(ctx:AuthContext,bid:string,id:string,revision:number){return this.auth.transaction(async tx=>{const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,revision);await tx.sale.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.cancelled',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);});}
+ async cancel(ctx:AuthContext,bid:string,id:string,revision:number){return this.auth.transaction(async tx=>{const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,revision);if(!access.permissions['sales.delete'])fail('FORBIDDEN',403);await tx.sale.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.cancelled',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);});}
  async checkout(ctx:AuthContext,bid:string,id:string,input:Checkout){return this.auth.transaction(async tx=>{
   const {doc,access}=await this.document(tx,ctx,bid,id,true),requestHash=hash(input);
   if(!access.permissions['sales.create']||(doc.actorId!==ctx.user.id&&!access.permissions['sales.manage']))fail('FORBIDDEN',403);

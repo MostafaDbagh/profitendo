@@ -2,9 +2,11 @@ import type { MembershipRole, Prisma } from '../generated/prisma/client.js';
 // Only implemented business-level capabilities. Location-scoped operational
 // permissions must be introduced with their services and location authorization.
 export const PERMISSIONS = {
+  'returns.delete': { ownerOnly: false },
   'returns.view': { ownerOnly: false },
   'returns.create': { ownerOnly: false },
   'returns.approve': { ownerOnly: false },
+  'counts.delete': { ownerOnly: false },
   'counts.view': { ownerOnly: false },
   'counts.create': { ownerOnly: false },
   'counts.approve': { ownerOnly: false },
@@ -13,22 +15,28 @@ export const PERMISSIONS = {
   'cash.close': { ownerOnly: false },
   'reports.view': { ownerOnly: false },
   'migration.manage': { ownerOnly: true },
+  'sales.delete': { ownerOnly: false },
   'sales.view': { ownerOnly: false },
   'sales.create': { ownerOnly: false },
   'sales.discount': { ownerOnly: false },
   'sales.manage': { ownerOnly: false },
+  'transfers.delete': { ownerOnly: false },
   'transfers.view': { ownerOnly: false },
   'transfers.create': { ownerOnly: false },
   'transfers.dispatch': { ownerOnly: false },
   'transfers.receive': { ownerOnly: false },
   'transfers.resolve': { ownerOnly: false },
   'inventory.view': { ownerOnly: false },
+  'suppliers.delete': { ownerOnly: false },
   'suppliers.view': { ownerOnly: false },
   'suppliers.manage': { ownerOnly: false },
+  'purchasing.delete': { ownerOnly: false },
   'purchasing.view': { ownerOnly: false },
   'purchasing.manage': { ownerOnly: false },
+  'receiving.delete': { ownerOnly: false },
   'receiving.create': { ownerOnly: false },
   'receiving.confirm': { ownerOnly: false },
+  'catalogue.delete': { ownerOnly: false },
   'catalogue.view': { ownerOnly: false },
   'catalogue.create': { ownerOnly: false },
   'catalogue.edit': { ownerOnly: false },
@@ -62,10 +70,16 @@ export const ROLE_DEFAULTS: Record<MembershipRole, readonly Permission[]> = {
 const inherited: Partial<Record<Permission,Permission>> = {'catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
 export function effectivePermissions(role: MembershipRole, overrides: Prisma.JsonValue) {
   const changes = overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {};
-  return Object.fromEntries(permissionKeys.map(key => [key,
+  const result = Object.fromEntries(permissionKeys.map(key => [key,
     role === 'OWNER' ? true : PERMISSIONS[key].ownerOnly ? false
       : typeof changes[key] === 'boolean' ? changes[key] : inherited[key] ? (typeof changes[inherited[key]!] === 'boolean' ? changes[inherited[key]!] : ROLE_DEFAULTS[role].includes(inherited[key]!)) : ROLE_DEFAULTS[role].includes(key),
   ])) as Record<Permission, boolean>;
+  // Preserve existing built-in access; an explicit delete override always wins.
+  const deletionDefaults: Partial<Record<Permission, Permission[]>> = {'returns.delete': ['returns.create', 'returns.approve'], 'counts.delete': ['counts.create', 'counts.approve'], 'sales.delete': ['sales.create'], 'purchasing.delete': ['purchasing.manage'], 'receiving.delete': ['receiving.create'], 'transfers.delete': ['transfers.create'], 'catalogue.delete': ['catalogue.edit'], 'suppliers.delete': ['suppliers.edit']};
+  for (const [key, sources] of Object.entries(deletionDefaults)) {
+    if (role !== 'OWNER' && typeof changes[key] !== 'boolean') result[key as Permission] = sources.some(source => result[source]);
+  }
+  return result;
 }
 export function roleCatalog() {
   return Object.entries(ROLE_DEFAULTS).map(([role]) => ({ role, permissions: effectivePermissions(role as MembershipRole, {}) }));

@@ -1,3 +1,5 @@
+import { effectivePermissions, permissionKeys } from '../businesses/permissions.js';
+import { customRole, roleGrants } from '../businesses/custom-roles.js';
 import type { MembershipRole } from '../generated/prisma/client.js';
 import { ApiError } from '../errors.js';
 import { digest, randomToken, passwordHash } from './crypto.js';
@@ -8,15 +10,20 @@ const invalid = () => new ApiError(400, 'INVALID_INVITATION', 'Invitation is inv
 async function owner(auth: AuthService, tx: Tx, ctx: AuthContext, businessId: string) {
   await requireBusiness(auth, tx, ctx, businessId, 'invitations.manage');
 }
-export async function invite(auth: AuthService, ctx: AuthContext, input: { businessId: string; email: string; role: Exclude<MembershipRole, 'OWNER'> }) {
+export async function invite(auth: AuthService, ctx: AuthContext, input: { businessId: string; password?: string; name?: string; email: string; role?: Exclude<MembershipRole, 'OWNER'>; customRoleId?: string }) {
+  const initialPasswordHash = input.password ? await passwordHash(input.password) : undefined;
   await auth.transaction(async tx => {
-    await owner(auth, tx, ctx, input.businessId);
+    const actor = await requireBusiness(auth, tx, ctx, input.businessId, 'team.manage');
+    const selected = input.customRoleId ? await customRole(tx, input.businessId, input.customRoleId) : null;
+    if (!selected && !input.role) throw new ApiError(422, 'VALIDATION_ERROR', 'Choose a role');
+    const grants = effectivePermissions(selected ? 'VIEWER' : input.role!, selected?.permissions ?? {});
+    if (actor.membership.role !== 'OWNER' && (grants['team.manage'] || permissionKeys.some(key => grants[key] && !actor.permissions[key]))) throw new ApiError(403, 'FORBIDDEN', 'Cannot invite someone with permissions beyond your own access');
     const member = await tx.membership.findFirst({ where: { businessId: input.businessId, user: { email: input.email } } });
     if (member) throw new ApiError(409, 'MEMBER_EXISTS', 'This email already belongs to a member');
-    await tx.invitation.updateMany({ where: { businessId: input.businessId, email: input.email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
+    await tx.invitation.updateMany({ where: { businessId: input.businessId, email: input.email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date(), initialPasswordHash: null } });
     await requireMemberCapacity(tx, input.businessId, { email: input.email });
     const token = randomToken();
-    await tx.invitation.create({ data: { tokenHash: digest(token), businessId: input.businessId, email: input.email, role: input.role, invitedBy: ctx.user.id, expiresAt: new Date(Date.now() + 48 * 3600000) } });
+    await tx.invitation.create({ data: { tokenHash: digest(token), initialPasswordHash, businessId: input.businessId, name: input.name, email: input.email, role: selected ? 'VIEWER' : input.role!, customRoleId: selected?.id, invitedBy: ctx.user.id, expiresAt: new Date(Date.now() + 48 * 3600000) } });
     await auth.queueMail(tx, input.email, 'Your ProfitLens team invitation', 'invite', token);
     await auth.audit(tx, 'invitation.created', ctx.user.id, input.businessId);
   });
@@ -26,7 +33,7 @@ export async function revokeInvitation(auth: AuthService, ctx: AuthContext, id: 
     const invitation = await tx.invitation.findUnique({ where: { id } });
     if (!invitation) throw invalid();
     await owner(auth, tx, ctx, invitation.businessId);
-    await tx.invitation.update({ where: { id }, data: { revokedAt: new Date() } });
+    await tx.invitation.update({ where: { id }, data: { revokedAt: new Date(), initialPasswordHash: null } });
     await auth.audit(tx, 'invitation.revoked', ctx.user.id, invitation.businessId);
   });
 }
@@ -35,9 +42,13 @@ export async function acceptInvitation(auth: AuthService, input: { token: string
   await auth.transaction(async tx => {
     const invitation = await tx.invitation.findUnique({ where: { tokenHash: digest(input.token) }, include: { business: true } });
     if (!invitation || invitation.usedAt || invitation.revokedAt || invitation.expiresAt <= new Date() || invitation.business.suspendedAt) throw invalid();
-    // Removing the inviter's ownership also invalidates outstanding invitations.
+    // Recheck the inviter's current authority and permission ceiling at acceptance.
     const inviter = await tx.membership.findUnique({ where: { businessId_userId: { businessId: invitation.businessId, userId: invitation.invitedBy } }, include: { user: true } });
-    if (!inviter || inviter.role !== 'OWNER' || inviter.disabledAt || inviter.user.disabledAt) throw invalid();
+    if (!inviter || inviter.disabledAt || inviter.user.disabledAt) throw invalid();
+    const selected = invitation.customRoleId ? await customRole(tx, invitation.businessId, invitation.customRoleId) : null;
+    const inviterGrants = effectivePermissions(inviter.role, inviter.permissionOverrides);
+    const invitedGrants = effectivePermissions(invitation.role, selected?.permissions ?? {});
+    if (!inviterGrants['business.view'] || !inviterGrants['team.manage'] || (inviter.role !== 'OWNER' && (invitedGrants['team.manage'] || permissionKeys.some(key => invitedGrants[key] && !inviterGrants[key])))) throw invalid();
     let user = await tx.authUser.findUnique({ where: { email: invitation.email } });
     if (user) {
       if (!ctx || ctx.user.id !== user.id || auth.stage(ctx) !== 'authenticated') {
@@ -45,15 +56,17 @@ export async function acceptInvitation(auth: AuthService, input: { token: string
       }
       user = (await auth.assertSession(tx, ctx)).user;
     } else {
-      if (!hash || !input.name) throw new ApiError(422, 'INVITATION_DETAILS_REQUIRED', 'Enter your name and a password');
-      user = await tx.authUser.create({ data: { email: invitation.email, name: input.name, passwordHash: hash, emailVerifiedAt: new Date() } });
+      const name = input.name || invitation.name;
+      const accountHash = hash || invitation.initialPasswordHash;
+      if (!accountHash || !name) throw new ApiError(422, 'INVITATION_DETAILS_REQUIRED', 'Enter your name and a password');
+      user = await tx.authUser.create({ data: { email: invitation.email, name, passwordHash: accountHash, emailVerifiedAt: new Date() } });
     }
-    const consumed = await tx.invitation.updateMany({ where: { id: invitation.id, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    const consumed = await tx.invitation.updateMany({ where: { id: invitation.id, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date(), initialPasswordHash: null } });
     if (!consumed.count) throw invalid();
     const existing = await tx.membership.findUnique({ where: { businessId_userId: { businessId: invitation.businessId, userId: user.id } } });
     if (existing) throw new ApiError(409, 'MEMBER_EXISTS', 'Membership already exists');
     await requireMemberCapacity(tx, invitation.businessId, { invitationId: invitation.id });
-    await tx.membership.create({ data: { businessId: invitation.businessId, userId: user.id, role: invitation.role } });
+    await tx.membership.create({ data: { businessId: invitation.businessId, userId: user.id, role: invitation.role, customRoleId: selected?.id, ...(selected ? { permissionOverrides: roleGrants(selected.permissions) } : {}) } });
     await auth.audit(tx, 'invitation.accepted', user.id, invitation.businessId);
   });
 }

@@ -11,9 +11,9 @@ import { encrypt, passwordHash } from '../src/auth/crypto.js';
 import { postStock } from '../src/operations/inventory.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
-const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3000'}),db=createDatabase(url),auth=new AuthService(db,settings);
+const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3300'}),db=createDatabase(url),auth=new AuthService(db,settings);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
-const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4000,'localhost',()=>resolve(s));s.on('error',reject);});
+const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4300,'localhost',()=>resolve(s));s.on('error',reject);});
 const browser=await chromium.launch({channel:'chrome',headless:true}),ids:string[]=[],bids:string[]=[],errors:string[]=[],artifacts='../tmp/sales-design';await mkdir(artifacts,{recursive:true});
 let planId:string|undefined,primaryPage:Page|undefined;
 async function shot(page:Page,name:string){
@@ -29,12 +29,12 @@ async function actor(role:'OWNER'|'CASHIER',businessId:string,locationId?:string
  const member=await db.membership.create({data:{userId:id,businessId,role}});
  if(locationId)await db.locationAssignment.create({data:{businessId,locationId,membershipId:member.id}});
  const session=await auth.transaction(tx=>auth.makeSession(tx,user,true));
- const context=await browser.newContext({viewport:{width:1440,height:1100}});await context.addCookies([{name:settings.cookieName,value:session.token,url:'http://localhost:4000',httpOnly:true,sameSite:'Lax'}]);
+ const context=await browser.newContext({viewport:{width:1440,height:1100}});await context.addCookies([{name:settings.cookieName,value:session.token,url:'http://localhost:4300',httpOnly:true,sameSite:'Lax'}]);
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://127.0.0.1:8001/**',r=>r.fulfill({status:401,contentType:'application/json',body:'{"detail":"Not authenticated"}'}));
  await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});return {page,user};
 }
-async function open(page:Page,lang='en'){await page.goto(`${settings.appOrigin}/business-v2`);await page.getByRole('button',{name:lang==='ar'?'المبيعات / نقطة البيع':'Sales / POS',exact:true}).click();await page.getByRole('table').waitFor();}
+async function open(page:Page,lang='en'){await page.goto(`${settings.appOrigin}/business-v2`);await page.getByRole('navigation').getByRole('button',{name:lang==='ar'?'المبيعات':'Sales',exact:true}).click();await page.getByRole('table').waitFor();}
 async function choose(page:Page,label:string,name:string){await page.getByRole('button',{name:label,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:new RegExp(name)}).click();await page.getByRole('dialog').waitFor({state:'hidden'});}
 async function scan(page:Page,value='001234567890'){const input=page.locator('#pos-barcode');await input.fill(value);await input.press('Enter');await page.waitForFunction(()=>document.activeElement?.id==='pos-barcode'&&!!document.querySelector('#sale-quantity-0'));}
 async function start(page:Page,lang='en'){await open(page,lang);await page.getByRole('button',{name:lang==='ar'?'بيع جديد':'New sale',exact:true}).click();await choose(page,lang==='ar'?'اختر المتجر':'Choose a shop','Downtown shop');}

@@ -17,7 +17,10 @@ export class ReportService{
   const base={currency,currencyDigits:digits,from:q.from,to:q.to,timeBasis:access.business.timezone};
   const limit=10000;
   if(q.view==='summary'){
-   const [sales,returns,entries]=await Promise.all([tx.sale.findMany({where:{...scoped,status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1}),tx.adjustment.findMany({where:{...scoped,status:'COMPLETED',completedAt:range,kind:{in:['CUSTOMER_RETURN','SUPPLIER_RETURN','DAMAGE','COUNT']}},include:{lines:true},take:limit+1}),tx.moneyEntry.findMany({where:{...scoped,createdAt:range},take:limit+1})]);
+   // A transaction uses one connection; finish each query before starting the next.
+   const sales=await tx.sale.findMany({where:{...scoped,status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1});
+   const returns=await tx.adjustment.findMany({where:{...scoped,status:'COMPLETED',completedAt:range,kind:{in:['CUSTOMER_RETURN','SUPPLIER_RETURN','DAMAGE','COUNT']}},include:{lines:true},take:limit+1});
+   const entries=await tx.moneyEntry.findMany({where:{...scoped,createdAt:range},take:limit+1});
    if([sales,returns,entries].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);

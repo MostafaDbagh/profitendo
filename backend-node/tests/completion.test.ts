@@ -63,7 +63,7 @@ async function sold(quantity='5',price='12'){
  const p=await funded('100');await db.product.update({where:{id:p},data:{sellingPrice:price}});const draft=await api('/sales',{clientKey:randomUUID(),locationId:source,lines:[{productId:p,quantity}]});expect(draft.status,draft.text).toBe(201);
  const done=await api(`/sales/${draft.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:draft.body.total,payment:{method:'CARD',received:draft.body.total,reference:'Terminal test'},confirm:true});expect(done.status,done.text).toBe(200);return done.body;
 }
-async function adjustment(kind:string,lines:any[],extra:object={},who=owner){if(kind==='COUNT')lines=await Promise.all(lines.map(async l=>({...l,...(await get(`/snapshot?locationId=${source}&productId=${l.productId}`,who)).body})));const r=await write('/adjustments',{clientKey:randomUUID(),kind,locationId:source,reason:'Counted and verified with manager',lines,...extra},who);expect(r.status,r.text).toBe(201);return r.body;}
+async function adjustment(kind:string,lines:any[],extra:object={},who=owner){if(kind==='COUNT')lines=await Promise.all(lines.map(async l=>({...l,...(await get(`/snapshot?locationId=${(extra as {locationId?:string}).locationId??source}&productId=${l.productId}`,who)).body})));const r=await write('/adjustments',{clientKey:randomUUID(),kind,locationId:source,reason:'Counted and verified with manager',lines,...extra},who);expect(r.status,r.text).toBe(201);return r.body;}
 const approve=(doc:any,who=owner)=>write(`/adjustments/${doc.id}/status`,{revision:doc.revision,action:'confirm',confirm:true},who);
 async function receipt(){const p=await funded('100'),supplier=await db.supplier.create({data:{businessId:business,code:`S-${randomUUID().slice(0,8).toUpperCase()}`,name:'Test supplier'}});const d=await api('/operations/purchases',{clientKey:randomUUID(),kind:'RECEIPT',locationId:source,supplierId:supplier.id,documentDate:'2026-11-11',lines:[{productId:p,quantity:'10',unitCost:'10'}]});expect(d.status,d.text).toBe(201);const pending=await api(`/operations/purchases/${d.body.id}/status`,{revision:0,action:'submit',confirm:true});expect(pending.status,pending.text).toBe(200);const done=await api(`/operations/purchases/${d.body.id}/status`,{revision:pending.body.revision,action:'confirm',confirm:true});expect(done.status,done.text).toBe(200);return done.body;}
 const pay=(kind:string,amount:string,extra:object={})=>write('/payments',{clientKey:randomUUID(),kind,locationId:source,amount,method:'CARD',reference:'Terminal record',reason:'Verified payment record',confirm:true,...extra});
@@ -138,12 +138,26 @@ it('expired migration previews and changed count snapshots cannot overwrite stoc
 it('completed adjustment documents and lines cannot be rewritten',async()=>{
  const p=await funded(),d=await adjustment('DAMAGE',[{productId:p,quantity:'1'}]);await approve(d);await expect(db.adjustment.update({where:{id:d.id},data:{reason:'Changed history'}})).rejects.toThrow();await expect(db.adjustmentLine.update({where:{id:d.lines[0].id},data:{quantity:'2'}})).rejects.toThrow();
 });
-it('runs the agreed warehouse/shop pilot: receive 100, transfer 30, sell 5, return 2 => 70 / 27',async()=>{
+it('runs the agreed warehouse/shop pilot: receive 100, transfer 30, sell 5, return 2, damage 1, count 24; reconcile every step',async()=>{
  const warehouse=await db.location.create({data:{businessId:business,code:'PILOT-WH',name:'Pilot warehouse',kind:'WAREHOUSE'}}),p=await db.product.create({data:{businessId:business,sku:'PILOT-BOTTLE',name:'Pilot bottle',unit:'PIECE',purchasePrice:'10',sellingPrice:'12'}}),supplier=await db.supplier.create({data:{businessId:business,code:'PILOT-SUP',name:'Pilot supplier'}});
+ async function checkpoint(warehouseQty:string,shopQty:string){
+  for(const [locationId,expected] of [[warehouse.id,warehouseQty],[destination,shopQty]]){
+   expect(await stock(locationId!,p.id)).toBe(expected);
+   const sum=await db.stockMovement.aggregate({where:{businessId:business,locationId,productId:p.id},_sum:{quantity:true}});
+   expect(sum._sum.quantity?.toFixed(4)??'0.0000').toBe(expected);
+  }
+ }
+ await checkpoint('0.0000','0.0000');
  const r=await api('/operations/purchases',{clientKey:randomUUID(),kind:'RECEIPT',locationId:warehouse.id,supplierId:supplier.id,documentDate:'2026-11-11',lines:[{productId:p.id,quantity:'100'}]});expect(r.status,r.text).toBe(201);await api(`/operations/purchases/${r.body.id}/status`,{revision:0,action:'submit',confirm:true});expect((await api(`/operations/purchases/${r.body.id}/status`,{revision:1,action:'confirm',confirm:true})).status).toBe(200);
- const tr=await api('/transfers',{clientKey:randomUUID(),sourceId:warehouse.id,destinationId:destination,lines:[{productId:p.id,quantity:'30'}]});expect(tr.status).toBe(201);const dispatched=await api(`/transfers/${tr.body.id}/status`,{revision:0,action:'dispatch',confirm:true});expect(dispatched.status).toBe(200);expect((await api(`/transfers/${tr.body.id}/events`,{clientKey:randomUUID(),revision:1,kind:'RECEIVE',confirm:true,lines:[{lineId:tr.body.lines[0].id,quantity:'30'}]})).status).toBe(200);
+ await checkpoint('100.0000','0.0000');
+ const tr=await api('/transfers',{clientKey:randomUUID(),sourceId:warehouse.id,destinationId:destination,lines:[{productId:p.id,quantity:'30'}]});expect(tr.status).toBe(201);const dispatched=await api(`/transfers/${tr.body.id}/status`,{revision:0,action:'dispatch',confirm:true});expect(dispatched.status).toBe(200);await checkpoint('70.0000','0.0000');expect((await api(`/transfers/${tr.body.id}/events`,{clientKey:randomUUID(),revision:1,kind:'RECEIVE',confirm:true,lines:[{lineId:tr.body.lines[0].id,quantity:'30'}]})).status).toBe(200);
+ await checkpoint('70.0000','30.0000');
  const sale=await api('/sales',{clientKey:randomUUID(),locationId:destination,lines:[{productId:p.id,quantity:'5'}]});const paid=await api(`/sales/${sale.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:sale.body.total,payment:{method:'CARD',received:sale.body.total,reference:'Pilot terminal'},confirm:true});expect(paid.status).toBe(200);
+ await checkpoint('70.0000','25.0000');
  const returned=await adjustment('CUSTOMER_RETURN',[{productId:p.id,sourceLineId:paid.body.lines[0].id,quantity:'2'}],{locationId:destination,sourceId:sale.body.id});expect((await approve(returned)).status).toBe(200);expect(await stock(warehouse.id,p.id)).toBe('70.0000');expect(await stock(destination,p.id)).toBe('27.0000');expect((await db.stockTransfer.findUniqueOrThrow({where:{id:tr.body.id}})).status).toBe('COMPLETED');expect((await get('/migration')).body.stockLedgerMismatches).toBe(0);
+ await checkpoint('70.0000','27.0000');
+ const damage=await adjustment('DAMAGE',[{productId:p.id,quantity:'1'}],{locationId:destination});expect((await approve(damage)).status).toBe(200);await checkpoint('70.0000','26.0000');
+ const count=await adjustment('COUNT',[{productId:p.id,quantity:'24'}],{locationId:destination});expect((await approve(count)).status).toBe(200);await checkpoint('70.0000','24.0000');
 });
 it('cash closing races safely against a cash expense',async()=>{
  const {businessDay}=await import('../src/finance/cash.js'),b=await db.business.findUniqueOrThrow({where:{id:business}}),day=businessDay(new Date(),b.timezone);
@@ -220,4 +234,70 @@ it('returns separate report pages with a full matching count and full export',as
  expect(first.status).toBe(200);expect(second.status).toBe(200);expect(first.body.items).toHaveLength(25);expect(second.body.items).toHaveLength(25);expect(first.body.total).toBeGreaterThanOrEqual(60);expect(second.body.total).toBe(first.body.total);
  const keys=new Set(first.body.items.map((r:any)=>`${r.location}:${r.sku}`));expect(second.body.items.some((r:any)=>keys.has(`${r.location}:${r.sku}`))).toBe(false);
  const exported=await get(`${query}&export=true`);expect(exported.status).toBe(200);expect(exported.body.total).toBe(first.body.total);
+});
+
+async function treasuryLocation(){return (await db.location.create({data:{businessId:business,code:`CASH-${randomUUID().slice(0,8).toUpperCase()}`,name:'Isolated mock cash drawer',kind:'SHOP'}})).id;}
+async function treasuryDay(){const {businessDay}=await import('../src/finance/cash.js');return businessDay(new Date(),(await db.business.findUniqueOrThrow({where:{id:business}})).timezone);}
+it('treasury: rejects malformed payments without recording money or audit events',async()=>{
+ const locationId=await treasuryLocation(),before=await db.moneyEntry.count({where:{businessId:business}}),audit=await db.authAudit.count({where:{businessId:business,action:'payment.recorded'}});
+ const invalid=[{amount:'0'},{amount:'-1'},{amount:'NaN'},{amount:'1e3'},{amount:'1.001'},{amount:1},{method:'CHEQUE'},{reason:'x'},{confirm:false},{reference:''},{kind:'CASH_IN',method:'CARD'},{kind:'CASH_OUT',method:'TRANSFER'},{kind:'CUSTOMER_REFUND'},{sourceId:randomUUID()}];
+ for(const extra of invalid){const r=await pay('EXPENSE','1',{locationId,...extra});expect(r.status,JSON.stringify(extra)+r.text).toBe(422);}
+ expect(await db.moneyEntry.count({where:{businessId:business}})).toBe(before);expect(await db.authAudit.count({where:{businessId:business,action:'payment.recorded'}})).toBe(audit);
+});
+it('treasury: repeated cash submission records one entry and changed retries conflict',async()=>{
+ const locationId=await treasuryLocation(),clientKey=randomUUID();const rows=await Promise.all(Array.from({length:5},()=>pay('CASH_IN','10.25',{locationId,clientKey,method:'CASH'})));
+ expect(rows.map(r=>r.status)).toEqual([201,201,201,201,201]);expect(new Set(rows.map(r=>r.body.id)).size).toBe(1);
+ expect((await pay('CASH_IN','10.26',{locationId,clientKey,method:'CASH'})).body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+ expect(await db.moneyEntry.count({where:{businessId:business,locationId}})).toBe(1);expect(await db.authAudit.count({where:{targetId:rows[0]!.body.id,action:'payment.recorded'}})).toBe(1);
+});
+it('treasury: exact cents reconcile cash only and isolate another drawer',async()=>{
+ const locationId=await treasuryLocation(),day=await treasuryDay();
+ for(const [kind,amount,method] of [['CASH_IN','0.10','CASH'],['CASH_IN','0.20','CASH'],['CASH_OUT','0.05','CASH'],['EXPENSE','0.02','CASH'],['EXPENSE','90','CARD'],['EXPENSE','80','TRANSFER']])expect((await pay(kind!,amount!,{locationId,method})).status).toBe(201);
+ expect((await get(`/cash?locationId=${locationId}&day=${day}`)).body).toMatchObject({inflow:'0.3000',outflow:'0.0700'});
+ const otherDrawer=await treasuryLocation();expect((await get(`/cash?locationId=${otherDrawer}&day=${day}`)).body).toMatchObject({inflow:'0.0000',outflow:'0.0000'});
+ const closed=await write('/cash',{locationId,day,opening:'10',counted:'10.23',expected:'10.23',confirm:true});expect(closed.status,closed.text).toBe(200);expect(closed.body.variance).toBe('0');
+});
+it('treasury: cash sales contribute sale value after giving change, not cash tendered',async()=>{
+ const locationId=await treasuryLocation(),p=await funded();await auth.transaction(tx=>postStock(tx,{businessId:business,locationId,productId:p,delta:'5',type:'TEST_OPENING',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'Mock treasury stock',actorId:owner.user.id,notes:''}));
+ const sale=await api('/sales',{clientKey:randomUUID(),locationId,lines:[{productId:p,quantity:'2'}]});expect(sale.status).toBe(201);
+ const paid=await api(`/sales/${sale.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:'24.00',payment:{method:'CASH',received:'50'},confirm:true});expect(paid.status,paid.text).toBe(200);
+ expect((await db.salePayment.findUniqueOrThrow({where:{businessId_saleId:{businessId:business,saleId:sale.body.id}}})).change.toFixed(2)).toBe('26.00');
+ expect((await get(`/cash?locationId=${locationId}&day=${await treasuryDay()}`)).body).toMatchObject({inflow:'24.0000',outflow:'0.0000'});
+ const line=paid.body.lines[0],returned=await adjustment('CUSTOMER_RETURN',[{productId:p,sourceLineId:line.id,quantity:'1'}],{locationId,sourceId:sale.body.id});expect((await approve(returned)).status).toBe(200);
+ expect((await pay('CUSTOMER_REFUND','12',{locationId,sourceId:returned.id,method:'CASH'})).status).toBe(201);
+ expect((await get(`/cash?locationId=${locationId}&day=${await treasuryDay()}`)).body).toMatchObject({inflow:'24.0000',outflow:'12.0000'});
+
+});
+it('treasury: closing rejects stale totals and future dates; concurrent closing is repeat-safe',async()=>{
+ const locationId=await treasuryLocation(),day=await treasuryDay(),input={locationId,day,opening:'20',counted:'20',expected:'20',confirm:true};
+ expect((await write('/cash',{...input,day:'2099-01-01'})).body.error.code).toBe('FUTURE_DAY');
+ expect((await pay('CASH_IN','5',{locationId,method:'CASH'})).status).toBe(201);expect((await write('/cash',input)).body.error.code).toBe('CASH_TOTAL_CHANGED');
+ const valid={...input,counted:'25',expected:'25'};const rows=await Promise.all([write('/cash',valid),write('/cash',valid)]);expect(rows.map(r=>r.status)).toEqual([200,200]);expect(rows[0]!.body.id).toBe(rows[1]!.body.id);
+ expect((await write('/cash',{...valid,counted:'24',reason:'Changed count after closing'})).body.error.code).toBe('CASH_DAY_CLOSED');expect(await db.cashClose.count({where:{businessId:business,locationId}})).toBe(1);
+ await expect(db.cashClose.update({where:{id:rows[0]!.body.id},data:{counted:'999'}})).rejects.toThrow();
+});
+it('treasury: surplus requires explanation and closed drawers reject all new cash movements',async()=>{
+ const locationId=await treasuryLocation(),day=await treasuryDay();const input={locationId,day,opening:'10',counted:'12',expected:'10',confirm:true};
+ expect((await write('/cash',input)).body.error.code).toBe('VARIANCE_REASON_REQUIRED');const closed=await write('/cash',{...input,reason:'Mock surplus confirmed by recount'});expect(closed.status).toBe(200);expect(closed.body.variance).toBe('2');
+ for(const kind of ['CASH_IN','CASH_OUT','EXPENSE'])expect((await pay(kind,'1',{locationId,method:'CASH'})).body.error.code).toBe('CASH_DAY_CLOSED');
+ for(const method of ['CARD','TRANSFER'])expect((await pay('EXPENSE','1',{locationId,method})).status).toBe(201);
+ expect((await get(`/cash?locationId=${locationId}&day=${day}`)).body).toMatchObject({inflow:'0.0000',outflow:'0.0000'});
+});
+it('treasury: supplier payments racing for the same balance never overpay',async()=>{
+ const r=await receipt();const rows=await Promise.all([pay('SUPPLIER_PAYMENT','60',{sourceId:r.id}),pay('SUPPLIER_PAYMENT','60',{sourceId:r.id})]);expect(rows.map(r=>r.status).sort()).toEqual([201,409]);
+ expect((await get(`/balances/${r.id}?kind=SUPPLIER`)).body).toMatchObject({paid:'60.0000',outstanding:'40.0000'});
+ expect((await pay('SUPPLIER_PAYMENT','40',{sourceId:r.id})).status).toBe(201);expect((await pay('SUPPLIER_PAYMENT','0.01',{sourceId:r.id})).body.error.code).toBe('PAYMENT_EXCEEDS_BALANCE');
+ expect((await pay('SUPPLIER_PAYMENT','1',{sourceId:r.id,locationId:destination})).body.error.code).toBe('SOURCE_LOCATION_MISMATCH');
+});
+it('treasury: unauthorized users cannot post money, close cash or read foreign drawers',async()=>{
+ const locationId=await treasuryLocation(),input={clientKey:randomUUID(),locationId,kind:'EXPENSE',amount:'1',method:'CASH',reason:'Mock unauthorized expense',confirm:true};
+ for(const who of [cashier,unassigned,admin,foreign]){expect([403,404]).toContain((await write('/payments',input,who)).status);expect([403,404]).toContain((await write('/cash',{locationId,day:await treasuryDay(),opening:'0',counted:'0',expected:'0',confirm:true},who)).status);}
+ expect((await get(`/cash?locationId=${foreignLocation}&day=${await treasuryDay()}`)).status).toBe(404);expect(await db.moneyEntry.count({where:{businessId:business,locationId}})).toBe(0);
+});
+it('treasury: payment pagination has no overlap and expense filter excludes cash deposits',async()=>{
+ const locationId=await treasuryLocation();for(let i=0;i<31;i++)expect((await pay('EXPENSE','1',{locationId,reference:`Mock expense ${i}`})).status).toBe(201);
+ expect((await pay('CASH_IN','5',{locationId,method:'CASH'})).status).toBe(201);
+ const first=await get(`/payments?locationId=${locationId}&page=1`),second=await get(`/payments?locationId=${locationId}&page=2`),empty=await get(`/payments?locationId=${locationId}&page=3`);
+ expect(first.body.total).toBe(32);expect(first.body.items).toHaveLength(25);expect(second.body.items).toHaveLength(7);expect(empty.body.items).toHaveLength(0);expect(new Set([...first.body.items,...second.body.items].map(r=>r.id)).size).toBe(32);
+ const expenses=await get(`/payments?locationId=${locationId}&kind=EXPENSE`);expect(expenses.body.total).toBe(31);expect(expenses.body.items.every((r:any)=>r.kind==='EXPENSE')).toBe(true);
 });

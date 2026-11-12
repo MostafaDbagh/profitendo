@@ -22,7 +22,7 @@ export function present(doc:Transfer,access:Access){
   inTransit:doc.dispatchedAt?fixed(remaining(l)):'0.0000'})),
   capabilities:{
    edit:doc.status==='DRAFT'&&source&&destination&&access.permissions['transfers.create'],
-   cancel:doc.status==='DRAFT'&&source&&destination&&access.permissions['transfers.create'],
+   cancel:doc.status==='DRAFT'&&access.permissions['transfers.delete']&&source&&destination&&access.permissions['transfers.create'],
    dispatch:doc.status==='DRAFT'&&source&&access.permissions['transfers.dispatch'],
    receive:moving&&destination&&access.permissions['transfers.receive'],
    resolve:moving&&source&&destination&&access.permissions['transfers.resolve'],

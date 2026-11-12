@@ -50,6 +50,7 @@ export class PackService {
   async retire(ctx:AuthContext,businessId:string,productId:string,id:string){
     return this.auth.transaction(async tx=>{
       await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.edit');
+      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.delete');
       const pack=await tx.productPack.findFirst({where:{id,businessId,productId}});
       if(!pack)throw new ApiError(404,'PACK_NOT_FOUND','Pack not found');
       if(pack.retiredAt)return {ok:true};

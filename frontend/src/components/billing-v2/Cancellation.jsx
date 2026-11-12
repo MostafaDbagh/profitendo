@@ -1,3 +1,4 @@
+import { CalendarClock } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, buttonClass, panelClass } from '../business-v2/UI';
@@ -12,7 +13,7 @@ export default function Cancellation({ businessId, api, c, lang }) {
     catch (e) { setFailure(e.message); } finally { setBusy(false); }
   }
   return <section className={`${panelClass} space-y-4`}>
-    <h3 className="font-bold">{c('cancellationTitle')}</h3>
+    <h3 className="font-bold flex items-center gap-2"><CalendarClock className="w-4 h-4 text-slate-500" aria-hidden="true" />{lang==='ar'?'إدارة التجديد':'Manage renewal'}</h3>
     <Feedback error={error} c={c} retry={reload} />
     {!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
     {data && <>
@@ -25,7 +26,7 @@ export default function Cancellation({ businessId, api, c, lang }) {
     </>}
     {open && <Modal title={c('cancelSubscription')} description={c('cancellationConfirmHint')} {...{c,lang,busy}} returnFocus={trigger.current} close={() => setOpen(false)}>
       <Feedback error={failure} c={c} />
-      <div className="flex flex-wrap justify-end gap-2"><button className={buttonClass} disabled={busy} onClick={() => setOpen(false)}>{c('keepSubscription')}</button><button className={`${buttonClass} !bg-red-600 !text-white !border-red-600 hover:!bg-red-700`} disabled={busy} onClick={submit}>{c(busy ? 'saving' : 'confirmCancellation')}</button></div>
+      <div className="flex flex-wrap justify-end gap-2 rtl:flex-row-reverse"><button className={buttonClass} disabled={busy} onClick={() => setOpen(false)}>{c('keepSubscription')}</button><button className={`${buttonClass} !bg-red-600 !text-white !border-red-600 hover:!bg-red-700`} disabled={busy} onClick={submit}>{c(busy ? 'saving' : 'confirmCancellation')}</button></div>
     </Modal>}
   </section>;
 }

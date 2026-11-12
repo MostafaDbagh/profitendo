@@ -1,3 +1,4 @@
+import { requireBusiness } from '../businesses/access.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService, Tx } from '../auth/service.js';
 import { requireLocation } from '../locations/access.js';
@@ -83,6 +84,7 @@ export class TransferService{
   return this.auth.transaction(async tx=>{
    const {doc,access}=await this.document(tx,ctx,businessId,id,true);
    const source=await requireLocation(this.auth,tx,ctx,businessId,doc.sourceId,input.action==='dispatch'?'transfers.dispatch':'transfers.create',false);
+   if(input.action==='cancel')await requireBusiness(this.auth,tx,ctx,businessId,'transfers.delete');
    if(input.action==='cancel')await requireLocation(this.auth,tx,ctx,businessId,doc.destinationId,'transfers.create',false);
    if(input.action==='dispatch'&&doc.dispatchedAt||input.action==='cancel'&&doc.status==='CANCELLED')return present(doc,access);
    if(doc.revision!==input.revision)throw conflict();if(doc.status!=='DRAFT')throw invalidState();

@@ -145,3 +145,17 @@ it('blocks archiving a shop while its price quote is active',async()=>{
 it('rejects a payment request key used for another sale without deducting stock',async()=>{
  const a=await draft(),b=await draft(),input=checkoutBody(a);expect((await checkout(a,input)).status).toBe(200);const before=await stock(source);expect((await checkout(b,{...checkoutBody(b),clientKey:input.clientKey})).body.error.code).toBe('IDEMPOTENCY_CONFLICT');expect(await stock(source)).toBe(before);
 });
+
+it('requires a separate delete permission to cancel drafts while preserving edit access',async()=>{
+ const d=await draft({},cashier);
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:cashier.user.id}}});
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'sales.delete':false}}});
+ try {
+  const read=await get(`/${d.id}`,cashier);
+  expect(read.body.capabilities.edit).toBe(true);expect(read.body.capabilities.cancel).toBe(false);
+  expect((await write(`/${d.id}/cancel`,{revision:0,confirm:true},cashier)).status).toBe(403);
+  expect((await db.sale.findUniqueOrThrow({where:{id:d.id}})).status).toBe('DRAFT');
+  await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'sales.delete':true}}});
+  expect((await write(`/${d.id}/cancel`,{revision:0,confirm:true},cashier)).status).toBe(200);
+ } finally {await db.membership.update({where:{id:member.id},data:{permissionOverrides:member.permissionOverrides!}});}
+});

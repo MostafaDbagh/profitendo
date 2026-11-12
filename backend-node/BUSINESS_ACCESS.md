@@ -14,8 +14,9 @@ serializable database transactions, re-reading the user, session, membership,
 business suspension and permission overrides. Business IDs never authorize
 access by themselves. Target record lookups include the selected business ID.
 
-Owners have all business permissions. Only owners may change business settings,
-manage team access or manage invitations. Operations managers default to viewing
+Owners have all business permissions. Only owners may change business settings
+or manage invitation history/revocation. Owners and delegated administrators with
+`team.manage` may manage eligible staff and create invitations within their access. Operations managers default to viewing
 business details, team, roles and activity. Other staff roles default to viewing
 business details only. Owners may customize the implemented non-owner capabilities per
 member. Changing a role resets overrides unless replacements are explicitly
@@ -24,7 +25,7 @@ supplied. Every endpoint also requires `business.view`.
 Owner membership cannot be edited through team management. Changing a staff
 member's role, overrides or active state invalidates their sessions across all
 businesses. A disabled platform account cannot be reactivated by a business
-owner. Ownership transfer and custom role creation are outside this module.
+owner. Ownership transfer is outside this module. Custom role creation is described below.
 
 ## API
 
@@ -89,3 +90,110 @@ Catalogue capability extension: catalogue.view/manage/cost are separate. Owners
 and operations managers default to all three; other roles default to view only.
 Purchase cost is omitted from responses without catalogue.cost. Location and
 catalogue permissions are exposed in the existing team override controls.
+
+## Custom roles (2026-11-12)
+
+Business owners and delegated administrators with `team.manage` can create a
+named role from the Roles & access screen (`POST /api/businesses/:businessId/roles`).
+The server validates permission keys, rejects owner-only grants, restricts
+non-owner administrators to their own permissions, and reserves delegation of
+`team.manage` to owners. Workspace access is required. Names are normalized and
+unique per business; creation is audited and capped at 100 custom roles per
+business. Platform admin status provides no tenant access.
+
+Custom roles appear alongside built-in defaults and can be selected in Team and
+Invitations. Their IDs use composite tenant foreign keys. Assignment resolves the
+role in the target tenant, copies its explicit grants into the existing membership
+permission overrides, and revokes existing sessions using the established team
+update flow. Individual overrides remain available. Selecting a built-in role
+clears the custom-role association. Invitation acceptance applies the same saved
+grants while retaining subscription/member-capacity checks.
+
+This release adds creation and assignment only; saved role presets are immutable.
+It does not add role editing/deletion or change existing built-in defaults.
+Apply migration `20261112090000_custom_business_roles` and regenerate Prisma before
+starting the updated API. Existing memberships and permissions are preserved.
+
+Validation: business/auth integration tests and `scripts/roles-staging-browser.ts`
+with temporary staging records. Browser checks cover creation, duplicate names,
+persistence, team assignment, invitation selection, dialog focus return, and
+Arabic/English layouts at 320/390/768/1024/1440px. Screenshots: `tmp/roles-design/`.
+
+
+## Add people from Team (2026-11-12)
+
+The Team header now opens an Add team member dialog with email and built-in/custom
+role selection. It uses the existing invitation endpoint. Membership is created
+only after the recipient accepts; the success message makes that timing explicit.
+The browser exposes only roles within a delegated administrator's permission
+ceiling. Server validation independently rejects wider grants and delegation of
+administrator access by non-owners, including direct API calls.
+
+Acceptance rechecks the inviter's active membership, business access, team-management
+permission and current permission ceiling. Revoked authority invalidates pending
+invitations. Existing subscription capacity, duplicate membership, origin/CSRF and
+tenant isolation checks remain enforced. Invitation history/revocation remains
+owner-only. No real invitations were sent during verification: service tests mock
+mail queuing and browser tests mock invitation responses.
+
+Validation: 33 business/auth tests, TypeScript checks, frontend development compile,
+and `scripts/team-staging-browser.ts` for form errors/success, custom-role payloads,
+focus return and AR/EN layouts at 320/390/768/1024/1440px. Before/after screenshots
+are in `tmp/team-design/`.
+
+## Granular removal permissions and invitation names (2026-11-12)
+
+Role creation and member overrides now expose `returns.delete`, `counts.delete`,
+`sales.delete`, `purchasing.delete`, `receiving.delete`, `transfers.delete`,
+`catalogue.delete` and `suppliers.delete`. These are additional gates on existing
+cancellation/deactivation actions, not hard deletion of accounting history.
+Existing state, creator, location, tenant and management checks still apply.
+Catalogue removal also gates retiring packs and category/unit definitions.
+Completed payments and posted transactions remain immutable.
+
+Existing built-in permissions retain their previous behavior when a delete override
+is absent. Explicit false always denies the corresponding action for non-owners.
+New custom roles save explicit selections. Owners retain their protected full access.
+Action capabilities/controls reflect these gates as well as server enforcement.
+
+Both Team and Invitations forms collect the name. Invitation names are saved and
+shown in invitation history; new-account acceptance can use the saved name when no
+recipient-provided name is supplied. Existing account names are never overwritten.
+Migration `20261112100000_invitation_name` adds the optional storage field without
+changing older invitations. Current forms require a 2–100 character name.
+
+Validation: 107 tests across business permissions, catalogue, sales, purchasing,
+transfers and completion; TypeScript checks; role and invitation AR/EN browser
+screenshots at 320/390/768/1024/1440px in `tmp/roles-design/` and `tmp/team-design/`.
+
+## Initial invitation password (2026-11-12)
+
+Team and Invitations support an optional initial password (12–128 characters).
+It is Argon2id-hashed before persistence and never included in invitation mail,
+list responses or audit data. Acceptance can use the stored hash and name if the
+recipient leaves those fields blank, or use a password the recipient chooses.
+Existing accounts must sign in and their credentials are never overwritten.
+Accepting, replacing or explicitly revoking an invitation clears its stored hash.
+No account or membership is created until acceptance. Apply migration
+`20261112110000_invitation_password` before running this version.
+
+## Invitation, role, team and subscription regression run (2026-11-12)
+
+Ran the business/auth/billing/PayPal/admin-service suites (79 passing tests), both
+role/team staging browser scripts, and `scripts/team-billing-e2e.ts`. The latter
+runs an isolated test-database API behind the existing frontend. Only mail delivery
+is mocked: invitation creation, password hashing, acceptance, login, membership,
+trial activation, seat limits, paid approval and expiry use the real API/database.
+No email is delivered and no provider charge is made. Screenshots are under
+`tmp/team-billing-e2e/` (AR/EN, desktop/mobile).
+
+Found and fixed two issues:
+- Custom-role member updates now re-resolve the original request on transaction
+  retries; expanded permissions no longer become caller-supplied overrides.
+- Billing distinguishes missing MFA setup from an unverified session. Subscription
+  shows `BILLING_MFA_SETUP_REQUIRED` with an Account security link instead of
+  redirecting a signed-in owner repeatedly to the dashboard. MFA remains required.
+
+Added deterministic retry and missing-MFA regression coverage. TypeScript checks
+passed. Real email deliverability and live PayPal payments are outside this local
+verification; provider behavior is covered by the mocked PayPal integration suite.

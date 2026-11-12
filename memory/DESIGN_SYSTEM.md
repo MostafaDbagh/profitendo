@@ -509,3 +509,31 @@ remain available. AR/EN mobile/tablet/desktop overflow checks and build passed.
 User clarified the chip request targets the dashboard content heading: dashboard
 title at right and business-name emerald pill at left in one row, replacing the
 three stacked title/name/description lines. Verified AR/EN responsive layouts.
+
+## Arabic placeholder direction (2026-11-12)
+
+Shared Field detects Arabic placeholder text. While empty, the input displays
+that placeholder RTL and right-aligned, even if its value uses `dir="ltr"`.
+Typing restores the input's declared direction (email/password/code remain LTR).
+Clearing the input restores RTL placeholder display. Latin examples retain their
+normal direction. Verified in invitation forms in AR/EN at mobile/desktop widths.
+
+## Arabic dialog actions (2026-11-12)
+
+Business Team, Add member, Add role and invitation-revocation dialogs keep their
+primary action on the right and Cancel immediately to its left in Arabic, aligned
+to the right edge. Use `rtl:flex-row-reverse` on the existing `justify-end` action
+row (secondary then primary in DOM); English retains its established placement.
+Verified button bounds on mobile/desktop and AR/EN screenshots.
+
+## Business billing refresh (2026-11-12)
+
+User-requested restyle of `business?tab=billing`: current plan/status and expiry
+lead the page, followed by staff/location usage bars, paid plan cards, receipts
+and renewal controls. Preserve operational white/slate surfaces, emerald actions,
+existing typography and responsive RTL layout. Empty receipts omit table search
+and pagination until payments exist. Billing behavior and approval requirements
+remain unchanged. Before/after captures: `tmp/billing-restyle-before` and
+`tmp/team-billing-e2e`. Browser integration verified trial activation, invitation
+acceptance, capacity limits, paid approval requests, MFA setup guidance, and
+active/expired Arabic/English views at 390/1440 pixels; no real mail or payments.

@@ -2,7 +2,7 @@ import { useResource } from '../business-v2/useBusinessApi';
 import { useState } from 'react';
 import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, Modal, Select, buttonClass, primaryClass } from '../business-v2/UI';
-export default function ProductForm({ product, cost, path, api, c, lang, close, done, returnFocus }) {
+export default function ProductForm({canDelete, product, cost, path, api, c, lang, close, done, returnFocus }) {
   const references=useResource(api,`${path}/references`);
   const [form,setForm]=useState(product ? {...product,barcodes:product.barcodes.join('\n')} : {name:'',sku:'',unit:'PIECE',category:'',subcategory:'',brand:'',description:'',purchasePrice:'',sellingPrice:'',minimumStock:'0',active:true,barcodes:''});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -23,7 +23,7 @@ export default function ProductForm({ product, cost, path, api, c, lang, close, 
         {['sellingPrice',...(cost?['purchasePrice']:[]),'minimumStock'].map(k=><Field key={k} id={`product-${k}`} label={c(k)} placeholder={k==='minimumStock'?'0':'0.0000'} value={form[k]} onChange={set(k)} dir="ltr" inputMode="decimal" required pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" />)}
         <div className="sm:col-span-2"><label htmlFor="product-barcodes" className="block text-sm font-medium text-slate-700 mb-1.5">{c('barcodes')}</label><textarea id="product-barcodes" className={inputClass} dir="ltr" placeholder="001234567890" value={form.barcodes} onChange={set('barcodes')} rows={3} maxLength={2600} aria-describedby="barcode-hint"/><p id="barcode-hint" className="text-xs text-slate-500 mt-1">{c('barcodeHint')}</p></div>
         <div className="sm:col-span-2"><Field id="product-description" label={c('description')} placeholder={c('descriptionPlaceholder')} value={form.description} onChange={set('description')} maxLength={2000}/></div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-emerald-600 h-4 w-4" checked={form.active} onChange={e=>setForm(f=>({...f,active:e.target.checked}))}/>{c('active')}</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-emerald-600 h-4 w-4" disabled={!!product && product.active && !canDelete} checked={form.active} onChange={e=>setForm(f=>({...f,active:e.target.checked}))}/>{c('active')}</label>
       </fieldset>
       <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClass} disabled={busy} onClick={close}>{c('cancel')}</button><button className={primaryClass} disabled={busy||error==='REVISION_CONFLICT'}>{c(busy?'saving':'save')}</button></div>
     </form>

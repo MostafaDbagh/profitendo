@@ -1,0 +1,37 @@
+Grocery full-system mock test (12 November 2026)
+
+Use Node >=22.12.0 and the dedicated PostgreSQL database ending in _test.
+.env.mock is local and contains connection settings; never commit its secrets.
+Apply the existing Prisma migrations before testing a new test database.
+
+Start a separate frontend from frontend/:
+PORT=3300 HOST=127.0.0.1 REACT_APP_B2B_PRIMARY=true REACT_APP_AUTH_API_URL=http://localhost:4300 BROWSER=none npm start
+
+From backend-node/:
+node --env-file=.env.mock --import tsx scripts/grocery-admin-login.ts
+node --env-file=.env.mock --import tsx --input-type=module -e 'process.env.TEST_DATABASE_URL=process.env.DATABASE_URL;await import("./scripts/grocery-human-browser.ts")'
+
+The grocery script starts its own API on port 4301 and proxies browser API calls
+there. Only bootstrap identity/plan fixtures bypass the UI. Locations, supplier,
+products, receipt, transfer, sale, return, damage, count, payments and cash closing
+all use browser controls. It asserts every final stock balance and report metric.
+Records are removed in finally; immutable-ledger cleanup is restricted to the
+_test database, runs transactionally, and restores triggers before committing.
+
+Additional browser suites, sequentially (their API defaults to port 4300):
+node --env-file=.env.mock scripts/full-system-browser-runner.mjs operations transfers sales completion locations catalogue import admin-services cancellation
+
+The runner adapts old default local ports to the isolated 3300/4300 test setup,
+uses 390px/1440px for repeated layout loops, and paces page reloads to avoid
+benchmarking the report rate limiter instead of exercising user workflows.
+Do not run two runner processes for the same suite at once.
+
+Roles and invitation/billing scripts expect the existing staging frontend on
+3200 (API URL 4200), but proxy API calls to their own isolated test servers:
+node --env-file=.env.mock --import tsx scripts/roles-mock-browser.ts
+node --env-file=.env.mock --import tsx scripts/team-billing-e2e.ts
+
+Evidence is under tmp/grocery-human-test and tmp/full-system-review/report.html.
+No real email delivery or payment provider was used. Mock transaction records
+are cleaned up; screenshots and CSV evidence remain. Existing staging data is
+not modified by these scripts.

@@ -2,7 +2,7 @@ export const transferCopy={
  en:{
  transfers:'Stock transfers',transfersHint:'Send stock between warehouses and shops, then confirm what actually arrives.',
  newTransfer:'New transfer',editTransfer:'Edit transfer draft',transferDraftHint:'Choose two different locations you can access. A draft does not reserve or move stock. Quantities use each product’s base unit.',
- sourceLocation:'From location',destinationLocation:'To location',chooseSource:'Choose source location',chooseDestination:'Choose destination location',
+ sourceLocation:'From location',destinationLocation:'To location',chooseTransferSource:'Choose source location',chooseDestination:'Choose destination location',
  transferNotesPlaceholder:'e.g. Deliver to the branch before opening; driver Ahmed',transferSearchPlaceholder:'e.g. TR-20261111',transferSearch:'Find a transfer',transferSaved:'Transfer draft saved. Stock has not changed.',
  transferStatusDRAFT:'Draft',transferStatusIN_TRANSIT:'In transit',transferStatusPARTIAL:'Partially completed',transferStatusCOMPLETED:'Closed',transferStatusCANCELLED:'Cancelled',
  dispatchTransfer:'Dispatch goods',cancelTransfer:'Cancel draft',receiveTransfer:'Record arrival',returnTransfer:'Record return to source',lossTransfer:'Record loss',
@@ -30,7 +30,7 @@ export const transferCopy={
  ar:{
  transfers:'تحويلات المخزون',transfersHint:'أرسل المخزون بين المستودعات والمتاجر، ثم أكّد الكميات التي وصلت فعليًا.',
  newTransfer:'تحويل جديد',editTransfer:'تعديل مسودة التحويل',transferDraftHint:'اختر موقعين مختلفين لديك صلاحية الوصول إليهما. لا تحجز المسودة المخزون ولا تنقله. الكميات بوحدة المنتج الأساسية.',
- sourceLocation:'من الموقع',destinationLocation:'إلى الموقع',chooseSource:'اختيار موقع الإرسال',chooseDestination:'اختيار موقع الاستلام',
+ sourceLocation:'من الموقع',destinationLocation:'إلى الموقع',chooseTransferSource:'اختيار موقع الإرسال',chooseDestination:'اختيار موقع الاستلام',
  transferNotesPlaceholder:'مثال: التسليم للفرع قبل الافتتاح؛ السائق أحمد',transferSearchPlaceholder:'مثال: TR-20261111',transferSearch:'البحث عن تحويل',transferSaved:'حُفظت مسودة التحويل. لم يتغير المخزون.',
  transferStatusDRAFT:'مسودة',transferStatusIN_TRANSIT:'قيد النقل',transferStatusPARTIAL:'مكتمل جزئيًا',transferStatusCOMPLETED:'مغلق',transferStatusCANCELLED:'ملغي',
  dispatchTransfer:'إرسال البضاعة',cancelTransfer:'إلغاء المسودة',receiveTransfer:'تسجيل الوصول',returnTransfer:'تسجيل الإرجاع للمصدر',lossTransfer:'تسجيل الفاقد',

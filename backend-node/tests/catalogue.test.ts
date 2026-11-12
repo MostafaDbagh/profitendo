@@ -141,3 +141,15 @@ it('enforces add and edit product grants independently at the API',async()=>{
  expect((await write('',input(`DENY-${randomUUID().slice(0,8)}`,[]),creator)).status).toBe(403);
  expect((await write(`/${made.body.id}`,{revision:0,name:'Allowed edit'},creator,'patch')).status).toBe(200);
 });
+
+it('separates product deactivation from editing and honors explicit delete denial',async()=>{
+ const p=await db.product.create({data:{businessId:business,sku:`DEL-${randomUUID().toUpperCase()}`,name:'Deletion permission test',unit:'PIECE',purchasePrice:'1',sellingPrice:'2'}});
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:manager.user.id}}});
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'catalogue.delete':false}}});
+ try {
+  expect((await write(`/${p.id}`,{revision:0,active:false},manager,'patch')).status).toBe(403);
+  expect((await write(`/${p.id}`,{revision:0,name:'Still editable'},manager,'patch')).status).toBe(200);
+  await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'catalogue.delete':true}}});
+  expect((await write(`/${p.id}`,{revision:1,active:false},manager,'patch')).status).toBe(200);
+ } finally {await db.membership.update({where:{id:member.id},data:{permissionOverrides:member.permissionOverrides!}});}
+});

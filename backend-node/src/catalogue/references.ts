@@ -29,6 +29,7 @@ export class ReferenceService {
  });}catch(e){if((e as {code?:string}).code==='P2002')throw new ApiError(409,'REFERENCE_EXISTS','Code already exists');throw e;}}
  async state(ctx:AuthContext,businessId:string,id:string,revision:number,active:boolean){return this.auth.transaction(async tx=>{
   await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+  if(!active)await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.delete');
   if(active&&!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','Active subscription required');
   const row=await tx.catalogueReference.findFirst({where:{id,businessId}});if(!row)throw new ApiError(404,'NOT_FOUND','Definition not found');
   const result=await tx.catalogueReference.updateMany({where:{id,businessId,revision},data:{active,revision:{increment:1}}});

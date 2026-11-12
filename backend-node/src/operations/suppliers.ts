@@ -20,6 +20,7 @@ export class SupplierService {
     const row=await tx.supplier.findFirst({where:{businessId,id}});
     if(!row)throw new ApiError(404,'NOT_FOUND','Supplier not found');
     const {revision,...data}=input as z.infer<typeof supplierPatch>;
+    if(data.active===false&&row.active)await requireBusiness(this.auth,tx,ctx,businessId,'suppliers.delete');
     if(row.revision!==revision)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
     if(data.active&&!row.active&&!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','Active subscription required');
     const changed=await tx.supplier.updateMany({where:{id,businessId,revision},data:{...data,revision:{increment:1}}});

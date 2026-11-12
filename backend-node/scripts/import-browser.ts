@@ -23,7 +23,7 @@ async function actor(role:'OWNER'|'CASHIER',businessId:string){
  const context=await browser.newContext({viewport:{width:1440,height:1100}});await context.addCookies([{name:settings.cookieName,value:session.token,url:'http://localhost:4000',httpOnly:true,sameSite:'Lax'}]);
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('http://127.0.0.1:8001/**',r=>r.fulfill({status:401,contentType:'application/json',body:'{"detail":"Not authenticated"}'}));await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});return page;
 }
-async function open(page:Page,lang='en'){await page.goto(`${settings.appOrigin}/business-v2`);await page.getByRole('button',{name:lang==='ar'?'دليل المنتجات':'Product catalogue',exact:true}).click();await page.getByRole('table').waitFor();}
+async function open(page:Page,lang='en'){await page.goto(`${settings.appOrigin}/business-v2`);await page.getByRole('navigation').getByRole('button',{name:lang==='ar'?'المنتجات':'Products',exact:true}).click();await page.getByRole('table').waitFor();}
 async function workbook(sku='EXCEL-001',price='3.75'){
  const wb=new Excel.Workbook(),sheet=wb.addWorksheet('Products');sheet.addRow([...columns]);sheet.addRow([sku,'Excel milk','LITRE','1.25',price,'0','','','','','00012345','true']);return Buffer.from(await wb.xlsx.writeBuffer());
 }
