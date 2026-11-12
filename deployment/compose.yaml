@@ -9,6 +9,8 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
     expose: ["4000"]
+    environment:
+      TRUST_PROXY_IP: 172.30.86.2
   worker:
     build: ../backend-node
     env_file: .env
@@ -31,6 +33,9 @@ services:
     expose: ["8080"]
   edge:
     image: caddy:2-alpine
+    networks:
+      default:
+        ipv4_address: 172.30.86.2
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
     ports: ["80:80", "443:443"]
@@ -40,3 +45,9 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.86.0/24

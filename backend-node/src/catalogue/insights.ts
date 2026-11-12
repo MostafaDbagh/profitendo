@@ -1,3 +1,4 @@
+import type {Prisma} from '../generated/prisma/client.js';
 import type {AuthService,AuthContext} from '../auth/service.js';
 import {requireBusiness} from '../businesses/access.js';
 import {ApiError} from '../errors.js';
@@ -11,7 +12,10 @@ export async function productInsights(auth:AuthService,ctx:AuthContext,businessI
  const scope={businessId,...(a.permissions['locations.all']?{}:{assignments:{some:{businessId,membershipId:a.membership.id}}})};
  const locations=stock||sales?await tx.location.findMany({where:scope,select:{id:true,name:true,archivedAt:true}}):[];
  const active=locations.filter(l=>!l.archivedAt),locationIds=locations.map(l=>l.id);
- const products=await tx.product.findMany({where:{businessId,...(q.state==='all'?{}:{active:q.state==='active'}),...(q.search?{OR:[{name:{contains:q.search,mode:'insensitive' as const}},{sku:{contains:q.search,mode:'insensitive' as const}},{barcodes:{some:{value:q.search}}}]}:{})},include:{barcodes:true},orderBy:[{name:'asc'},{id:'asc'}],take:10001});
+ const productWhere:Prisma.ProductWhereInput={businessId,...(q.state==='all'?{}:{active:q.state==='active'}),...(q.search?{OR:[{name:{contains:q.search,mode:'insensitive' as const}},{sku:{contains:q.search,mode:'insensitive' as const}},{barcodes:{some:{value:q.search}}}]}:{})};
+ const paginated=q.filter==='all'&&!q.export;
+ const total=paginated?await tx.product.count({where:productWhere}):0;
+ const products=await tx.product.findMany({where:productWhere,include:{barcodes:true},orderBy:[{name:'asc'},{id:'asc'}],skip:paginated?(q.page-1)*25:0,take:paginated?25:10001});
  if(products.length>10000)throw new ApiError(422,'REPORT_TOO_LARGE','Narrow the product search');
  const ids=products.map(p=>p.id);
  const balances=stock?await tx.stockBalance.findMany({where:{businessId,productId:{in:ids},locationId:{in:active.map(l=>l.id)}}}):[];
@@ -25,5 +29,5 @@ export async function productInsights(auth:AuthService,ctx:AuthContext,businessI
  if(q.filter==='low')rows=rows.filter(p=>p.lowStock);
  if(q.filter==='top')rows=rows.filter(p=>(p.saleCount??0)>0).sort((a,b)=>(b.saleCount??0)-(a.saleCount??0)||a.sku.localeCompare(b.sku)).slice(0,10);
  if(q.export){const headers=['name','sku','unit','sellingPrice',...(a.permissions['catalogue.cost']?['purchasePrice']:[]),...(sales?['saleCount','unitsSold']:[]),...(stock?['onHand','available','minimumStock','lowStock']:[])];return {filename:'products.csv',csv:[headers.map(csvCell).join(','),...rows.map(p=>headers.map(h=>csvCell((p as unknown as Record<string,unknown>)[h])).join(','))].join('\r\n')};}
- return {page:q.page,pageSize:25,total:rows.length,currency:a.business.baseCurrency,items:rows.slice((q.page-1)*25,q.page*25)};
+ return {page:q.page,pageSize:25,total:paginated?total:rows.length,currency:a.business.baseCurrency,items:paginated?rows:rows.slice((q.page-1)*25,q.page*25)};
 });}

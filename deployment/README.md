@@ -62,3 +62,23 @@ reconcile deltas, then switch traffic; never blindly restore over new sales.
 suite on PostgreSQL. It does not deploy, enable billing, or access customer data.
 Container runtime checks still require Docker; Docker is unavailable on this
 workstation, so image build and compose start must be verified on staging.
+
+## Security boundaries
+
+The edge supplies CSP, frame denial and HSTS for the frontend and API. Frontend
+HTML no longer loads the external Emergent/PostHog tracking scripts. CSP assumes
+the documented same-origin API deployment; do not loosen script-src to restore
+tracking. Inline styles and Google Fonts remain allowed for existing UI styling.
+
+Compose pins the edge to 172.30.86.2 and trusts only that address in the API.
+Do not publish the API port or set trust proxy to true/hop counts. If this subnet
+conflicts with your host, change the subnet, edge address and TRUST_PROXY_IP
+together. Direct local development trusts no proxy. An additional CDN requires
+an explicit, separately reviewed forwarding configuration.
+
+The API allows 600 requests/minute/IP per process before body parsing, with a
+bounded 10,000-address map. Expensive reports, insights, exports and imports also
+use the shared database limiter at 30 requests/minute/authenticated user.
+Responses include Retry-After. These are application safeguards, not volumetric
+DDoS protection; validate limits under realistic shared-store/NAT traffic before
+launch. Liveness is exempt; readiness remains limited.

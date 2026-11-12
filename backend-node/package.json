@@ -11,7 +11,7 @@
     "build": "tsc && cp src/catalogue/xlsx-worker.cjs dist/catalogue/xlsx-worker.cjs",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run tests/app.test.ts tests/paypal-client.test.ts tests/migration-review.test.ts tests/staging-guard.test.ts",
+    "test": "vitest run tests/security-boundary.test.ts tests/app.test.ts tests/paypal-client.test.ts tests/migration-review.test.ts tests/staging-guard.test.ts",
     "test:integration": "vitest run --maxWorkers=2 tests/database.test.ts tests/auth.test.ts tests/auth-mock.test.ts tests/businesses.test.ts tests/platform.test.ts tests/admin-services.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",

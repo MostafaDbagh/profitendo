@@ -32,7 +32,7 @@ export class InventoryService{
    const where={businessId,locationId,...(search?{product:{OR:[{name:{contains:search,mode:'insensitive' as const}},{sku:{contains:search,mode:'insensitive' as const}},{barcodes:{some:{value:search}}}]}}:{})};
    if(movements){const rows=await tx.stockMovement.findMany({where,include:{product:{select:{name:true,sku:true,unit:true}}},skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}]});
     return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(r=>({...r,quantity:r.quantity.toFixed(4)}))};}
-   const rows=await tx.stockBalance.findMany({where,include:{product:{select:{name:true,sku:true,unit:true,minimumStock:true}}},skip:(page-1)*25,take:25,orderBy:{product:{name:'asc'}}});
+   const rows=await tx.stockBalance.findMany({where,include:{product:{select:{name:true,sku:true,unit:true,minimumStock:true}}},skip:(page-1)*25,take:25,orderBy:[{product:{name:'asc'}},{productId:'asc'},{locationId:'asc'}]});
    return {page,pageSize:25,total:await tx.stockBalance.count({where}),items:rows.map(r=>({...r,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),lowStock:r.onHand.minus(r.reserved).lte(r.product.minimumStock),product:{...r.product,minimumStock:r.product.minimumStock.toFixed(4)}}))};
   });
  }

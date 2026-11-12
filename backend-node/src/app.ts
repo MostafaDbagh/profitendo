@@ -6,6 +6,8 @@ import { completionRouter } from './workflows/router.js';
 import { salesRouter } from './sales/router.js';
 import { transferRouter } from './transfers/router.js';
 import { operationsRouter } from './operations/router.js';
+import {requestBudget} from './request-budget.js';
+import {authHttp} from './auth/http.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
@@ -24,9 +26,10 @@ import { authRouter } from './auth/router.js';
 import type { AuthService } from './auth/service.js';
 import { ApiError, errorHandler } from './errors.js';
 export type DatabaseProbe = () => Promise<void>;
-export function createApp(config: Pick<Config, 'CORS_ORIGINS'>, logger: Logger, databaseProbe: DatabaseProbe, auth?: AuthService, paypal?: PayPalProvider) {
+export function createApp(config: Pick<Config, 'CORS_ORIGINS'> & Partial<Pick<Config,'TRUST_PROXY_IP'>>, logger: Logger, databaseProbe: DatabaseProbe, auth?: AuthService, paypal?: PayPalProvider) {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy',config.TRUST_PROXY_IP?[config.TRUST_PROXY_IP]:false);
   app.use((_req, res, next) => {
     const start = performance.now();
     res.locals.requestId = randomUUID();
@@ -40,6 +43,21 @@ export function createApp(config: Pick<Config, 'CORS_ORIGINS'>, logger: Logger, 
     if (!origin || config.CORS_ORIGINS.includes(origin)) return cb(null, true);
     cb(new ApiError(403, 'ORIGIN_NOT_ALLOWED', 'Origin is not allowed'));
   } }));
+  app.use('/api', requestBudget());
+  if(auth){
+    const http=authHttp(auth);
+    app.use(async(req,res,next)=>{
+      const heavy=req.path.startsWith('/api/')&&(/\/(reports|insights|product-imports)(\/|$)/.test(req.path)||req.query.export==='true');
+      if(!heavy)return next();
+      const token=http.getToken(req);
+      if(!token)throw new ApiError(401,'UNAUTHENTICATED','Sign in first');
+      const context=await auth.authenticate(token);
+      try{await auth.limit('heavy-api-user',context.user.id,30,60);}
+      catch(error){res.setHeader('Retry-After','60');throw error;}
+      next();
+    });
+  }
+
   // The larger upload allowance is authenticated and scoped to product imports.
   if(auth)app.use('/api/businesses/:businessId/product-imports',productImportRouter(auth));
   if(auth)app.use('/api/businesses/:businessId/products/:productId/image',imageRouter(auth));

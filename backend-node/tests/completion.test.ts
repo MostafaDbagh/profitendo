@@ -189,3 +189,35 @@ it('shows product sale frequency, scoped available stock, low stock and filtered
  expect((await insights('',foreign)).status).toBe(403);expect((await insights('',admin)).status).toBe(403);
  const restricted=await insights('search=Insight%20test%20product',unassigned);expect(restricted.status).toBe(200);expect(restricted.body.items[0].saleCount??0).toBe(0);expect(restricted.body.items[0].available??'0.0000').toBe('0.0000');
 });
+it('shares the heavy report budget across API instances and keeps other users isolated',async()=>{
+ const limited=await actor('OWNER');
+ for(let i=0;i<30;i++)await auth.limit('heavy-api-user',limited.user.id,30,60);
+ const second=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
+ const path=`/api/businesses/${business}/products/insights`;
+ const blocked=await request(second).get(path).set('Cookie',cookie(limited));
+ expect(blocked.status).toBe(429);expect(blocked.headers['retry-after']).toBe('60');
+ const fresh=await actor('OWNER');expect((await request(second).get(path).set('Cookie',cookie(fresh))).status).toBe(200);
+ expect((await request(second).get(path)).status).toBe(401);
+});
+it('paginates a large catalogue before loading stock and sales statistics',async()=>{
+ const prefix=`PERF-${randomUUID().slice(0,8).toUpperCase()}`;
+ await db.product.createMany({data:Array.from({length:2000},(_,i)=>({businessId:business,sku:`${prefix}-${i}`,name:`${prefix}-${String(i).padStart(4,'0')}`,unit:'PIECE',purchasePrice:'1',sellingPrice:'2'}))});
+ const times:number[]=[];
+ for(const page of [1,2,40,80,81]){
+  const start=performance.now();const res=await request(app).get(`/api/businesses/${business}/products/insights?search=${prefix}&page=${page}`).set('Cookie',cookie(owner));times.push(performance.now()-start);
+  expect(res.status,res.text).toBe(200);expect(res.body.total).toBe(2000);expect(res.body.items).toHaveLength(page===81?0:25);
+  if(page<=80)expect(res.body.items[0].name).toBe(`${prefix}-${String((page-1)*25).padStart(4,'0')}`);
+ }
+ console.log('Catalogue benchmark (2,000 products, local API, five sequential pages), ms:',times.map(t=>Math.round(t)));
+});
+it('returns separate report pages with a full matching count and full export',async()=>{
+ const prefix=`PAGING-${randomUUID().slice(0,8).toUpperCase()}`;
+ await db.product.createMany({data:Array.from({length:60},(_,i)=>({businessId:business,sku:`${prefix}-${i}`,name:`${prefix}-${i}`,unit:'PIECE',purchasePrice:'1',sellingPrice:'2'}))});
+ const products=await db.product.findMany({where:{businessId:business,sku:{startsWith:prefix}}});
+ await db.stockBalance.createMany({data:products.map(p=>({businessId:business,locationId:source,productId:p.id,onHand:'1',reserved:'0'}))});
+ const day=new Date().toISOString().slice(0,10),query=`/reports?view=stock&from=${day}&to=${day}`;
+ const first=await get(`${query}&page=1`),second=await get(`${query}&page=2`);
+ expect(first.status).toBe(200);expect(second.status).toBe(200);expect(first.body.items).toHaveLength(25);expect(second.body.items).toHaveLength(25);expect(first.body.total).toBeGreaterThanOrEqual(60);expect(second.body.total).toBe(first.body.total);
+ const keys=new Set(first.body.items.map((r:any)=>`${r.location}:${r.sku}`));expect(second.body.items.some((r:any)=>keys.has(`${r.location}:${r.sku}`))).toBe(false);
+ const exported=await get(`${query}&export=true`);expect(exported.status).toBe(200);expect(exported.body.total).toBe(first.body.total);
+});
