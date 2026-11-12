@@ -1,5 +1,6 @@
 export const authCopy = {
   en: {
+    NETWORK_ERROR: 'Cannot connect to the server. Check your connection and try again.', REQUEST_TIMEOUT: 'The server took too long to respond. Please try again.', INVALID_SERVER_RESPONSE: 'The server returned an unexpected response. Please try again.', retryConnection: 'Try connecting again',
     qrHint:'Scan this QR code with Google Authenticator, Microsoft Authenticator or another authenticator app.', qrAlt:'Authenticator setup QR code',
     emailCode:'Verify email code', emailCodeHint:'Enter the code for', otpHint:'Exactly 6 digits (0–9). Letters and spaces are not accepted.',
     mockNotice:'Local test mode: use 123456 for email and MFA codes. No email is sent.',
@@ -18,7 +19,7 @@ export const authCopy = {
     passwordHint: 'Use at least 12 characters.', forgotLink: 'Forgot your password?', back: 'Back to sign in', createLink: 'Create a business account',
     submit: 'Continue', sendLink: 'Send reset link', verifyButton: 'Verify email', accept: 'Accept invitation',
     checkEmail: 'If eligible, you will receive an email with the next steps.', verified: 'Email verified. You can sign in now.', resetDone: 'Password updated. Sign in with your new password.', inviteDone: 'Invitation accepted. Sign in to continue.',
-    mfaSetup: 'Protect your account', mfaSetupHint: 'Owners and platform administrators need an authenticator app. Confirm your password to set it up.',
+    mfaSetup: 'Protect your account', mfaSetupHint: 'Your account requires two-step verification. Confirm your password to set up your authenticator app.',
     beginSetup: 'Set up authenticator', secretLabel: 'Authenticator setup key', secretHint: 'Cannot scan? Add this key to your authenticator app manually.',
     code: 'Verification code', confirmMfa: 'Confirm authenticator', mfaTitle: 'Verify it is you', mfaHint: 'Enter the code from your authenticator app or an unused recovery code.',
     recoveryTitle: 'Save your recovery codes', recoveryHint: 'Each code works once. Save them somewhere safe before continuing. They will not be shown again.', savedCodes: 'I have saved my recovery codes',
@@ -36,6 +37,7 @@ export const authCopy = {
     CSRF_INVALID: 'Refresh the page and try again.', FORBIDDEN: 'You do not have permission for this action.', MEMBER_EXISTS: 'This person is already a member.', VALIDATION_ERROR: 'Check the information you entered.',
   },
   ar: {
+    NETWORK_ERROR: 'تعذّر الاتصال بالخادم. تحقّق من الاتصال وحاول مجدداً.', REQUEST_TIMEOUT: 'استغرق الخادم وقتاً طويلاً للرد. حاول مجدداً.', INVALID_SERVER_RESPONSE: 'أعاد الخادم استجابة غير متوقعة. حاول مجدداً.', retryConnection: 'إعادة محاولة الاتصال',
     qrHint:'امسح رمز QR باستخدام Google Authenticator أو Microsoft Authenticator أو تطبيق مصادقة آخر.', qrAlt:'رمز QR لإعداد تطبيق المصادقة',
     emailCode:'تأكيد رمز البريد', emailCodeHint:'أدخل الرمز الخاص بالبريد', otpHint:'٦ أرقام بالضبط (0–9). لا تُقبل الأحرف أو المسافات.',
     mockNotice:'وضع الاختبار المحلي: استخدم 123456 لرمز البريد والمصادقة. لن يُرسل بريد فعلي.',
@@ -54,7 +56,7 @@ export const authCopy = {
     passwordHint: 'استخدم 12 حرفًا على الأقل.', forgotLink: 'نسيت كلمة المرور؟', back: 'العودة لتسجيل الدخول', createLink: 'إنشاء حساب نشاط تجاري',
     submit: 'متابعة', sendLink: 'إرسال رابط الاستعادة', verifyButton: 'تأكيد البريد الإلكتروني', accept: 'قبول الدعوة',
     checkEmail: 'إذا كان الطلب مؤهلًا، ستصلك رسالة بالخطوات التالية.', verified: 'تم تأكيد البريد الإلكتروني. يمكنك تسجيل الدخول الآن.', resetDone: 'تم تحديث كلمة المرور. سجّل الدخول بكلمتك الجديدة.', inviteDone: 'تم قبول الدعوة. سجّل الدخول للمتابعة.',
-    mfaSetup: 'حماية حسابك', mfaSetupHint: 'يحتاج المالك ومدير المنصة إلى تطبيق مصادقة. أكّد كلمة المرور لبدء الإعداد.',
+    mfaSetup: 'حماية حسابك', mfaSetupHint: 'يتطلب حسابك التحقق بخطوتين. أكّد كلمة المرور لإعداد تطبيق المصادقة.',
     beginSetup: 'إعداد تطبيق المصادقة', secretLabel: 'مفتاح إعداد المصادقة', secretHint: 'تعذّر المسح؟ أضف هذا المفتاح إلى تطبيق المصادقة يدوياً.',
     code: 'رمز التحقق', confirmMfa: 'تأكيد المصادقة', mfaTitle: 'تأكيد هويتك', mfaHint: 'أدخل رمز تطبيق المصادقة أو رمز استرداد لم تستخدمه من قبل.',
     recoveryTitle: 'احفظ رموز الاسترداد', recoveryHint: 'كل رمز صالح مرة واحدة. احفظ الرموز في مكان آمن قبل المتابعة، فلن تُعرض مجددًا.', savedCodes: 'حفظت رموز الاسترداد',

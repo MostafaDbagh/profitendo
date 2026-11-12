@@ -41,6 +41,8 @@
     "test:browser:auth-mock": "tsx scripts/auth-mock-browser.ts",
     "dev:mock": "node --env-file=.env.mock --import tsx src/server.ts",
     "test:browser:auth-real": "tsx scripts/auth-real-browser.ts",
+    "test:browser:auth-resilience": "tsx scripts/auth-resilience-browser.ts",
+    "test:browser:staging-login": "node --env-file=.env.staging --import tsx scripts/login-staging-check.ts",
     "test:browser:admin-services": "tsx scripts/admin-services-browser.ts",
     "seed:staging": "tsx scripts/seed-staging.ts",
     "dev:staging": "node --env-file=.env.staging --import tsx src/server.ts"

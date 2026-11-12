@@ -563,3 +563,12 @@ based on the form language, independently of an input's text direction. This
 prevents LTR email values in Arabic forms from overlapping the right-hand icon.
 Verified empty placeholders and populated values in AR/EN at 390/1440px with
 40px icon clearance; captures in `tmp/email-spacing`. Frontend build passed.
+
+## Auth connection recovery (2026-11-12)
+
+AuthV2 retains its existing forms, branding and RTL layout. Failed initial API
+checks now show a localized connection/timeout/response error and an explicit
+retry button; forms wait for successful configuration. Requests time out after
+30 seconds and recover their enabled state. Password fields remount masked when
+switching auth modes. Verified real-token and local-code journeys, AR/EN at five
+widths, plus offline/retry desktop/mobile screenshots in `tmp/auth-resilience`.

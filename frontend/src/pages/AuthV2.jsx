@@ -18,18 +18,21 @@ export default function AuthV2() {
   const linkToken = useRef(initial.get('token') || '');
   const csrf = useRef('');
   const [session, setSession] = useState(null), [checking, setChecking] = useState(true);
+  const [initialFailed, setInitialFailed] = useState(false), [checkAttempt, setCheckAttempt] = useState(0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [form, setForm] = useState({ email: '', password: '', confirmPassword:'', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
   const [qrCode,setQrCode]=useState('');
   const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]);
   const statusRef = useRef(null);
   const call = useCallback(async (path, body) => {
-    const response = await fetch(`${process.env.REACT_APP_AUTH_API_URL}/api/auth${path}`, {
-      method: body === undefined ? 'GET' : 'POST', credentials: 'include',
+    const timeout = AbortSignal.timeout(30000);
+    let response;
+    try { response = await fetch(`${process.env.REACT_APP_AUTH_API_URL}/api/auth${path}`, {
+      method: body === undefined ? 'GET' : 'POST', credentials: 'include', signal: timeout,
       headers: body === undefined ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.current },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    const data = await response.json();
+    }); } catch { throw new Error(timeout.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR'); }
+    const data = await response.json().catch(() => { throw new Error('INVALID_SERVER_RESPONSE'); });
     if (!response.ok) { const failure = new Error(data.error?.code || 'failed'); failure.status = response.status; throw failure; }
     if (data.csrfToken) csrf.current = data.csrfToken;
     return data;
@@ -48,9 +51,10 @@ export default function AuthV2() {
     receiveLink();
     window.addEventListener('hashchange', receiveLink);
     let active = true;
-    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setSession(data);}}).catch(()=>{if(active)setError('failed');}).finally(()=>{if(active)setChecking(false);});
+    setChecking(true); setInitialFailed(false); setError('');
+    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setSession(data);}}).catch(err=>{if(active){setError(err.message);setInitialFailed(true);}}).finally(()=>{if(active)setChecking(false);});
     return () => { active = false; window.removeEventListener('hashchange', receiveLink); };
-  }, [call]);
+  }, [call, checkAttempt]);
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
   useEffect(()=>{if(!emailChallenge)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[emailChallenge]);
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
@@ -86,7 +90,7 @@ export default function AuthV2() {
   const setup = !isLink && session?.stage === 'mfa_setup_required';
   const challenge = !isLink && session?.stage === 'mfa_required';
   const title = recovery.length ? 'recoveryTitle' : authenticated ? 'accountTitle' : setup ? 'mfaSetup' : challenge ? 'mfaTitle' : mode;
-  const field = (key, label, extra = {}) => <Field placeholder={c(key === 'code' ? (setup ? 'setupCodePlaceholder' : 'codePlaceholder') : extra.autoComplete === 'new-password' ? 'newPasswordPlaceholder' : `${label}Placeholder`)} id={`v2-${key}`} label={c(label)} value={form[key]} onChange={set(key)} required disabled={busy} {...extra} />;
+  const field = (key, label, extra = {}) => <Field key={`${mode}-${session?.stage || 'anonymous'}-${key}`} placeholder={c(key === 'code' ? (setup ? 'setupCodePlaceholder' : 'codePlaceholder') : extra.autoComplete === 'new-password' ? 'newPasswordPlaceholder' : `${label}Placeholder`)} id={`v2-${key}`} label={c(label)} value={form[key]} onChange={set(key)} required disabled={busy} {...extra} />;
   const otp=<OtpField value={form.code} onChange={code=>setForm(f=>({...f,code}))} c={c} disabled={busy}/>;
   const signOut = (path = '/logout') => run(async () => { await call(path, {}); clear(); });
   if(authenticated&&!recovery.length)return <p role="status" className="p-6 text-slate-500">{c('checking')}</p>;
@@ -100,7 +104,7 @@ export default function AuthV2() {
           <h1 className="text-2xl font-bold text-slate-900">{c(title)}</h1>
           <p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? 'registerHint' : 'loginHint')}</p>
           {(error || notice) && <div ref={statusRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`text-sm p-3 rounded-lg border mb-5 ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{c(error || notice)}</div>}
-          {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : recovery.length ? <div className="space-y-5">
+          {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : initialFailed ? <button type="button" className={linkClass} onClick={() => setCheckAttempt(value => value + 1)}>{c('retryConnection')}</button> : recovery.length ? <div className="space-y-5">
             <div dir="ltr" className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs tabular p-3 bg-slate-50 border border-slate-200 rounded-lg">{recovery.map(code => <code key={code} className="break-all select-all">{code}</code>)}</div>
             <button type="button" className={linkClass} onClick={() => setRecovery([])}>{c('savedCodes')}</button>
           </div> : authenticated ? <p role="status">{c('checking')}</p> : <>

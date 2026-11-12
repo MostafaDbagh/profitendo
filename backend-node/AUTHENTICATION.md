@@ -8,7 +8,8 @@
 - Opaque random sessions stored only as SHA-256 hashes. Production cookies use
   __Host-pl_session, HttpOnly, Secure, SameSite=Lax and Path=/, without Domain.
 - 12-hour maximum sessions, 30-minute idle timeout and 10-minute MFA challenges.
-- Owner/Super Admin MFA enrollment and verification before full access. TOTP
+- MFA is optional for ordinary business-owner sign-in and mandatory for platform
+  administrators. Billing access requires enrolled and verified MFA. TOTP
   secrets use AES-256-GCM with per-record associated data. Used TOTP steps cannot
   be replayed. Ten random, single-use recovery codes are shown once and hashed.
 - Login/MFA rotates the cookie. Password reset/change invalidates all sessions;
@@ -21,8 +22,8 @@
   hosting behind a load balancer; do not enable unconditional trust proxy.
 - Owner-scoped, expiring invitations for non-owner staff roles. Existing accounts
   must sign in before accepting; an invitation cannot replace their password.
-- Minimal business/membership records support invitations, not the complete
-  Service 3 permission engine. Disabling a membership revokes existing sessions;
+- Business membership and role permissions scope staff invitations. Disabling
+  a membership revokes existing sessions;
   new login must not grant disabled membership access.
 - Transactional encrypted mail outbox with leased SMTP delivery, retries and
   payload removal after delivery. Tokens never appear in API responses/logs.
@@ -217,3 +218,43 @@ section at `?tab=security`, containing session revocation, password change with
 confirmation, device lock and sign-out. It is not an authentication card or modal.
 Team invitations remain in the existing team/invitations sections. Platform
 administrators have the same inline Security section in their own dashboard.
+
+## Onboarding/auth verification — 12 November 2026
+
+Verified against an isolated PostgreSQL test database using Node 22, plus the
+existing local staging demo login. No customer credentials were changed and no
+external email or payment was sent.
+
+- 64 API tests passed across auth, local OTP, business access, billing, app and
+  security boundaries. Coverage includes single-use/expired tokens, revoked and
+  expired sessions, CSRF/origin checks, rate limits, invitations, password reset
+  and session invalidation.
+- Browser local-code journey: new owner signup and password confirmation, email
+  verification, login, optional account MFA enrollment, billing MFA requirement,
+  trial activation, first warehouse and shop, recovery login, logout, password
+  reset/change and old-password rejection. Arabic/English at 320/390/768/1024/1440.
+- Browser real-token journey: encrypted email-outbox links (read locally), genuine
+  TOTP enrollment, recovery login, CSRF rejection, lock/logout and password reset.
+- Team/billing browser journey: invitation acceptance with supplied credentials,
+  staff login, seat limits, restricted billing, trial and expired-subscription UI.
+- Browser resilience: disconnected API, invalid server reply, successful retry,
+  disabled in-flight submission, 30-second timeout recovery and password masking
+  when switching between login/signup. Arabic and English desktop/mobile.
+- Frontend production build and backend source/test/script typechecks passed.
+
+The auth screen now waits for configuration before showing forms, offers an
+explicit connection retry and translates network/timeout/invalid-response errors.
+Passwords return to masked state when switching auth modes. Browser suites were
+updated to match optional owner MFA and mandatory billing MFA; production rate
+limits remain unchanged. Screenshot-only reloads use distinct test identities.
+
+Repeat with a dedicated `TEST_DATABASE_URL` ending in `_test` and the frontend
+on localhost:3100 configured for localhost:4100:
+`test:browser:auth-mock`, `test:browser:auth-real`, and
+`test:browser:auth-resilience`. Run real/mock suites sequentially (both bind 4100).
+`test:browser:staging-login` uses `.env.staging` and validates its environment.
+Evidence: `tmp/auth-mock-design`, `tmp/auth-real-design`, `tmp/auth-resilience`,
+`tmp/team-billing-e2e`, and `tmp/login-check`.
+
+External SMTP delivery, production HTTPS/proxy configuration and deliverability
+remain deployment checks; local test codes do not verify those services.
