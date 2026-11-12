@@ -95,8 +95,13 @@ Current stock and outstanding balances are explicitly all-time/current and ignor
 the activity date range.
 
 Estimated profit uses saved sale costs, reverses cost only for sellable customer
-returns, and subtracts recorded damage cost and expenses. It excludes tax and
-stock-count valuation changes; it is not FIFO or statutory profit reporting.
+returns, and subtracts recorded damage cost, transfer-loss cost and expenses. It
+includes stock-count valuation changes and excludes tax; it is not FIFO or
+statutory profit reporting. Transfer losses are valued at catalogue cost when
+recorded and attributed to their source location on the loss event date. Historical
+losses without a saved cost leave estimated profit unavailable, with an explicit
+UI explanation; no historical value is invented. Cost fields remain permission
+gated, and transfer-event responses never expose the internal cost snapshot.
 Current stock value uses today's catalogue purchase cost and is labelled estimated.
 Counts in different physical units are not added into one misleading quantity.
 
@@ -163,3 +168,57 @@ Arabic return/payment dialogs and keyboard focus. No page errors or horizontal
 page/dialog overflow. Synthetic legacy CLI analysis passed without modifying its
 source. Local restore verified 42 tables and immutable triggers. Evidence is in
 `tmp/completion-design`; no live deployment or physical-device certification.
+
+## Inventory, money and concurrency audit — 12 November 2026
+
+The six targeted suites passed 90 tests on an isolated PostgreSQL database with
+Node 22. `operations-audit.test.ts` extends the existing rollback/idempotency
+coverage with:
+
+- A 60-unit purchase in six-unit packs, received in two deliveries, supplier
+  settlement/credit/refund, partial transfer arrivals, goods returned from transit,
+  transit loss, discounted taxed sales across cash/card/bank-transfer records,
+  sellable/damaged customer returns and refunds, damage, count and cash closing.
+- Every checkpoint compares on-hand balances with the immutable movement ledger.
+  Final warehouse/shop stock is 38/6. Shop sales are 44.10, returns 14.70, net
+  sales 29.40, estimated profit 8.00; the warehouse separately recognizes 2.00
+  transit loss. Opening cash 50 + sales 28.35 − refunds/expenses 11.45 closes at
+  66.90 with zero variance.
+- Five bursts of eight sale attempts against three units, followed by retries:
+  exactly three successes each round, five stock conflicts, no overselling.
+- Five checkout-versus-dispatch races for the same last two units: one winner,
+  one stock conflict, one movement, and a payment only if checkout wins.
+- Actual HTTP connection loss after successful checkout/payment commits, followed
+  by eight concurrent retries: one durable payment and one set of stock/audit rows.
+- Seventeen tiny partial returns reconcile the original 30 cents including one
+  cent of tax, without negative tax or tax exceeding a refund.
+- Transit-loss valuation is immutable after product-cost changes, scoped to the
+  source location, hidden from cost-blind staff, and explicit about unknown legacy
+  values. A regression first reproduced profit 0 instead of −2 for a transit loss;
+  the new snapshot migration and reporting calculation correct it.
+
+Purchasing, transfer, sales and completion browser suites passed, including
+barcode input modes, pack quantities, partial receipts, role restrictions,
+refund/payment recording, cash close, print/export and AR/EN at five widths.
+The loss-report browser suite additionally checks known and unknown historical
+cost states on dashboard/reports at 320/390/768/1024/1440px, without overflow or
+runtime errors. Evidence: `tmp/operations-design`, `tmp/transfers-design`,
+`tmp/sales-design`, `tmp/completion-design`, `tmp/transfer-loss-report`.
+
+Card/bank transfers here are manually recorded external payments, not gateway
+charges. The tests do not exercise live payment providers or physical scanners.
+
+## Tenant isolation and access audit — 2026-11-12
+
+Validated against a freshly migrated, isolated PostgreSQL test database, with real Express requests and session cookies. All 216 existing integration tests passed; four additional adversarial regressions passed with their suites (52 tests). The 27 HTTP/security/provider-client unit tests and application/test TypeScript checks also passed.
+
+Additional regressions in `tests/catalogue.test.ts` and `tests/completion.test.ts` cover:
+
+- A caller with owner memberships in both businesses cannot read or mutate business B's product/image through business A's URL. Positive controls retrieve the actual image through B; denied writes leave its contents and product unchanged.
+- Disabling staff through the membership API immediately invalidates their existing cookie for product reads, image access and writes.
+- All eight report/export views remain business-scoped and reject foreign location filters, even for a dual-business owner. A seeded foreign stock marker appears only in its own business export.
+- Report/export authorization is rechecked after live role or membership changes using the same cookie.
+
+Existing passing regressions cover uploader/tenant-bound encrypted import previews, subscription checks at import commit and sale checkout, invitation acceptance after trial expiry, concurrent seat/location limits, reactivation limits, custom-role changes, session revocation, account disabling, and platform administrators without customer membership. Expired subscriptions intentionally retain historical reads and permitted reductions; they block covered growth and operational writes. This audit did not introduce a new subscription policy.
+
+No additional authorization defect was reproduced in these scenarios. This is local API regression evidence, not a production infrastructure penetration test or verification of live payment-provider behavior.

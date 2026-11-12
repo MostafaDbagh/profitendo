@@ -153,3 +153,35 @@ it('separates product deactivation from editing and honors explicit delete denia
   expect((await write(`/${p.id}`,{revision:1,active:false},manager,'patch')).status).toBe(200);
  } finally {await db.membership.update({where:{id:member.id},data:{permissionOverrides:member.permissionOverrides!}});}
 });
+
+it('keeps records and image files isolated even when the caller owns both businesses',async()=>{
+ const dual=await actor('OWNER');
+ await db.membership.create({data:{businessId:other,userId:dual.user.id,role:'OWNER'}});
+ const created=await write('',input(`PRIVATE-${randomUUID().slice(0,8)}`,[]),foreign,'post',other);
+ expect(created.status,created.text).toBe(201);
+ const id=created.body.id,sharp=(await import('sharp')).default;
+ const fileBase64=(await sharp({create:{width:8,height:8,channels:3,background:'#123456'}}).png().toBuffer()).toString('base64');
+ expect((await write(`/${id}/image`,{revision:0,fileBase64},foreign,'put',other)).status).toBe(200);
+ const actual=await get(`/${id}/image`,dual,other);expect(actual.status).toBe(200);expect(actual.body.dataUrl).toMatch(/^data:image\/webp/);
+ for(const who of [owner,dual]){
+  for(const path of [`/${id}`,`/${id}/image`,`/${id}/packs`]){
+   const denied=await get(path,who);expect(denied.status,denied.text).toBe(404);expect(denied.text).not.toContain(actual.body.dataUrl);
+  }
+  expect((await write(`/${id}`,{revision:1,name:'Injected tenant write'},who,'patch')).status).toBe(404);
+  expect((await write(`/${id}/image`,{revision:1,fileBase64:null},who,'put')).status).toBe(409);
+ }
+ expect((await get(`/${id}`,dual,other)).body.product.name).toBe(created.body.name);
+ expect((await get(`/${id}/image`,dual,other)).body.dataUrl).toBe(actual.body.dataUrl);
+});
+
+it('blocks existing cookies from files and records immediately after staff access changes',async()=>{
+ const employee=await actor('OPERATIONS_MANAGER');
+ const p=await db.product.create({data:{businessId:business,sku:`SESSION-${randomUUID().toUpperCase()}`,name:'Session protected record',unit:'PIECE',purchasePrice:'1',sellingPrice:'2'}});
+ expect((await get(`/${p.id}`,employee)).status).toBe(200);
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:employee.user.id}}});
+ const change=await request(app).patch(`/api/businesses/${business}/members/${member.id}`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:0,active:false});
+ expect(change.status,change.text).toBe(200);
+ for(const path of [`/${p.id}`,`/${p.id}/image`])expect((await get(path,employee)).status).toBe(401);
+ expect((await write(`/${p.id}`,{revision:0,name:'Revoked write'},employee,'patch')).status).toBe(401);
+ expect((await db.product.findUniqueOrThrow({where:{id:p.id}})).revision).toBe(0);
+});

@@ -47,7 +47,7 @@ export class TransferService{
    await this.document(tx,ctx,businessId,id);
    const where={businessId,transferId:id};
    const rows=await tx.transferEvent.findMany({where,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{lines:{include:{line:{select:{name:true,sku:true,unit:true}}}}}});
-   return {page,pageSize:25,total:await tx.transferEvent.count({where}),items:rows.map(({requestHash,clientKey,...row})=>({...row,lines:row.lines.map(l=>({...l,quantity:l.quantity.toFixed(4)}))}))};
+   return {page,pageSize:25,total:await tx.transferEvent.count({where}),items:rows.map(({requestHash,clientKey,...row})=>({...row,lines:row.lines.map(({unitCost,...l})=>({...l,quantity:l.quantity.toFixed(4)}))}))};
   });
  }
  async create(ctx:AuthContext,businessId:string,input:TransferInput,retry=true):Promise<ReturnType<typeof present>>{
@@ -121,7 +121,10 @@ export class TransferService{
    await tx.transferEvent.create({data:{id:eventId,businessId,transferId:id,clientKey:input.clientKey,requestHash,kind:input.kind,reason:input.reason,actorId:ctx.user.id,actorName:ctx.user.name}});
    for(const entry of [...input.lines].sort((a,b)=>doc.lines.find(l=>l.id===a.lineId)!.productId.localeCompare(doc.lines.find(l=>l.id===b.lineId)!.productId))){
     const line=doc.lines.find(l=>l.id===entry.lineId)!,eventLineId=randomUUID();
-    await tx.transferEventLine.create({data:{id:eventLineId,businessId,transferId:id,eventId,transferLineId:line.id,quantity:entry.quantity}});
+    // Match recorded damage valuation: freeze catalogue cost when the loss is
+    // recognized, without posting a second stock deduction for dispatched goods.
+    const unitCost=input.kind==='LOSS'?(await tx.product.findFirstOrThrow({where:{businessId,id:line.productId}})).purchasePrice:null;
+    await tx.transferEventLine.create({data:{id:eventLineId,businessId,transferId:id,eventId,transferLineId:line.id,quantity:entry.quantity,unitCost}});
     if(input.kind!=='LOSS')await postStock(tx,{businessId,locationId:affected,productId:line.productId,delta:entry.quantity,type:input.kind==='RECEIVE'?'TRANSFER_IN':'TRANSFER_RETURN',sourceId:id,sourceLineId:eventLineId,reference:doc.reference,actorId:ctx.user.id,notes:input.reason});
     await tx.transferLine.update({where:{id:line.id},data:{[input.kind==='RECEIVE'?'received':input.kind==='RETURN'?'returned':'lost']:{increment:entry.quantity}}});
    }

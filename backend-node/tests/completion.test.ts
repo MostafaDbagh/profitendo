@@ -334,3 +334,28 @@ it('refunds snapshotted tax across partial returns and excludes it from estimate
   const final=(await summary()).body;expect(Number(final.netSales)).toBe(Number(before.netSales));
  }finally{await db.business.update({where:{id:business},data:{salesTaxRate:'0'}});}
 });
+
+it('isolates every report/export view and rejects foreign location filters for a dual-business owner',async()=>{
+ const dual=await actor('OWNER');await db.membership.create({data:{businessId:other,userId:dual.user.id,role:'OWNER'}});
+ const marker=`PRIVATE-${randomUUID().toUpperCase()}`;
+ const p=await db.product.create({data:{businessId:other,sku:marker,name:marker,unit:'PIECE',purchasePrice:'7',sellingPrice:'11'}});
+ await auth.transaction(tx=>postStock(tx,{businessId:other,locationId:foreignLocation,productId:p.id,delta:'7',type:'TEST_OPENING',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:marker,actorId:foreign.user.id,notes:''}));
+ const range='from=2026-01-01&to=2026-12-31';
+ const control=await get(`/reports?${range}&view=stock&export=true`,dual,other);expect(control.status,control.text).toBe(200);expect(control.body.csv).toContain(marker);
+ for(const view of ['summary','stock','sales','purchases','returns','payments','balances','refunds']){
+  const response=await get(`/reports?${range}&view=${view}&export=true`,dual);expect(response.status,response.text).toBe(200);expect(response.text).not.toContain(marker);
+  const spoof=await get(`/reports?${range}&view=${view}&export=true&locationId=${foreignLocation}`,dual);expect(spoof.status,spoof.text).toBe(404);
+ }
+ const denied=await get(`/reports?${range}&view=stock&export=true`,owner,other);expect(denied.status).toBe(403);expect(denied.text).not.toContain(marker);
+});
+
+it('rechecks report and export permissions on the next request using the same session',async()=>{
+ const viewer=await actor('OWNER');
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:viewer.user.id}}});
+ const path='/reports?from=2026-01-01&to=2026-12-31&view=stock&export=true';
+ expect((await get(path,viewer)).status).toBe(200);
+ await db.membership.update({where:{id:member.id},data:{role:'CASHIER',permissionOverrides:{'reports.view':false}}});
+ expect((await get(path,viewer)).status).toBe(403);
+ await db.membership.update({where:{id:member.id},data:{role:'OWNER',permissionOverrides:{},disabledAt:new Date()}});
+ expect((await get(path,viewer)).status).toBe(403);
+});

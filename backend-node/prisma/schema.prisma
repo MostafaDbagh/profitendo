@@ -627,6 +627,7 @@ model TransferEventLine {
   eventId String @map("event_id") @db.Uuid
   transferLineId String @map("transfer_line_id") @db.Uuid
   quantity Decimal @db.Decimal(18,4)
+  unitCost Decimal? @map("unit_cost") @db.Decimal(18,4)
   event TransferEvent @relation(fields:[businessId,transferId,eventId],references:[businessId,transferId,id],onDelete:Restrict)
   line TransferLine @relation(fields:[businessId,transferId,transferLineId],references:[businessId,transferId,id],onDelete:Restrict)
   @@unique([eventId,transferLineId])

@@ -21,7 +21,8 @@ export class ReportService{
    const sales=await tx.sale.findMany({where:{...scoped,status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1});
    const returns=await tx.adjustment.findMany({where:{...scoped,status:'COMPLETED',completedAt:range,kind:{in:['CUSTOMER_RETURN','SUPPLIER_RETURN','DAMAGE','COUNT']}},include:{lines:true},take:limit+1});
    const entries=await tx.moneyEntry.findMany({where:{...scoped,createdAt:range},take:limit+1});
-   if([sales,returns,entries].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
+   const losses=await tx.transferEvent.findMany({where:{businessId:bid,kind:'LOSS',createdAt:range,transfer:{...(q.locationId?{sourceId:q.locationId}:{}),...(where.location?{source:where.location}:{})}},include:{lines:true},take:limit+1});
+   if([sales,returns,entries,losses].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
    const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
@@ -30,8 +31,10 @@ export class ReportService{
     const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
     return value+(delta<0n?-amount:amount);
    },0n),0n);
+   const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null).length;
+   const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
    const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
-   return {...base,saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),expenses:access.permissions['payments.view']?fixed(expenses):undefined,zeroStockProducts:low,...(cost&&access.permissions['payments.view']?{estimatedProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-expenses+countAdjustmentValue),estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)}:{})};
+   return {...base,saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),expenses:access.permissions['payments.view']?fixed(expenses):undefined,zeroStockProducts:low,...(cost&&access.permissions['payments.view']?{estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)}:{})};
   }
   if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];

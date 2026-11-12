@@ -572,3 +572,12 @@ retry button; forms wait for successful configuration. Requests time out after
 30 seconds and recover their enabled state. Password fields remount masked when
 switching auth modes. Verified real-token and local-code journeys, AR/EN at five
 widths, plus offline/retry desktop/mobile screenshots in `tmp/auth-resilience`.
+
+## Transfer-loss reporting correction (2026-11-12)
+
+Reports include recorded transfer-loss cost in the existing metric-card grid.
+Dashboard/report profit displays localized “Unavailable” with an explanation when
+historical transfer losses lack a saved cost; unknown values are never formatted
+as zero. Retained white/slate/emerald styling and existing typography/spacing.
+Baseline report captures: `tmp/operations-audit-before`. Known and historical
+states verified in AR/EN at five widths: `tmp/transfer-loss-report`.
