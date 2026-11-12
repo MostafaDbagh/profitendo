@@ -39,7 +39,7 @@ export class SalesService{
   const digits=currencyDigits(access.business.baseCurrency),lines=[];let subtotal=0n,discount=0n;
   for(const entry of input){
    const p=await tx.product.findFirst({where:{businessId:bid,id:entry.productId,active:true},include:{barcodes:true,packs:true}});if(!p)fail('PRODUCT_INACTIVE');
-   const pack=entry.packId?p.packs.find(p=>p.id===entry.packId):null;if(entry.packId&&!pack)fail('PACK_NOT_FOUND',404);
+   const pack=entry.packId?p.packs.find(p=>p.id===entry.packId&&!p.retiredAt):null;if(entry.packId&&!pack)fail('PACK_NOT_FOUND',404);
    const factor=pack?.baseQuantity.toFixed(4)??'1.0000',baseQuantity=convertPack(entry.quantity,factor),gross=lineGross(baseQuantity,p.sellingPrice.toFixed(4),digits),reduction=exactMoney(entry.discount,digits);
    if(reduction>0n){if(!access.permissions['sales.discount'])fail('FORBIDDEN',403);if(entry.discountReason.length<5)fail('DISCOUNT_REASON_REQUIRED',422);}
    if(reduction>scaled(gross))fail('DISCOUNT_EXCEEDED',422);
@@ -52,7 +52,7 @@ export class SalesService{
   return this.auth.transaction(async tx=>{
    const access=await requireLocation(this.auth,tx,ctx,bid,q.locationId,'sales.create');if(access.location.kind!=='SHOP')fail('SHOP_REQUIRED',422);
    const where={businessId:bid,active:true,...(q.barcode?{barcodes:{some:{value:q.barcode}}}:q.search?{OR:[{name:{contains:q.search,mode:'insensitive' as const}},{sku:{contains:q.search,mode:'insensitive' as const}},{barcodes:{some:{value:q.search}}}]}:{})};
-   const products=await tx.product.findMany({where,skip:(q.page-1)*25,take:25,orderBy:[{name:'asc'},{id:'asc'}],select:{id:true,name:true,sku:true,unit:true,sellingPrice:true,barcodes:{select:{value:true}},packs:{select:{id:true,name:true,baseQuantity:true}},balances:{where:{locationId:q.locationId},select:{onHand:true,reserved:true}}}});
+   const products=await tx.product.findMany({where,skip:(q.page-1)*25,take:25,orderBy:[{name:'asc'},{id:'asc'}],select:{id:true,name:true,sku:true,unit:true,sellingPrice:true,barcodes:{select:{value:true}},packs:{where:{retiredAt:null},select:{id:true,name:true,baseQuantity:true}},balances:{where:{locationId:q.locationId},select:{onHand:true,reserved:true}}}});
    return {page:q.page,pageSize:25,total:await tx.product.count({where}),items:products.map(({balances,...p})=>({...p,available:fixed(balances.reduce((sum,b)=>sum+scaled(b.onHand.toFixed(4))-scaled(b.reserved.toFixed(4)),0n))}))};
   });
  }

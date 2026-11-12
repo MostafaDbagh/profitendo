@@ -1,3 +1,4 @@
+import { baseUnits, validateReferences } from './references.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { AuthService, AuthContext, Tx } from '../auth/service.js';
@@ -51,6 +52,13 @@ export class ProductImportService {
       const {business}=await access(this.auth,tx,ctx,businessId);
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required');
       const allIssues=[...issues,...await conflicts(tx,businessId,rows)];
+      const definitions=await tx.catalogueReference.findMany({where:{businessId}});
+      const units=new Set([...baseUnits,...definitions.filter(r=>r.kind==='UNIT'&&r.active).map(r=>r.code)]);
+      const retiredCategories=new Set(definitions.filter(r=>r.kind==='CATEGORY'&&!r.active).map(r=>r.name));
+      for(const row of rows){
+        if(!units.has(row.product.unit))allIssues.push({row:row.row,field:'unit',code:'INVALID_VALUE'});
+        if(retiredCategories.has(row.product.category))allIssues.push({row:row.row,field:'category',code:'INVALID_VALUE'});
+      }
       if(allIssues.length)return {id:null,currency:business.baseCurrency,total:source.length-1,issues:allIssues,rows};
       await tx.productImport.updateMany({where:{businessId,actorId:ctx.user.id,status:'PREVIEW',expiresAt:{lte:new Date()}},data:{payload:'',status:'EXPIRED'}});
       if(await tx.productImport.count({where:{businessId,actorId:ctx.user.id,status:'PREVIEW'}})>=5)throw new ApiError(429,'IMPORT_PREVIEW_LIMIT','Finish an existing preview or wait for it to expire');
@@ -72,6 +80,7 @@ export class ProductImportService {
       const rows=z.array(z.object({row:z.number().int(),product:productSchema})).min(1).max(500).parse(JSON.parse(decrypt(this.auth.settings.key,batch.payload,`product-import:${id}`)));
       if((await conflicts(tx,businessId,rows)).length)throw new ApiError(409,'IMPORT_CONFLICT','Catalogue changed; preview the workbook again');
       const products=rows.map(({product:{barcodes,...product}})=>({id:randomUUID(),businessId,...product,barcodes}));
+      for(const product of products)await validateReferences(tx,businessId,product);
       await tx.product.createMany({data:products.map(({barcodes,...product})=>product)});
       await tx.productBarcode.createMany({data:products.flatMap(p=>p.barcodes.map(value=>({businessId,productId:p.id,value})))});
       await tx.authAudit.createMany({data:products.map(p=>({userId:ctx.user.id,businessId,action:'product.created',targetId:p.id,changes:{sku:p.sku,importId:id}}))});

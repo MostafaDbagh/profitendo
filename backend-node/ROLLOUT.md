@@ -122,3 +122,29 @@ A production rollout date cannot be asserted until these gates are complete.
 
 These are local synthetic-data results. They do not certify production hosting,
 actual customer exports, hardware, fiscal compliance or paid billing readiness.
+
+
+## Release preparation — 12 November 2026
+
+Deployment templates, Docker build definitions, worker scheduling, CI checks,
+encrypted-backup script and the opt-in primary-app switch are in `../deployment/`.
+Read `../deployment/README.md` before using them. No live environment is configured.
+
+`npm run migration:review -- source.json review.json new-result.json` validates
+an explicitly reviewed allocation file against the immutable source SHA-256,
+collection counts, currency, unique SKUs/locations and exact summed base quantities.
+It refuses missing products, changed sources and duplicate allocations. It writes
+only a private new report and never imports data or approves production cutover.
+
+The review object contains sourceSha256, sourceCounts, currency, products
+(`sku`, `baseUnit`, `allocations:[{locationId,quantity}]`), openingBalancesReviewed
+(true), reviewedBy, and evidence references for sourceCounts, openingBalances,
+hardwarePilot and fiscalRequirements. Evidence references are owner attestations;
+the checker cannot verify their contents, physical stock, location ownership or
+complete source exports. API opening preview/confirmation still checks live access.
+There is still no automatic historical-debt or credential importer.
+
+`npm run release:check -- --offline` checks configuration without contacting a
+service; omit --offline to also check the database schema. It does not claim SMTP,
+payment, backup, hardware or owner acceptance is verified. Never commit real review
+files or customer exports; use protected storage outside the source tree.

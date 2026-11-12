@@ -47,7 +47,7 @@ export class PurchasingService{
    if(!product)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
    if(!product.active)throw new ApiError(409,'PRODUCT_INACTIVE','Product inactive');
    if(line.unitCost!==undefined&&!cost)throw new ApiError(403,'FORBIDDEN','Cost permission required');
-   const pack=line.packId?await tx.productPack.findFirst({where:{id:line.packId,businessId,productId:product.id}}):null;
+   const pack=line.packId?await tx.productPack.findFirst({where:{id:line.packId,businessId,productId:product.id,retiredAt:null}}):null;
    if(line.packId&&!pack)throw new ApiError(404,'PACK_NOT_FOUND','Pack not found');
    const factor=pack?.baseQuantity.toFixed(4)??'1.0000';
    const old=existing?.lines.find(l=>l.productId===line.productId);

@@ -5,5 +5,5 @@ export function createDatabase(url: string) {
 }
 export async function probeDatabase(db: PrismaClient) {
   const metadata = await db.systemMetadata.findUnique({ where: { key: 'schema_version' } });
-  if (metadata?.value !== 'operations-completion-v1') throw new Error('Database migration is required');
+  if (metadata?.value !== 'paid-reconciliation-v1') throw new Error('Database migration is required');
 }

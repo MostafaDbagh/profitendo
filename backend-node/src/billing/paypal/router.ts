@@ -1,3 +1,6 @@
+import { CheckoutService } from './checkout.js';
+import { checkoutConfiguration } from './launch.js';
+import { reconcileCheckout } from './reconciliation.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthService } from '../../auth/service.js';
@@ -23,6 +26,27 @@ export function paypalRouter(auth: AuthService, provider?: PayPalProvider) {
   const signedRead = [origin,attach,full], signedWrite = [origin,attach,full,csrf];
   for(const key of ['businessId','eventId','cancellationId']) router.param(key,(_req,_res,next,id)=>{if(!z.string().uuid().safeParse(id).success)return next(new ApiError(400,'INVALID_ID','Invalid identifier'));next();});
   const pageOf=(query:unknown)=>{const result=paging.safeParse(query);if(!result.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid pagination');return result.data.page;};
+  router.post('/businesses/:businessId/checkout',...signedWrite,validateBody(z.object({planId:z.string().uuid(),confirm:z.literal(true)}).strict()),async(req,res)=>{
+    const config=checkoutConfiguration(),businessId=String(req.params.businessId);
+    if(!provider||!config.enabled)throw new ApiError(409,'PAID_CHECKOUT_UNAVAILABLE','Paid checkout is not enabled');
+    const plan=await auth.transaction(async tx=>{
+      await requireBillingOwner(auth,tx,ctx(res),businessId);
+      const plan=await tx.billingPlan.findUnique({where:{id:req.body.planId}});
+      if(!plan?.published||!plan.priceMinor||!config.bindings[plan.code])throw new ApiError(409,'PLAN_UNAVAILABLE','Plan unavailable');return plan;
+    });
+    const result=await new CheckoutService(auth,provider).create(ctx(res),businessId,plan.id,config.bindings[plan.code]!);
+    const approve=result.snapshot.links?.find(l=>l.rel==='approve')?.href;
+    if(approve){const url=new URL(approve);if(url.protocol!=='https:'||url.username||url.password||!['www.paypal.com','www.sandbox.paypal.com'].includes(url.hostname))throw new ApiError(502,'INVALID_APPROVAL_URL','Invalid provider approval link');}
+    res.json({approvalUrl:approve??null,status:result.snapshot.status});
+  });
+  router.post('/businesses/:businessId/reconcile',...signedWrite,validateBody(z.object({}).strict()),async(req,res)=>{
+    if(!provider)throw new ApiError(503,'PAYPAL_NOT_CONFIGURED','Provider is not configured');
+    const intent=await auth.transaction(async tx=>{await requireBillingOwner(auth,tx,ctx(res),String(req.params.businessId));return tx.billingCheckout.findUnique({where:{businessId:String(req.params.businessId)}});});
+    if(!intent)throw new ApiError(404,'NOT_FOUND','No checkout exists');
+    // Scheduled reconciliation handles retries; bound manual refreshes per business.
+    if(intent.reconciledAt&&Date.now()-intent.reconciledAt.getTime()<60000)throw new ApiError(429,'RECONCILE_TOO_SOON','Try again in a minute');
+    res.json(await reconcileCheckout(auth,provider,intent.id));
+  });
   router.get('/businesses/:businessId/payments',...signedRead,async(req,res)=>{
     const businessId=String(req.params.businessId),page=pageOf(req.query);
     res.json(await auth.transaction(async tx=>{

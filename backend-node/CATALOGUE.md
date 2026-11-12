@@ -1,4 +1,34 @@
-# Product catalogue — Service 7, part 1
+# Catalogue — current local implementation
+
+Updated 12 November 2026. Product CRUD/import, managed categories and units,
+images, pack setup and retirement are implemented. Existing historical units and
+pack factors are immutable. The earlier implementation notes below retain their
+original verification history; this section supersedes their remaining-work lists.
+
+- `/products/references`: view/create up to 500 tenant-specific CATEGORY/UNIT
+  definitions. Codes/names are fixed; PATCH `/:id` with revision/active retires or
+  reactivates definitions. Six built-in units always remain available. New custom
+  units require an active definition, including Excel commit. Existing products
+  keep their base units after retirement. Category text remains backwards-compatible;
+  active definitions appear as suggestions, retired exact names cannot be newly used.
+- `/products/:id/image`: authenticated GET and revision-checked PUT of
+  `{revision,fileBase64}` (null removes). JPEG/PNG/WebP up to 1 MB and 12 megapixels;
+  animated/vector formats are rejected. Sharp decodes, strips metadata and re-encodes
+  to bounded WebP. Two decodes per process and 60 writes/user/hour; JSON allowance
+  is restricted to the authenticated upload route. Images live in PostgreSQL, so
+  database backups include them. Nothing is uploaded to public third-party storage.
+- Pack setup is available in the product list. POST `/packs/:packId/retire` with
+  `{confirm:true}` is idempotent; retirement prevents new sales/receiving selections.
+  Saved historical snapshots and exact conversion remain available. Replace a pack
+  by adding a new name/factor. At most 20 active packs. No pack price/barcode override.
+- Custom unit codes display consistently in operational documents and receipts.
+  Base-unit product prices apply to pack quantities through exact conversion.
+- All controls preserve the existing bilingual styles, labels, placeholders and
+  role boundaries. Catalogue APIs expose no stock mutation.
+
+## Earlier implementation notes
+
+### Product catalogue — Service 7, part 1
 
 Product registration and stock receiving are separate. This service has no stock
 quantity field and performs no stock movements. Migration 009 adds tenant-scoped

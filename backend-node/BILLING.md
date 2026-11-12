@@ -1,3 +1,52 @@
+# Billing — local lifecycle implementation
+
+Updated 12 November 2026. Paid checkout is OFF by default and has not been tested
+against an actual PayPal sandbox account. No customer has been charged.
+
+## Current behavior
+
+- Trials, usage limits, plan drafts, durable webhook processing, cancellation and
+  owner receipt history remain supported. New server-side reconciliation queries
+  the bound subscription, verified plan terms and provider transaction history.
+- A paid grant requires a unique completed payment matching plan currency/amount
+  and provider last-payment time, zero outstanding balance, zero failed payments,
+  ACTIVE state and a bounded provider next-billing date. No arrival-time arithmetic
+  or browser-supplied subscription ID grants access. The same transaction cannot
+  extend its previously verified period. Missing webhook receipts are repaired.
+- Verified paid terms feed the existing server-side staff/location/operational
+  entitlement checks. Cancellation stops renewal but retains the verified period.
+  Failed renewal does not add grace days. Access expires at the paid-through date;
+  no scheduled job is needed to enforce expiration. Billing/history stay reachable.
+- Refunds, partial refunds and reversals place access on hold for operator review.
+  A hold is deliberately not cleared by an unrelated replay. Automated refunds,
+  discretionary grace, upgrades/downgrades, re-subscription after cancellation and
+  automatic legacy subscription migration are not supported. These need an agreed
+  commercial policy and sandbox evidence before broad paid rollout.
+- The worker rotates through bound checkouts, stores reconciliation errors and
+  uses revision checks to reject concurrent stale updates. Provider outages never
+  create new access. Review mismatches fail closed; inspect billing_checkouts and
+  existing provider-event REVIEW endpoints with authorized operational access.
+
+## Enabling after external verification
+
+Configure dedicated B2B provider credentials and immutable local priced plans.
+`B2B_PAYPAL_PLAN_BINDINGS` is a server-only JSON mapping from local plan codes to
+provider plan IDs. Paid publication requires `B2B_CHECKOUT_ENABLED=true`,
+`B2B_PRICING_APPROVED=true` and `B2B_SANDBOX_VERIFIED=true`, plus a mapped plan.
+These flags record operator decisions; they do not perform or certify those tests.
+Startup rejects enabled checkout without provider configuration. Defaults remain off.
+
+Owners POST `/api/billing/businesses/:id/checkout` with `{planId,confirm:true}`;
+the API verifies ownership, live business authorization and provider terms, and
+returns an HTTPS PayPal approval URL. The UI shows recurring price, interval and
+limits. POST `/reconcile` with `{}` refreshes status at most once a minute per
+business. The background worker provides the durable renewal path.
+
+Verified with local fake-provider and database tests, not real provider credentials.
+Official contracts: https://developer.paypal.com/api/subscriptions/v1/schema.json
+
+## Historical implementation and verification notes
+
 # B2B billing — Service 5 progress
 
 Implemented locally on 11 November 2026. Service 5 is **in progress**. This

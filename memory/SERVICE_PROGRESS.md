@@ -16,9 +16,9 @@ billing-provider configuration and pilot feedback remain unknown.
 | 2 | Authentication, sessions, invitations, privileged MFA | 7-10 | Implemented and locally verified; SMTP/deployment pending |
 | 3 | Businesses, roles and permissions | 6-9 | Implemented and locally verified; business-level scope |
 | 4 | Platform administration | 4-6 | Implemented and locally verified |
-| 5 | Subscription and billing | 8-12 | In progress: plans, trials, receipts and durable cancellation implemented; paid entitlement/reconciliation pending |
+| 5 | Subscription and billing | 8-12 | Local lifecycle implemented: gated checkout, verified paid periods, renewal reconciliation and refund holds; pricing/sandbox and commercial policies pending |
 | 6 | Warehouses, shops and assignments | 4-6 | Implemented and locally verified; operational stock integration follows |
-| 7 | Catalogue, units, barcodes and import | 7-10 | In progress: product CRUD, barcodes and Excel import implemented; images/managed units/conversions pending |
+| 7 | Catalogue, units, barcodes and import | 7-10 | Implemented locally: CRUD/import, images, managed units/categories, pack setup and retirement |
 | 8 | Inventory engine | 9-13 | Implemented locally: balances, immutable ledger, transactional posting and stock UI |
 | 9 | Suppliers | 3-5 | Implemented locally: profiles, activity and scoped purchase history |
 | 10 | Purchasing and receiving | 8-12 | Implemented locally: direct receiving, orders/partial deliveries, barcode UI and atomic confirmation |
@@ -60,7 +60,7 @@ business CRUD is exposed. Full reusable tenant authorization is Service 3.
 ## Remaining release boundaries
 
 Business-level and location-level tenant/role authorization are implemented. Paid
-billing lifecycle, production deployment and stock workflows remain unfinished. Authentication, CSRF, rate limits and MFA
+billing commercial verification and production deployment remain pending; operational stock workflows are implemented. Authentication, CSRF, rate limits and MFA
 are implemented in Service 2; SMTP still needs provider configuration. Local Compose is development-only. No legacy schema, frontend API
 base URL, customer records or credentials were modified.
 
@@ -511,3 +511,53 @@ Arabic return/payment dialogs and keyboard focus. No page errors or horizontal
 page/dialog overflow. Synthetic legacy CLI analysis passed without modifying its
 source. Local restore verified 42 tables and immutable triggers. Evidence is in
 `tmp/completion-design`; no live deployment or physical-device certification.
+
+
+## Five-priority release preparation — 12 November 2026
+
+User reconfirmed local preparation: hosting, domain, PayPal/SMTP and customer data
+are not ready. No live deployment, external mail, charge or customer migration.
+
+1. Billing: gated checkout and provider-plan bindings; verified paid-period
+   reconciliation, missing-receipt repair, renewal expiry, cancellation-through-period
+   and refund/reversal holds. Trials and capacity checks share the entitlement path.
+   Actual sandbox, pricing and refund/re-subscription/upgrade policies remain gates.
+2. Catalogue: tenant-managed unit/category definitions; normalized private images;
+   pack setup/retirement UI; active-pack filtering in new stock/sales entries;
+   custom units in imports and operational views. Historical values remain fixed.
+3. Deployment: API/web Dockerfiles, same-origin HTTPS proxy, background-job runner,
+   heartbeat, GitHub CI, configuration check and encrypted-backup script prepared.
+   Docker/age are unavailable locally; container startup and encrypted archive
+   execution require the staging environment. External alerting is not configured.
+4. Migration/pilot: source-hash/count/allocation review validator and CLI; explicit
+   owner evidence references. No invented opening liabilities or imported accounts.
+5. Cutover: opt-in B2B-primary frontend disables legacy auth bootstrapping and routes
+   the main entry points to new screens. Optional legacy write freeze retains
+   history/session access. Real cutover and owner acceptance remain unexecuted.
+
+Verification details are recorded in the final release-check entry below.
+
+
+### Final release-preparation verification
+
+- 44-table PostgreSQL dump/restore passed with matching counts, current schema and
+  immutable-history triggers; the source database was unchanged.
+- Backend/frontend production builds and source/test/browser TypeScript checks pass.
+- Catalogue browser workflows passed custom-unit setup, product creation, image
+  upload, pack creation/retirement, cost privacy and AR/EN at 320/390/768/1024/1440.
+- Built B2B-primary mode passed root and legacy-path redirects and asserted no
+  legacy API requests. Paid-status layout fixtures passed AR/EN 320/390/1440.
+- Two legacy write-freeze tests passed. The offline release-configuration checker
+  passed with synthetic values only; no SMTP/provider connection was attempted.
+- Backup shell syntax, dependency lock consistency and Git diff whitespace checks
+  passed. Secret-pattern scan of publishable files returned no matches.
+- Docker images, Caddy HTTPS, GitHub-hosted CI, age encrypted backup execution,
+  production SMTP/PayPal, real data and physical devices remain unverified here.
+
+- Final full integration run: 163 tests passed with two fixture workers; 22
+  HTTP/provider/migration-review tests passed (185 backend tests total). Explicit
+  concurrent transaction/idempotency tests remain enabled. Unlimited fixture
+  workers hit the bounded TRANSACTION_BUSY response once; worker concurrency was
+  limited instead of weakening production retry or transaction safeguards.
+- Final catalogue/import checks were rerun after adding reference validation to
+  import preview. Commercial rollout remains blocked by the external gates above.

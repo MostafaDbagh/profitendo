@@ -41,7 +41,14 @@ export async function processWebhookBatch(auth: AuthService, provider: PayPalPro
       const event = webhookSchema.parse(JSON.parse(decrypt(auth.settings.key,row.payload,`billing-webhook:${row.id}`)));
       if (digest(canonical(event)) !== row.payloadHash) throw new ApiError(409,'PROVIDER_EVENT_INVALID','Stored event integrity failure');
       const type = event.event_type;
-      if (type === 'PAYMENT.SALE.REFUNDED' || type === 'PAYMENT.SALE.REVERSED') throw new ApiError(409,'PAYMENT_REVIEW_REQUIRED','Refund or reversal requires reconciliation');
+      if (type === 'PAYMENT.SALE.REFUNDED' || type === 'PAYMENT.SALE.REVERSED') {
+        const saleId=type==='PAYMENT.SALE.REVERSED'?event.resource.id:event.resource.sale_id;
+        if(typeof saleId==='string'){
+          const receipt=await auth.db.billingReceipt.findUnique({where:{scope_transactionId:{scope:provider.scope,transactionId:saleId}}});
+          if(receipt)await auth.db.billingCheckout.update({where:{id:receipt.checkoutId},data:{accessHold:true,revision:{increment:1},reconciliationError:'PAYMENT_REVIEW_REQUIRED'}});
+        }
+        throw new ApiError(409,'PAYMENT_REVIEW_REQUIRED','Refund or reversal requires reconciliation');
+      }
       const handled = lifecycle.has(type) || type === 'PAYMENT.SALE.COMPLETED';
       const rawId = lifecycle.has(type) ? event.resource.id : event.resource.billing_agreement_id;
       const id = handled ? subscriptionId.safeParse(rawId) : null;

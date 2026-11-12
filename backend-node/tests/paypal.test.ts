@@ -60,10 +60,10 @@ beforeAll(async()=>{
 afterAll(async()=>{
  await db.billingCancellation.deleteMany({where:{checkout:{businessId:{in:bids}}}});
  await db.billingReceipt.deleteMany({where:{scope:provider.scope}});await db.billingWebhook.deleteMany({where:{id:{in:events}}});
- await db.billingAudit.deleteMany({where:{actorId:{in:ids}}});await db.authAudit.deleteMany({where:{userId:{in:ids}}});await db.billingCheckout.deleteMany({where:{businessId:{in:bids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.deleteMany({where:{id:{in:pids}}});await db.$disconnect();
+ await db.billingAudit.deleteMany({where:{actorId:{in:ids}}});await db.authAudit.deleteMany({where:{OR:[{userId:{in:ids}},{businessId:{in:bids}}]}});await db.billingCheckout.deleteMany({where:{businessId:{in:bids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.deleteMany({where:{id:{in:pids}}});await db.$disconnect();
 });
 it('does not expose paid checkout or allow staff/platform tenant bypass',async()=>{
- expect((await post(`/businesses/${business}/checkout`,owner,{planId})).status).toBe(404);
+ expect((await post(`/businesses/${business}/checkout`,owner,{planId,confirm:true})).status).toBe(409);
  await expect(checkout.create(staff,business,planId,providerPlanId)).rejects.toMatchObject({code:'FORBIDDEN'});
  await expect(checkout.create(admin,business,planId,providerPlanId)).rejects.toMatchObject({code:'FORBIDDEN'});
  expect(provider.createIds).toHaveLength(0);
@@ -257,4 +257,46 @@ it('fences expired cancellation workers and safely recovers abandoned leases',as
  }finally{release();provider.getSubscription=original;await processing;}
  await db.billingCancellation.update({where:{id:res.body.id},data:{leaseUntil:new Date(0)}});
  expect((await processCancellationBatch(auth,provider)).confirmed).toBe(1);
+});
+
+it('grants only verified paid periods, never extends for the same payment, and holds refunds',async()=>{
+ const {reconcileCheckout}=await import('../src/billing/paypal/reconciliation.js');
+ const {billingState}=await import('../src/billing/entitlements.js');
+ const bid=await newBusiness(),intent=await checkout.create(owner,bid,planId,providerPlanId);
+ const paid='2026-11-10T12:00:00Z',end='2026-12-10T12:00:00Z',now=new Date('2026-11-11T12:00:00Z');
+ let status='COMPLETED';
+ const reconciler:PayPalProvider={scope:provider.scope,getPlan:()=>provider.getPlan(),getSubscription:id=>provider.getSubscription(id),createSubscription:(...args)=>provider.createSubscription(args[0],args[1]),cancelSubscription:id=>provider.cancelSubscription(id),verifyWebhook:(...args)=>provider.verifyWebhook(...args),getTransactions:async()=>({transactions:[{id:'PAYMENT-NEW',status,time:paid,amount_with_breakdown:{gross_amount:{currency_code:'USD',value:'29.00'}}}],total_items:1,total_pages:1})};
+ provider.snapshots.set(intent.snapshot.id,{...intent.snapshot,status:'ACTIVE',billing_info:{last_payment:{time:paid,amount:{value:'29.00',currency_code:'USD'}},next_billing_time:end,failed_payments_count:0,outstanding_balance:{value:'0.00',currency_code:'USD'}}});
+ await reconcileCheckout(auth,reconciler,intent.intentId,now);
+ expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(true);
+ provider.snapshots.get(intent.snapshot.id)!.billing_info!.next_billing_time='2026-12-11T12:00:00Z';
+ await reconcileCheckout(auth,reconciler,intent.intentId,now);
+ expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).paidUntil?.toISOString()).toBe(end.replace('Z','.000Z'));
+ provider.snapshots.get(intent.snapshot.id)!.status='CANCELLED';
+ await reconcileCheckout(auth,reconciler,intent.intentId,now);
+ expect((await auth.transaction(tx=>billingState(tx,bid,now))).status).toBe('CANCELLED_PAID');
+ expect((await auth.transaction(tx=>billingState(tx,bid,new Date('2026-12-12T00:00:00Z')))).active).toBe(false);
+ status='REFUNDED';await reconcileCheckout(auth,reconciler,intent.intentId,now);
+ expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(false);
+ expect((await auth.transaction(tx=>billingState(tx,bid,now))).status).toBe('REVIEW');
+});
+it('keeps paid checkout disabled unless pricing, sandbox and bindings are explicitly configured',async()=>{
+ const {checkoutConfiguration}=await import('../src/billing/paypal/launch.js');
+ expect(checkoutConfiguration({}).enabled).toBe(false);
+ expect(()=>checkoutConfiguration({B2B_CHECKOUT_ENABLED:'true'})).toThrow();
+});
+
+it('publishes and creates paid checkout only behind explicit launch gates and owner authorization',async()=>{
+ const keys=['B2B_CHECKOUT_ENABLED','B2B_PRICING_APPROVED','B2B_SANDBOX_VERIFIED','B2B_PAYPAL_PLAN_BINDINGS'] as const;
+ const old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+ const plan=await db.billingPlan.findUniqueOrThrow({where:{id:planId}}),bid=await newBusiness();
+ try{
+  process.env.B2B_CHECKOUT_ENABLED='true';process.env.B2B_PRICING_APPROVED='true';process.env.B2B_SANDBOX_VERIFIED='true';process.env.B2B_PAYPAL_PLAN_BINDINGS=JSON.stringify({[plan.code]:providerPlanId});
+  const published=await request(app).patch(`/api/billing/plans/${planId}`).set('Cookie',cookie(admin)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,admin.token)).send({revision:plan.revision,published:true});expect(published.status).toBe(200);
+  expect((await post(`/businesses/${bid}/checkout`,staff,{planId,confirm:true})).status).toBe(403);
+  expect((await post(`/businesses/${bid}/checkout`,admin,{planId,confirm:true})).status).toBe(403);
+  expect((await post(`/businesses/${bid}/checkout`,owner,{planId,confirm:true})).status).toBe(200);
+  expect((await get(`/businesses/${bid}`,owner)).body.active).toBe(false);
+  expect(await db.billingCheckout.count({where:{businessId:bid}})).toBe(1);
+ }finally{for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}await db.billingPlan.update({where:{id:planId},data:{published:false}});}
 });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ApiError } from '../../errors.js';
-import { providerPlanId, snapshotSchema, subscriptionId, type SubscriptionSnapshot, type PayPalEvent } from './contracts.js';
+import { transactionsSchema, providerPlanId, snapshotSchema, subscriptionId, type SubscriptionSnapshot, type PayPalEvent } from './contracts.js';
 import type { PayPalSettings } from './settings.js';
 export type WebhookHeaders = Record<string, string | undefined>;
 export interface PayPalProvider {
@@ -8,6 +8,7 @@ export interface PayPalProvider {
   getPlan(id: string): Promise<unknown>;
   createSubscription(planId: string, intentId: string, appOrigin: string): Promise<SubscriptionSnapshot>;
   getSubscription(id: string): Promise<SubscriptionSnapshot>;
+  getTransactions?(id:string,start:Date,end:Date):Promise<unknown>;
   cancelSubscription(id: string): Promise<void>;
   verifyWebhook(headers: WebhookHeaders, event: PayPalEvent): Promise<void>;
 }
@@ -55,6 +56,10 @@ export class PayPalClient implements PayPalProvider {
   async cancelSubscription(id: string) {
     await this.request(`/v1/billing/subscriptions/${subscriptionId.parse(id)}/cancel`, 'POST',
       { reason: 'Cancellation requested by the business owner' }, undefined, true);
+  }
+  async getTransactions(id:string,start:Date,end:Date){
+    const query=new URLSearchParams({start_time:start.toISOString(),end_time:end.toISOString()});
+    return transactionsSchema.parse(await this.request(`/v1/billing/subscriptions/${subscriptionId.parse(id)}/transactions?${query}`));
   }
   async getPlan(id: string) {
     const result = await this.request(`/v1/billing/plans/${providerPlanId.parse(id)}`);

@@ -1,3 +1,4 @@
+import { checkoutConfiguration } from './paypal/launch.js';
 import type { AuthContext, AuthService } from '../auth/service.js';
 import { ApiError } from '../errors.js';
 import { requireBusiness } from '../businesses/access.js';
@@ -19,8 +20,8 @@ export class BillingService {
   async ownerStatus(ctx: AuthContext, businessId: string) {
     return this.auth.transaction(async tx => {
       await requireBillingOwner(this.auth, tx, ctx, businessId);
-      const { subscription, active, status } = await billingState(tx, businessId);
-      return { status, active, checkoutAvailable: false, subscription, usage: await memberUsage(tx, businessId),
+      const { subscription, active, status, paidUntil } = await billingState(tx, businessId);
+      return { status, active, checkoutAvailable: checkoutConfiguration().enabled, paidUntil, subscription, usage: await memberUsage(tx, businessId),
         locationUsage: { maxWarehouses: await tx.location.count({where:{businessId,kind:'WAREHOUSE',archivedAt:null}}), maxShops: await tx.location.count({where:{businessId,kind:'SHOP',archivedAt:null}}) },
         plans: await tx.billingPlan.findMany({ where: { published: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }) };
     });
@@ -31,7 +32,7 @@ export class BillingService {
       await lockCapacity(tx, businessId);
       if (await tx.businessSubscription.findUnique({ where: { businessId } })) throw new ApiError(409, 'TRIAL_ALREADY_USED', 'This business has already started its trial');
       const plan = await tx.billingPlan.findUnique({ where: { id: planId } });
-      if (!plan || !plan.published || plan.trialDays <= 0) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'This plan is not available for trial');
+      if (!plan || !plan.published || plan.priceMinor !== null || plan.trialDays <= 0) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'This plan is not available for trial');
       const start = new Date(), end = new Date(start.getTime() + plan.trialDays * 86400000);
       const subscription = await tx.businessSubscription.create({ data: { businessId, planId, trialStartedAt: start, trialEndsAt: end } });
       await tx.billingAudit.create({ data: { actorId: ctx.user.id, businessId, planId, action: 'trial.started', changes: { trialDays: plan.trialDays, endsAt: end.toISOString() } } });
@@ -39,7 +40,7 @@ export class BillingService {
     });
   }
   async plans(ctx: AuthContext, page: number) {
-    return this.auth.transaction(async tx => { await requirePlatform(this.auth, tx, ctx); return { page, pageSize: 25, total: await tx.billingPlan.count(), items: await tx.billingPlan.findMany({ take: 25, skip: (page - 1) * 25, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }) }; });
+    return this.auth.transaction(async tx => { await requirePlatform(this.auth, tx, ctx); return { paidCheckoutConfigured:checkoutConfiguration().enabled, page, pageSize: 25, total: await tx.billingPlan.count(), items: await tx.billingPlan.findMany({ take: 25, skip: (page - 1) * 25, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }) }; });
   }
   async createPlan(ctx: AuthContext, input: PlanInput) {
     try { return await this.auth.transaction(async tx => {
@@ -60,8 +61,8 @@ export class BillingService {
       if (!plan) throw new ApiError(404, 'NOT_FOUND', 'Plan not found');
       if (plan.revision !== revision) throw new ApiError(409, 'REVISION_CONFLICT', 'Reload before saving');
       // Paid offers remain drafts until provider integration and commercial terms are ready.
-      if (published && plan.priceMinor !== null) throw new ApiError(409, 'PAID_CHECKOUT_UNAVAILABLE', 'Paid plans cannot be published before payment setup');
-      if (published && plan.trialDays === 0) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'A trial offer needs a trial duration');
+      if (published && plan.priceMinor !== null && (!checkoutConfiguration().enabled||!checkoutConfiguration().bindings[plan.code])) throw new ApiError(409, 'PAID_CHECKOUT_UNAVAILABLE', 'Paid plans cannot be published before payment setup');
+      if (published && plan.trialDays === 0 && plan.priceMinor === null) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'A trial offer needs a trial duration');
       if (plan.published === published) return plan;
       const updated = await tx.billingPlan.updateMany({ where: { id, revision }, data: { published, revision: { increment: 1 } } });
       if (!updated.count) throw new ApiError(409, 'REVISION_CONFLICT', 'Reload before saving');

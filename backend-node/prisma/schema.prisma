@@ -264,6 +264,12 @@ model BillingAudit {
 
 // Not exposed as a customer checkout route until paid entitlement work is complete.
 model BillingCheckout {
+  paidFrom DateTime? @map("paid_from") @db.Timestamptz(3)
+  paidUntil DateTime? @map("paid_until") @db.Timestamptz(3)
+  paidTransaction String? @map("paid_transaction")
+  reconciledAt DateTime? @map("reconciled_at") @db.Timestamptz(3)
+  accessHold Boolean @default(false) @map("access_hold")
+  reconciliationError String? @map("reconciliation_error")
   id                     String @id @default(uuid()) @db.Uuid
   businessId             String @unique @map("business_id") @db.Uuid
   planId                 String @map("plan_id") @db.Uuid
@@ -360,6 +366,7 @@ model Product {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   business Business @relation(fields:[businessId],references:[id],onDelete:Restrict)
   barcodes ProductBarcode[]
+  images ProductImage[]
   packs ProductPack[]
   balances StockBalance[]
   movements StockMovement[]
@@ -402,6 +409,7 @@ model ProductImport {
 
 
 model ProductPack {
+  retiredAt DateTime? @map("retired_at") @db.Timestamptz(3)
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   productId String @map("product_id") @db.Uuid
@@ -806,4 +814,23 @@ model MigrationPreview {
  location Location @relation(fields:[businessId,locationId],references:[businessId,id],onDelete:Restrict)
  @@unique([businessId,clientKey])
  @@map("migration_previews")
+}
+
+model CatalogueReference {
+ id String @id @default(uuid()) @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ kind String
+ code String
+ name String
+ active Boolean @default(true)
+ revision Int @default(0)
+ @@unique([businessId,kind,code])
+ @@map("catalogue_references")
+}
+model ProductImage {
+ productId String @id @map("product_id") @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ data String
+ product Product @relation(fields:[businessId,productId],references:[businessId,id],onDelete:Cascade)
+ @@map("product_images")
 }

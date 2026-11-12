@@ -108,3 +108,27 @@ it('retains inactive identifiers and blocks growth after expiry without hiding r
  expect((await get(`/${productId}/packs`)).status).toBe(200);
  await db.business.update({where:{id:business},data:{suspendedAt:new Date()}});expect((await get()).status).toBe(403);
 });
+
+it('manages tenant units and images, and retires packs without rewriting history',async()=>{
+ await db.business.update({where:{id:business},data:{suspendedAt:null}});
+ await db.businessSubscription.update({where:{businessId:business},data:{trialEndsAt:new Date(Date.now()+86400000)}});
+ const ref=await write('/references',{kind:'UNIT',code:'BOTTLE',name:'Bottle'});expect(ref.status).toBe(201);
+ expect((await write('/references',{kind:'UNIT',code:'BOTTLE',name:'Duplicate'})).status).toBe(409);
+ const created=await write('',{...input('IMAGE-01',['IMAGE']),unit:'BOTTLE'});expect(created.status).toBe(201);
+ expect((await write(`/references/${ref.body.id}`,{revision:0,active:false},owner,'patch')).status).toBe(200);
+ expect((await write('',{...input('IMAGE-02',['IMAGE2']),unit:'BOTTLE'})).status).toBe(422);
+ expect((await get(`/${created.body.id}`)).body.product.unit).toBe('BOTTLE');
+ const path=`/${created.body.id}`,sharp=(await import('sharp')).default;
+ const fileBase64=(await sharp({create:{width:10,height:10,channels:3,background:'#ffffff'}}).png().toBuffer()).toString('base64');
+ expect((await write(`${path}/image`,{revision:0,fileBase64},staff,'put')).status).toBe(403);
+ expect((await write(`${path}/image`,{revision:0,fileBase64:'PHN2Zy8+'},owner,'put')).status).toBe(422);
+ expect((await write(`${path}/image`,{revision:0,fileBase64},owner,'put')).status).toBe(200);
+ expect((await get(`${path}/image`,foreign,other)).status).toBe(404);
+ expect((await get(`${path}/image`,staff)).body.dataUrl).toMatch(/^data:image\/webp;base64,/);
+ expect((await write(`${path}/image`,{revision:0,fileBase64:null},owner,'put')).status).toBe(409);
+ expect((await write(`${path}/image`,{revision:1,fileBase64:null},owner,'put')).status).toBe(200);
+ const pack=await write(`${path}/packs`,{name:'Old carton',baseQuantity:'12'});expect(pack.status).toBe(201);
+ expect((await write(`${path}/packs/${pack.body.id}/retire`,{confirm:true})).status).toBe(200);
+ expect((await get(`${path}/packs`)).body.items[0].retiredAt).toBeTruthy();
+ expect((await write(`${path}/packs/${pack.body.id}/convert`,{quantity:'2'})).body.baseQuantity).toBe('24.0000');
+});

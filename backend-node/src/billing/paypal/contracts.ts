@@ -7,7 +7,7 @@ export const snapshotSchema = z.object({ id: subscriptionId, plan_id: providerPl
   status: z.enum(['APPROVAL_PENDING','APPROVED','ACTIVE','SUSPENDED','CANCELLED','EXPIRED']), status_update_time: dateTime,
   quantity: z.string().optional(), plan_overridden: z.boolean().optional(),
   shipping_amount: z.object({ value: z.string(), currency_code: z.string() }).optional(),
-  billing_info: z.object({ next_billing_time: dateTime.optional() }).optional(),
+  billing_info: z.object({ next_billing_time: dateTime.optional(), outstanding_balance:z.object({value:z.string(),currency_code:z.string()}).optional(), failed_payments_count:z.number().int().nonnegative().optional(), last_payment:z.object({time:dateTime,amount:z.object({value:z.string(),currency_code:z.string()})}).optional() }).optional(),
   links: z.array(z.object({ rel: z.string(), href: z.string().url() })).optional() });
 export type SubscriptionSnapshot = z.infer<typeof snapshotSchema>;
 export const webhookSchema = z.object({ id: z.string().min(1).max(128), event_type: z.string().regex(/^[A-Z][A-Z0-9_.]{1,127}$/), create_time: dateTime, resource: z.record(z.string(), z.unknown()) }).passthrough();
@@ -37,3 +37,5 @@ export function assertPlanTerms(raw: unknown, local: { priceMinor: number | null
     || (plan.payment_preferences?.setup_fee && minorUnits(plan.payment_preferences.setup_fee.value) !== 0)
     || (plan.taxes && minorUnits(plan.taxes.percentage) !== 0)) throw new ApiError(409,'PROVIDER_PLAN_MISMATCH','Provider plan terms do not match');
 }
+
+export const transactionsSchema=z.object({transactions:z.array(z.object({id:z.string().min(3).max(64),status:z.enum(['COMPLETED','DECLINED','PARTIALLY_REFUNDED','PENDING','REFUNDED','FAILED']),time:dateTime,amount_with_breakdown:z.object({gross_amount:z.object({value:z.string(),currency_code:z.string()})})})).max(1000),total_pages:z.number().int().max(1).optional(),total_items:z.number().int().optional()}).refine(v=>v.total_items===undefined||v.total_items===v.transactions.length);

@@ -46,6 +46,7 @@ export function AuthProvider({ children }) {
   }, [t, setUser]);
 
   useEffect(() => {
+    if(process.env.REACT_APP_B2B_PRIMARY==='true'){setChecked(true);return;}
     // CRITICAL: If returning from OAuth callback, skip the /me check.
     // AuthCallback will exchange the session_id and establish the session first.
     // session_id may arrive in the fragment or the query string.

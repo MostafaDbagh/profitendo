@@ -1,3 +1,4 @@
+import { reconcileBatch } from './reconciliation.js';
 import 'dotenv/config';
 import { createDatabase, probeDatabase } from '../../database.js';
 import { readConfig } from '../../config.js';
@@ -15,6 +16,7 @@ try {
   const auth=new AuthService(db,readAuthSettings(process.env)),provider=new PayPalClient(settings);
   const cancellations=await processCancellationBatch(auth,provider);
   const webhooks=await processWebhookBatch(auth,provider);
-  console.log(JSON.stringify({cancellations,webhooks}));
+  const reconciliation=await reconcileBatch(auth,provider);
+  console.log(JSON.stringify({cancellations,webhooks,reconciliation}));
 }
 finally{await db.$disconnect();}

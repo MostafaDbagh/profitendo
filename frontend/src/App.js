@@ -59,6 +59,13 @@ function ScrollToTop() {
 
 function AppRouter() {
   const location = useLocation();
+  if(process.env.REACT_APP_B2B_PRIMARY==='true')return <><ScrollToTop/><Routes>
+    <Route path="/auth" element={<AuthV2/>}/><Route path="/auth-v2" element={<AuthV2/>}/>
+    <Route path="/business" element={<BusinessV2/>}/><Route path="/business-v2" element={<BusinessV2/>}/>
+    <Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>
+    <Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2/>}/>
+    <Route path="*" element={<Navigate to="/business" replace/>}/>
+  </Routes></>;
   // session_id may arrive in the URL fragment OR the query string depending on
   // browser/provider redirect handling — accept both.
   if (location.hash?.includes("session_id=") || location.search?.includes("session_id=")) {

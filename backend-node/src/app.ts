@@ -1,3 +1,4 @@
+import { imageRouter } from './catalogue/image-router.js';
 import { completionRouter } from './workflows/router.js';
 import { salesRouter } from './sales/router.js';
 import { transferRouter } from './transfers/router.js';
@@ -38,6 +39,7 @@ export function createApp(config: Pick<Config, 'CORS_ORIGINS'>, logger: Logger, 
   } }));
   // The larger upload allowance is authenticated and scoped to product imports.
   if(auth)app.use('/api/businesses/:businessId/product-imports',productImportRouter(auth));
+  if(auth)app.use('/api/businesses/:businessId/products/:productId/image',imageRouter(auth));
   app.use(express.json({ limit: '100kb' }));
   app.get('/api/health/live', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/health/ready', async (_req, res) => {

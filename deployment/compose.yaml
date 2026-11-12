@@ -1,0 +1,42 @@
+name: profitendo
+services:
+  api:
+    build: ../backend-node
+    env_file: .env
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    expose: ["4000"]
+  worker:
+    build: ../backend-node
+    env_file: .env
+    command: ["node", "dist/jobs.js"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "node", "-e", "const f=require('fs');process.exit(Date.now()-f.statSync('/tmp/jobs-heartbeat').mtimeMs<180000?0:1)"]
+      interval: 60s
+      start_period: 120s
+  web:
+    build:
+      context: ../frontend
+      args:
+        APP_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN}
+    restart: unless-stopped
+    expose: ["8080"]
+  edge:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    restart: unless-stopped
+    depends_on: [api, web]
+volumes:
+  caddy_data:
+  caddy_config:

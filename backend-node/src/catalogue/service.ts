@@ -1,3 +1,4 @@
+import { validateReferences } from './references.js';
 import type { AuthService, AuthContext } from '../auth/service.js';
 import { requireBusiness } from '../businesses/access.js';
 import { billingState } from '../billing/entitlements.js';
@@ -41,6 +42,7 @@ export class CatalogueService {
       const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
       if(!access.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required to add products');
+      await validateReferences(tx,businessId,input);
       const {barcodes,...data}=input;
       const created=await tx.product.create({data:{businessId,...data}});
       await tx.productBarcode.createMany({data:barcodes.map(value=>({businessId,productId:created.id,value}))});
@@ -59,6 +61,7 @@ export class CatalogueService {
       if(!current)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
       if(current.revision!==input.revision)throw conflict();
       if(input.active && !current.active && !(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required to reactivate products');
+      await validateReferences(tx,businessId,{category:input.category},current.category);
       const {revision,barcodes,...data}=input;
       const changed=await tx.product.updateMany({where:{id,businessId,revision},data:{...data,revision:{increment:1}}});if(!changed.count)throw conflict();
       if(barcodes!==undefined){await tx.productBarcode.deleteMany({where:{businessId,productId:id}});await tx.productBarcode.createMany({data:barcodes.map(value=>({businessId,productId:id,value}))});}

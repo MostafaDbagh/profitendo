@@ -15,7 +15,7 @@ try{
  await source.connect();await command('pg_dump',['--format=custom','--no-owner','--no-acl','--file',join(dir,'rehearsal.dump')]);const before=await counts(source);
  await source.query(`CREATE DATABASE "${name}"`);created=true;await command('pg_restore',['--exit-on-error','--no-owner','--no-acl','--dbname',name,join(dir,'rehearsal.dump')],name);await restored.connect();connected=true;
  const after=await counts(restored);if(JSON.stringify(before)!==JSON.stringify(after))throw new Error('Restored table counts differ; stop writes and repeat');
- const marker=(await restored.query("SELECT value FROM system_metadata WHERE key='schema_version'")).rows[0]?.value;if(marker!=='operations-completion-v1')throw new Error('Restored schema marker is incorrect');
+ const marker=(await restored.query("SELECT value FROM system_metadata WHERE key='schema_version'")).rows[0]?.value;if(marker!=='paid-reconciliation-v1')throw new Error('Restored schema marker is incorrect');
  const triggers=(await restored.query("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgenabled='O'")).rows.map(r=>r.tgname);for(const required of ['stock_history_immutable','adjustment_immutable','money_entries_immutable','cash_closes_immutable'])if(!triggers.includes(required))throw new Error('Restored history protection missing');
  console.log(JSON.stringify({result:'PASS',tables:Object.keys(after).length,schema:marker,immutableTriggersVerified:true,sourceUnchanged:true,temporaryDatabaseRemovedOnExit:true}));
 }finally{if(connected)await restored.end();if(created)await source.query(`DROP DATABASE "${name}" WITH (FORCE)`);await source.end();await rm(dir,{recursive:true,force:true});}

@@ -11,7 +11,7 @@ const fields = {
 };
 export const productSchema=z.object({...fields,
   sku:z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{1,59}$/),
-  unit:z.enum(['PIECE','BOX','CARTON','KG','LITRE','METRE']),
+  unit:z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/),
   category:fields.category.default(''),subcategory:fields.subcategory.default(''),
   brand:fields.brand.default(''),description:fields.description.default(''),
   minimumStock:decimal.default('0'),active:z.boolean().default(true),barcodes:fields.barcodes.default([]),

@@ -349,3 +349,13 @@ Baseline evidence is copied from the preceding POS implementation; before/after
 captures live in tmp/completion-design. Real browser workflows check all five
 AR/EN widths, with Arabic form/review dialogs at 320/390/1440, internal table
 scrolling and Escape focus restoration. No theme change or new UI kit.
+
+
+## Catalogue completion and cutover — 12 November 2026
+
+Used the frontend-ui-engineering skill with this existing baseline. Preserved the
+slate/white/emerald palette, fonts, shared Field/Modal/Table primitives and RTL.
+Added bilingual reference, pack-retirement and image controls with useful examples;
+localized the image picker button after screenshot review. Custom unit codes remain
+legible in historical documents. Baseline screenshots: tmp/catalogue-design.
+New verification artifacts: tmp/catalogue-release-design. No app-wide redesign.

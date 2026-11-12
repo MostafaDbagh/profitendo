@@ -15,7 +15,17 @@ from core import (
     now_iso, compute_cash_balance, create_pin_token, pin_guard, CURRENCIES,
 )
 
+from cutover import allow_legacy_request
+
 app = FastAPI()
+# Opt-in cutover freeze: retain legacy history while preventing dual stock writes.
+@app.middleware("http")
+async def cutover_read_only(request: Request, call_next):
+    if not allow_legacy_request(request.method, request.url.path, os.environ.get("LEGACY_READ_ONLY") == "true"):
+        from starlette.responses import JSONResponse
+        return JSONResponse({"detail": "Legacy system is read-only after cutover"}, status_code=503)
+    return await call_next(request)
+
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

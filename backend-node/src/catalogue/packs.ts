@@ -38,7 +38,7 @@ export class PackService {
       if(!product)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
       if(!product.active)throw new ApiError(409,'PRODUCT_INACTIVE','Product is inactive');
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required');
-      if(await tx.productPack.count({where:{businessId,productId}})>=20)throw new ApiError(409,'PACK_LIMIT','Maximum twenty packs per product');
+      if(await tx.productPack.count({where:{businessId,productId,retiredAt:null}})>=20)throw new ApiError(409,'PACK_LIMIT','Maximum twenty packs per product');
       const row=await tx.productPack.create({data:{businessId,productId,...input}});
       await tx.authAudit.create({data:{userId:ctx.user.id,businessId,action:'product.pack_created',targetId:productId,changes:{packId:row.id,name:row.name,baseQuantity:row.baseQuantity.toFixed(4)}}});
       return {...row,baseQuantity:row.baseQuantity.toFixed(4)};
@@ -46,6 +46,17 @@ export class PackService {
       if((error as {code?:string}).code==='P2002')throw new ApiError(409,'PACK_EXISTS','Pack name already exists for this product');
       throw error;
     }
+  }
+  async retire(ctx:AuthContext,businessId:string,productId:string,id:string){
+    return this.auth.transaction(async tx=>{
+      await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.manage');
+      const pack=await tx.productPack.findFirst({where:{id,businessId,productId}});
+      if(!pack)throw new ApiError(404,'PACK_NOT_FOUND','Pack not found');
+      if(pack.retiredAt)return {ok:true};
+      await tx.productPack.update({where:{id},data:{retiredAt:new Date()}});
+      await tx.authAudit.create({data:{userId:ctx.user.id,businessId,action:'product.pack_retired',targetId:productId,changes:{packId:id}}});
+      return {ok:true};
+    });
   }
   async convert(ctx:AuthContext,businessId:string,productId:string,id:string,quantity:string){
     return this.auth.transaction(async tx=>{

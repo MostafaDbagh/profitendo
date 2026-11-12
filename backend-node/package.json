@@ -11,8 +11,8 @@
     "build": "tsc && cp src/catalogue/xlsx-worker.cjs dist/catalogue/xlsx-worker.cjs",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run tests/app.test.ts tests/paypal-client.test.ts",
-    "test:integration": "vitest run tests/database.test.ts tests/auth.test.ts tests/businesses.test.ts tests/platform.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts",
+    "test": "vitest run tests/app.test.ts tests/paypal-client.test.ts tests/migration-review.test.ts",
+    "test:integration": "vitest run --maxWorkers=2 tests/database.test.ts tests/auth.test.ts tests/businesses.test.ts tests/platform.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:status": "prisma migrate status",
@@ -34,7 +34,10 @@
     "test:browser:sales": "tsx scripts/sales-browser.ts",
     "test:browser:completion": "tsx scripts/completion-browser.ts",
     "migration:analyze": "tsx scripts/legacy-rehearsal.ts",
-    "test:restore": "tsx scripts/restore-rehearsal.ts"
+    "test:restore": "tsx scripts/restore-rehearsal.ts",
+    "migration:review": "tsx scripts/migration-review.ts",
+    "release:check": "tsx scripts/release-check.ts",
+    "jobs": "node dist/jobs.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
@@ -49,6 +52,7 @@
     "otpauth": "9.6.0",
     "pg": "8.23.1",
     "pino": "10.4.0",
+    "sharp": "^0.35.5",
     "yauzl": "3.4.0",
     "zod": "4.6.7"
   },

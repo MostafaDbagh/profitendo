@@ -42,3 +42,8 @@ the environment; their fallback is intentionally a local-only placeholder.
 Keep secrets, cookies, generated screenshots, logs, recordings, dependencies and
 build output outside Git. Source, tests, migrations, example configuration and
 lockfiles are versioned.
+
+
+Release preparation and staging instructions: [deployment/README.md](deployment/README.md).
+The five-priority local completion status and external launch gates are tracked in
+[memory/SERVICE_PROGRESS.md](memory/SERVICE_PROGRESS.md). Paid checkout remains off.

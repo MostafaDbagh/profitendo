@@ -2,7 +2,13 @@ import type { Tx } from '../auth/service.js';
 import { ApiError } from '../errors.js';
 // Call from the same serializable transaction as the protected creation or change.
 export async function billingState(tx: Tx, businessId: string, now = new Date()) {
-  const subscription = await tx.businessSubscription.findUnique({ where: { businessId }, include: { plan: true } });
+  let subscription = await tx.businessSubscription.findUnique({ where: { businessId }, include: { plan: true } });
+  const paid=await tx.billingCheckout.findUnique({where:{businessId},include:{plan:true}});
+  if(paid?.paidFrom&&paid.paidUntil){
+    const active=!paid.accessHold&&paid.paidFrom<=now&&paid.paidUntil>now&&['ACTIVE','CANCELLED','SUSPENDED'].includes(paid.providerStatus??'');
+    subscription={id:paid.id,businessId,planId:paid.planId,status:active?'ACTIVE':'EXPIRED',trialStartedAt:paid.paidFrom,trialEndsAt:paid.paidUntil,createdAt:paid.createdAt,plan:paid.plan};
+    return {subscription,active,status:paid.accessHold?'REVIEW':active?(paid.providerStatus==='CANCELLED'?'CANCELLED_PAID':'ACTIVE'):'EXPIRED',paidUntil:paid.paidUntil};
+  }
   const active = !!subscription && subscription.status === 'TRIAL' && subscription.trialStartedAt <= now && subscription.trialEndsAt > now;
   return { subscription, active, status: !subscription ? 'NOT_STARTED' : active ? 'TRIAL' : 'EXPIRED' };
 }

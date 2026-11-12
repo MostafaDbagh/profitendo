@@ -121,3 +121,10 @@ frontend/node_modules/.cache/default-development/13.pack
 coverage/
 build/
 frontend/node_modules/.cache/default-development/15.pack
+
+# Private release evidence and encrypted backups
+*.dump.age
+*.dump.age.partial
+/deployment/backups/
+/deployment/evidence/
+frontend/node_modules/.cache/default-development/16.pack

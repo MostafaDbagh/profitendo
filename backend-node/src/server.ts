@@ -1,3 +1,4 @@
+import { checkoutConfiguration } from './billing/paypal/launch.js';
 import 'dotenv/config';
 import { pino } from 'pino';
 import { readConfig } from './config.js';
@@ -10,6 +11,7 @@ import { createApp } from './app.js';
 const config = readConfig(process.env);
 const authSettings = readAuthSettings(process.env);
 const paypalSettings = readPayPalSettings(process.env);
+if(checkoutConfiguration().enabled&&!paypalSettings)throw new Error("Checkout requires provider configuration");
 if (!config.CORS_ORIGINS.includes(authSettings.appOrigin)) throw new Error('APP_ORIGIN must be included in CORS_ORIGINS');
 const logger = pino({ level: config.LOG_LEVEL });
 const db = createDatabase(config.DATABASE_URL);
