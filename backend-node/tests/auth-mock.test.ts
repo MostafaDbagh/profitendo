@@ -1,0 +1,67 @@
+import { createRequire } from 'node:module';
+const jsQR=createRequire(import.meta.url)('jsqr') as typeof import('jsqr').default;
+import sharp from 'sharp';
+import { randomBytes,randomUUID } from 'node:crypto';
+import { afterAll,it,expect } from 'vitest';
+import request from 'supertest';
+import { pino } from 'pino';
+import { createDatabase } from '../src/database.js';
+import { createApp } from '../src/app.js';
+import { AuthService } from '../src/auth/service.js';
+import { readAuthSettings } from '../src/auth/settings.js';
+const url=process.env.TEST_DATABASE_URL;
+if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
+const env={AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),NODE_ENV:'test',AUTH_MOCK_OTP:'true',APP_ORIGIN:'http://localhost:3100',DATABASE_URL:url};
+const settings=readAuthSettings(env),db=createDatabase(url),auth=new AuthService(db,settings);
+const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
+app.set('trust proxy','loopback');
+const prefix=randomBytes(2);let counter=0;
+const ids:string[]=[],bids:string[]=[],pass='Mock auth test password 123!';
+type Session={cookie:string;csrf:string};
+const session=(r:request.Response):Session=>({cookie:(r.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!,csrf:r.body.csrfToken});
+function post(path:string,body:object,s?:Session){let r=request(app).post('/api/auth'+path).set('Origin',settings.appOrigin).set('X-Forwarded-For',`10.${prefix[0]}.${prefix[1]}.${++counter}`);if(s)r=r.set('Cookie',s.cookie).set('X-CSRF-Token',s.csrf);return r.send(body);}
+async function register(){const email=`mock-${randomUUID()}@example.test`;expect((await post('/register',{email,password:pass,name:'Mock Owner',businessName:'Mock Shop'})).status).toBe(202);const u=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(u.id);const m=await db.membership.findFirstOrThrow({where:{userId:u.id}});bids.push(m.businessId);return {email,id:u.id};}
+async function code(email:string,purpose='VERIFY_EMAIL'){const r=await post('/mock-code/request',{email,purpose});expect(r.status).toBe(202);return {challenge:r.body.challenge,purpose,code:'123456'};}
+afterAll(async()=>{await db.authAudit.deleteMany({where:{userId:{in:ids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.$disconnect();});
+it('restricts mock mode to explicit local environments and hides endpoints when disabled',async()=>{
+ for(const override of [{NODE_ENV:'production',APP_ORIGIN:'https://localhost'},{NODE_ENV:''},{APP_ORIGIN:'http://example.com'},{HOST:'0.0.0.0'},{DATABASE_URL:'postgresql://u:p@remote.test/db'}])expect(()=>readAuthSettings({...env,...override})).toThrow();
+ const real=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},new AuthService(db,{...settings,mockOtp:false}));
+ expect((await request(real).post('/api/auth/mock-code/request').set('Origin',settings.appOrigin).send({email:'none@example.test',purpose:'VERIFY_EMAIL'})).status).toBe(404);
+ expect((await request(real).get('/api/auth/config')).body.mockOtp).toBe(false);
+});
+it('validates signup and six ASCII digits, purpose, expiry, resend and single use',async()=>{
+ for(const data of [{email:'invalid',password:pass},{email:'a@example.test',password:'short'},{email:'a@example.test',password:123456}])expect((await post('/register',{...data,name:'Test Owner',businessName:'Test Shop'})).status).toBe(422);
+ const u=await register();expect((await post('/login',{email:u.email,password:pass})).body.error.code).toBe('EMAIL_UNVERIFIED');
+ const otp=await code(u.email);
+ for(const value of ['', '12345','1234567','abcdef','123 56','123456\n','١٢٣٤٥٦',123456,null])expect((await post('/mock-code/confirm',{...otp,code:value})).status).toBe(422);
+ expect((await post('/mock-code/confirm',{...otp,code:'000123'})).status).toBe(400);
+ expect((await post('/mock-code/confirm',{...otp,purpose:'PASSWORD_RESET'})).status).toBe(400);
+ const fresh=await code(u.email);expect((await post('/mock-code/confirm',otp)).status).toBe(400);
+ await db.authToken.updateMany({where:{userId:u.id,usedAt:null},data:{expiresAt:new Date(0)}});
+ expect((await post('/mock-code/confirm',fresh)).status).toBe(400);
+ const final=await code(u.email);expect((await post('/mock-code/confirm',final)).status).toBe(200);expect((await post('/mock-code/confirm',final)).status).toBe(400);
+ const unknown=await code(`missing-${randomUUID()}@example.test`);expect(Object.keys(unknown)).toEqual(Object.keys(final));expect((await post('/mock-code/confirm',unknown)).status).toBe(400);
+});
+it('limits incorrect email code attempts',async()=>{const otp=await code(`missing-${randomUUID()}@example.test`);for(let i=0;i<5;i++)expect((await post('/mock-code/confirm',{...otp,code:'654321'})).status).toBe(400);expect((await post('/mock-code/confirm',otp)).status).toBe(429);});
+it('enrolls via QR, requires MFA, rotates sessions and resets passwords through a one-time grant',async()=>{
+ const u=await register();await post('/mock-code/confirm',await code(u.email));
+ expect((await post('/login',{email:u.email,password:'incorrect'})).status).toBe(401);
+ const login=await post('/login',{email:u.email,password:pass});expect(login.body.stage).toBe('mfa_setup_required');const pending=session(login);
+ expect((await post('/mfa/confirm',{code:'123456'},pending)).status).toBe(409);
+ const setup=await post('/mfa/setup',{password:pass},pending);expect(setup.body.uri).toMatch(/^otpauth:\/\/totp\//);expect(setup.body.qrCode).toMatch(/^data:image\/png;base64,/);expect(setup.body.uri).toContain(setup.body.secret);
+ const png=await sharp(Buffer.from(setup.body.qrCode.split(',')[1],'base64')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ expect(jsQR(new Uint8ClampedArray(png.data),png.info.width,png.info.height)?.data).toBe(setup.body.uri);
+ for(const value of ['12345','1234567','123456\n','abcdef',123456,'a'.repeat(24)])expect((await post('/mfa/confirm',{code:value},pending)).status).toBe(422);
+ expect((await post('/mfa/confirm',{code:'654321'},pending)).status).toBe(401);
+ const verified=await post('/mfa/confirm',{code:'123456'},pending);expect(verified.body.stage).toBe('authenticated');const full=session(verified);expect(full.cookie).not.toBe(pending.cookie);
+ expect((await request(app).get('/api/auth/me').set('Cookie',pending.cookie)).status).toBe(401);
+ const next=await post('/login',{email:u.email,password:pass});expect(next.body.stage).toBe('mfa_required');expect((await post('/mfa/verify',{code:'123456'},session(next))).body.stage).toBe('authenticated');
+ const otp=await code(u.email,'PASSWORD_RESET');expect((await post('/reset-password',{token:otp.challenge,password:pass+' new'})).status).toBe(400);
+ const grant=await post('/mock-code/confirm',otp);expect(grant.status).toBe(200);expect((await post('/mock-code/confirm',otp)).status).toBe(400);
+ expect((await post('/reset-password',{token:grant.body.resetToken,password:'short'})).status).toBe(422);
+ expect((await post('/reset-password',{token:grant.body.resetToken,password:pass+' new'})).status).toBe(200);
+ expect((await post('/reset-password',{token:grant.body.resetToken,password:pass})).status).toBe(400);
+ expect((await request(app).get('/api/auth/me').set('Cookie',full.cookie)).status).toBe(401);
+ expect((await post('/login',{email:u.email,password:pass})).status).toBe(401);
+ expect((await post('/login',{email:u.email,password:pass+' new'})).body.stage).toBe('mfa_required');
+});

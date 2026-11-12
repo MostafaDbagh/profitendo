@@ -1,3 +1,4 @@
+import OtpField from '../components/auth-v2/OtpField';
 import { Link } from 'react-router-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthBranding, MobileLogo } from '../components/auth/AuthBranding';
@@ -10,6 +11,7 @@ const roles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGER', 'CASHIER
 export default function AuthV2() {
   const { lang, setLang, t } = useLanguage();
   const c = (key) => authCopy[lang]?.[key] || authCopy.en[key] || authCopy[lang].failed;
+  const [mockOtp,setMockOtp]=useState(false),[emailChallenge,setEmailChallenge]=useState(null),[recoveryMode,setRecoveryMode]=useState(false),[resendAt,setResendAt]=useState(0),[now,setNow]=useState(Date.now());
   const [initial] = useState(() => new URLSearchParams(window.location.hash.slice(1)));
   const [mode, setMode] = useState(() => ['verify', 'reset', 'invite'].includes(initial.get('action')) ? initial.get('action') : 'login');
   const [linkAction, setLinkAction] = useState(initial.get('action'));
@@ -17,7 +19,8 @@ export default function AuthV2() {
   const csrf = useRef('');
   const [session, setSession] = useState(null), [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [form, setForm] = useState({ email: '', password: '', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword:'', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
+  const [qrCode,setQrCode]=useState('');
   const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]), [sessions, setSessions] = useState([]);
   const statusRef = useRef(null);
   const call = useCallback(async (path, body) => {
@@ -45,43 +48,48 @@ export default function AuthV2() {
     receiveLink();
     window.addEventListener('hashchange', receiveLink);
     let active = true;
-    call('/me').then(data => { if (active) setSession(data); }).catch(err => { if (active && err.status !== 401) setError('failed'); }).finally(() => { if (active) setChecking(false); });
+    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setSession(data);}}).catch(()=>{if(active)setError('failed');}).finally(()=>{if(active)setChecking(false);});
     return () => { active = false; window.removeEventListener('hashchange', receiveLink); };
   }, [call]);
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
   useEffect(() => {
     if (session?.stage === 'authenticated' && !recovery.length) call('/sessions').then(setSessions).catch(() => setError('failed'));
   }, [session, recovery.length, call]);
+  useEffect(()=>{if(!emailChallenge)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[emailChallenge]);
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
-  const switchMode = next => { setMode(next); setError(''); setNotice(''); setForm(f => ({ ...f, password: '', currentPassword: '', code: '' })); };
-  const clear = () => { csrf.current = ''; setSession(null); setSecret(''); setRecovery([]); setSessions([]); setMode('login'); setForm(f => ({ ...f, password: '', currentPassword: '', code: '' })); };
+  const switchMode = next => { if(busy)return;setEmailChallenge(null);setRecoveryMode(false);setMode(next); setError(''); setNotice(''); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
+  const clear = () => { setEmailChallenge(null);setRecoveryMode(false);csrf.current = ''; setSession(null); setSecret(''); setQrCode(''); setRecovery([]); setSessions([]); setMode('login'); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
   const run = async work => {
     setBusy(true); setError(''); setNotice('');
     try { await work(); }
     catch (e) { setError(e.message); if (e.message === 'SESSION_EXPIRED' || e.message === 'UNAUTHENTICATED') clear(); }
     finally { setBusy(false); }
   };
+  async function startEmailCode(purpose){const data=await call('/mock-code/request',{email:form.email,purpose});setEmailChallenge({...data,purpose});setResendAt(Date.now()+30000);setNow(Date.now());setMode('emailCode');setForm(f=>({...f,code:'',password:'',confirmPassword:''}));}
   const submit = e => { e.preventDefault(); run(async () => {
-    if (mode === 'verify') { await call('/verification/confirm', { token: linkToken.current }); linkToken.current = ''; setMode('login'); setNotice('verified'); }
+    if(['register','reset'].includes(mode)&&form.password!==form.confirmPassword)throw new Error('PASSWORD_MISMATCH');
+    if(mode==='emailCode'){const data=await call('/mock-code/confirm',{challenge:emailChallenge.challenge,purpose:emailChallenge.purpose,code:form.code});setEmailChallenge(null);setForm(f=>({...f,code:''}));if(data.resetToken){linkToken.current=data.resetToken;setMode('reset');}else{setMode('login');setNotice('verified');}}
+    else if (mode === 'verify') { await call('/verification/confirm', { token: linkToken.current }); linkToken.current = ''; setMode('login'); setNotice('verified'); }
     else if (mode === 'reset') { await call('/reset-password', { token: linkToken.current, password: form.password }); linkToken.current = ''; clear(); setNotice('resetDone'); }
     else if (mode === 'invite') { await call('/invitations/accept', { token: linkToken.current, ...(session?.stage === 'authenticated' ? {} : { name: form.name, password: form.password }) }); linkToken.current = ''; setMode('login'); setNotice('inviteDone'); }
     else if (session?.stage === 'mfa_setup_required') {
-      if (!secret) { const data = await call('/mfa/setup', { password: form.password }); setSecret(data.secret); setForm(f => ({ ...f, password: '' })); }
-      else { const data = await call('/mfa/confirm', { code: form.code }); const { recoveryCodes, ...safeSession } = data; setSession(safeSession); setRecovery(recoveryCodes); setSecret(''); setForm(f => ({ ...f, code: '' })); }
+      if (!secret) { const data = await call('/mfa/setup', { password: form.password }); setSecret(data.secret); setQrCode(data.qrCode); setForm(f => ({ ...f, password: '' })); }
+      else { const data = await call('/mfa/confirm', { code: form.code }); const { recoveryCodes, ...safeSession } = data; setSession(safeSession); setRecovery(recoveryCodes); setSecret(''); setQrCode(''); setForm(f => ({ ...f, code: '' })); }
     } else if (session?.stage === 'mfa_required') { setSession(await call('/mfa/verify', { code: form.code })); setForm(f => ({ ...f, code: '' })); }
     else if (mode === 'login') { setSession(await call('/login', { email: form.email, password: form.password })); setForm(f => ({ ...f, password: '' })); }
-    else if (mode === 'register') { await call('/register', { email: form.email, password: form.password, name: form.name, businessName: form.businessName }); setForm(f => ({ ...f, password: '' })); setNotice('checkEmail'); }
-    else if (mode === 'forgot') { await call('/forgot-password', { email: form.email }); setNotice('checkEmail'); }
+    else if (mode === 'register') { await call('/register', { email: form.email, password: form.password, name: form.name, businessName: form.businessName }); setForm(f => ({ ...f, password: '',confirmPassword:'' })); if(mockOtp)await startEmailCode('VERIFY_EMAIL');else setNotice('checkEmail'); }
+    else if (mode === 'forgot') { if(mockOtp)await startEmailCode('PASSWORD_RESET');else{await call('/forgot-password', { email: form.email }); setNotice('checkEmail');} }
   }); };
   useEffect(() => {
     if (session?.stage === 'authenticated' && linkAction === 'invite' && linkToken.current) setMode('invite');
   }, [session, linkAction]);
-  const isLink = ['verify', 'reset', 'invite'].includes(mode);
+  const isLink = ['verify', 'reset', 'invite','emailCode'].includes(mode);
   const authenticated = session?.stage === 'authenticated' && !isLink;
   const setup = !isLink && session?.stage === 'mfa_setup_required';
   const challenge = !isLink && session?.stage === 'mfa_required';
   const title = recovery.length ? 'recoveryTitle' : authenticated ? 'accountTitle' : setup ? 'mfaSetup' : challenge ? 'mfaTitle' : mode;
   const field = (key, label, extra = {}) => <Field placeholder={c(key === 'code' ? (setup ? 'setupCodePlaceholder' : 'codePlaceholder') : extra.autoComplete === 'new-password' ? 'newPasswordPlaceholder' : `${label}Placeholder`)} id={`v2-${key}`} label={c(label)} value={form[key]} onChange={set(key)} required disabled={busy} {...extra} />;
+  const otp=<OtpField value={form.code} onChange={code=>setForm(f=>({...f,code}))} c={c} disabled={busy}/>;
   const signOut = (path = '/logout') => run(async () => { await call(path, {}); clear(); });
   return <div className="min-h-screen bg-slate-50 flex relative" data-testid="auth-v2-page">
     <Seo title={`${c(title)} | ProfitLens`} description={c('loginHint')} path="/auth-v2" noindex />
@@ -112,17 +120,19 @@ export default function AuthV2() {
             </form>
             <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-4"><button disabled={busy} className={linkClass} onClick={() => signOut('/lock')}>{c('lock')}</button><button disabled={busy} className={linkClass} onClick={() => signOut()}>{c('logout')}</button><button disabled={busy} className={linkClass} onClick={() => run(async () => { await call('/sessions/revoke', {}); clear(); })}>{c('revokeAll')}</button></div>
           </div> : <>
-            <form onSubmit={submit} className="space-y-4" data-testid="auth-v2-form">
-              {setup ? secret ? <><p className="text-sm text-slate-600">{c('secretHint')}</p><label htmlFor="v2-secret" className="text-sm font-medium text-slate-700 block">{c('secretLabel')}</label><input id="v2-secret" readOnly dir="ltr" value={secret} className={`${inputClass} font-mono text-xs`} />{field('code', 'code', { autoComplete: 'one-time-code', inputMode: 'numeric', dir: 'ltr', maxLength: 6 })}</> : field('password', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 }) : challenge ? field('code', 'code', { autoComplete: 'one-time-code', dir: 'ltr', maxLength: 24 }) : <>
+            <>{mockOtp&&<p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900" role="note">{c('mockNotice')}</p>}</><form onSubmit={submit} className="space-y-4" data-testid="auth-v2-form">
+              {mode==='emailCode'?<><p className="text-sm text-slate-600">{c('emailCodeHint')} <bdi>{form.email}</bdi></p>{otp}</>:setup ? secret ? <><p className="text-sm text-slate-600">{c('qrHint')}</p><img data-testid="mfa-qr" src={qrCode} alt={c('qrAlt')} width={256} height={256} className="mx-auto block w-full max-w-64 h-auto bg-white" /><p className="text-sm text-slate-600">{c('secretHint')}</p><label htmlFor="v2-secret" className="text-sm font-medium text-slate-700 block">{c('secretLabel')}</label><input id="v2-secret" readOnly dir="ltr" value={secret} className={`${inputClass} font-mono text-xs`} />{otp}</> : field('password', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 }) : challenge ? <>{recoveryMode?field('code','recoveryCode',{placeholder:c('recoveryPlaceholder'),autoComplete:'off',dir:'ltr',minLength:24,maxLength:24,pattern:'[a-f0-9]{24}'}):otp}<button type="button" disabled={busy} className={linkClass} onClick={()=>{setRecoveryMode(v=>!v);setForm(f=>({...f,code:''}));setError('');}}>{c(recoveryMode?'useAuthenticator':'useRecovery')}</button></> : <>
                 {(mode === 'register' || (mode === 'invite' && session?.stage !== 'authenticated')) && field('name', 'name', { autoComplete: 'name', minLength: 2, maxLength: 100 })}
                 {mode === 'register' && field('businessName', 'business', { autoComplete: 'organization', minLength: 2, maxLength: 120 })}
                 {['login', 'register', 'forgot'].includes(mode) && field('email', 'email', { type: 'email', autoComplete: 'email', dir: 'ltr', maxLength: 254 })}
                 {(['login', 'register', 'reset'].includes(mode) || (mode === 'invite' && session?.stage !== 'authenticated')) && field('password', mode === 'reset' ? 'newPassword' : 'password', { type: 'password', autoComplete: mode === 'login' ? 'current-password' : 'new-password', minLength: mode === 'login' ? 1 : 12, maxLength: 128, hint: mode === 'login' ? undefined : c('passwordHint') })}
+                {['register','reset'].includes(mode)&&field('confirmPassword','confirmPassword',{type:'password',autoComplete:'new-password',minLength:12,maxLength:128,placeholder:c('confirmPasswordPlaceholder')})}
                 {mode === 'invite' && <p className="text-sm text-slate-500">{c(session?.stage === 'authenticated' ? 'inviteSignedIn' : 'inviteExisting')}</p>}
               </>}
-              <Submit busy={busy}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'forgot' ? 'sendLink' : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
+              <Submit busy={busy}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
             </form>
-            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { await call('/verification/request', { email: form.email }); setNotice('checkEmail'); })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}
+            {mode==='emailCode'&&<button type="button" className={`${linkClass} mt-4`} disabled={busy||now<resendAt} onClick={()=>run(()=>startEmailCode(emailChallenge.purpose))}>{now<resendAt?`${c('resendIn')} ${Math.max(0,Math.ceil((resendAt-now)/1000))}`:c('resendCode')}</button>}
+            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}
             {(setup || challenge) && <button type="button" disabled={busy} className={`${linkClass} mt-5`} onClick={() => signOut()}>{c('logout')}</button>}
           </>}
         </div>

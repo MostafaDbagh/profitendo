@@ -146,3 +146,60 @@ are retried up to seven total attempts with bounded exponential backoff/jitter.
 Only PostgreSQL serialization/deadlock errors qualify. Exhaustion returns 503
 TRANSACTION_BUSY. Immediate and deferred database trigger tests verify rollback
 and exactly one committed write across retries.
+
+## Local email/MFA mock and QR enrollment (2026-11-12)
+
+Set `AUTH_MOCK_OTP=true` only with explicit `NODE_ENV=development` or `test`.
+The app origin, API bind host and database host must be loopback. Production
+and non-local configuration fail at startup. Default is false; mock routes
+return 404 when disabled. `/api/auth/config` exposes only whether mock mode is on.
+
+In this mode, email verification and password recovery use **123456** after
+requesting a challenge. No verification/reset mail is queued. Challenges are
+purpose-bound, expire after ten minutes and work once; resending invalidates
+older challenges. Five confirmation attempts per challenge and account/IP
+request limits apply. Reset verification grants a separate one-use reset token;
+changing the password revokes sessions and preserves MFA enrollment.
+
+MFA still requires a valid password, verified email and enrollment. Setup shows
+a locally generated QR encoding the account's real `otpauth://` URI, plus a
+manual key. No enrollment secret is sent to an external QR service. In mock mode,
+enter **123456** rather than the changing number displayed in the authenticator.
+With mock mode off, the scanned authenticator's real TOTP and replay checks apply.
+Recovery codes remain distinct 24-character, single-use codes.
+
+Email/MFA inputs accept exactly six ASCII digits, preserve leading zeros, use
+a numeric keyboard and reject letters/spaces. The API also rejects numbers,
+non-ASCII numerals, newlines and incorrect lengths. Signup/reset require matching
+password confirmation and retain the 12–128 character password policy.
+
+The local preview uses an ignored `.env.mock` with a generated encryption key
+and separate `profitlens_auth_mock_test` database. Start from each directory:
+
+```sh
+# backend-node (after configuring .env.mock and applying migrations to its DB)
+npm run dev:mock
+# frontend
+npm run start:mock
+```
+
+Open `http://localhost:3100/auth-v2`; API is on port 4100. Existing services on
+3000/4000 are unaffected. `.env.mock` is local-only and must never be committed.
+
+Regression checks, with `TEST_DATABASE_URL` pointing to a dedicated `_test` DB:
+
+```sh
+npx vitest run tests/auth.test.ts tests/auth-mock.test.ts --maxWorkers=1
+# Frontend start:mock must be running; these start their own temporary API on 4100.
+# Stop the preview API first and run these sequentially.
+npm run test:browser:auth-mock
+npm run test:browser:auth-real
+```
+
+Browser checks cover actual signup, verification, MFA setup/QR, recovery,
+logout, forgot/reset and subsequent login. Mock screens are checked in Arabic
+and English at 320, 390, 768, 1024 and 1440px. QR decoding is verified against
+the enrollment URI in the integration test. Artifacts remain ignored under
+`tmp/auth-mock-design` and `tmp/auth-real-design`; prior UI references are under
+`tmp/auth-design`. Reference review used Jawla merchant and Syria recovery UI
+only; no Jawla code or country-specific signup requirements were changed.

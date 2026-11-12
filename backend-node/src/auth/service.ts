@@ -60,7 +60,7 @@ export class AuthService {
     const token = randomToken();
     await tx.authToken.updateMany({ where: { userId: user.id, kind, usedAt: null }, data: { usedAt: new Date() } });
     await tx.authToken.create({ data: { tokenHash: digest(token), userId: user.id, kind, expiresAt: new Date(Date.now() + (kind === 'VERIFY_EMAIL' ? 24 * hour : hour / 2)) } });
-    await this.queueMail(tx, user.email, kind === 'VERIFY_EMAIL' ? 'Verify your ProfitLens email' : 'Reset your ProfitLens password', kind === 'VERIFY_EMAIL' ? 'verify' : 'reset', token);
+    if(!this.settings.mockOtp)await this.queueMail(tx, user.email, kind === 'VERIFY_EMAIL' ? 'Verify your ProfitLens email' : 'Reset your ProfitLens password', kind === 'VERIFY_EMAIL' ? 'verify' : 'reset', token);
   }
   async register(input: { email: string; password: string; name: string; businessName: string }) {
     const hash = await passwordHash(input.password);
@@ -161,7 +161,7 @@ export class AuthService {
       const { user, session } = await this.assertSession(tx, ctx);
       if (!session.pendingMfaSecret || user.mfaSecret) throw new ApiError(409, 'MFA_SETUP_REQUIRED', 'Start MFA setup first');
       const secret = decrypt(this.settings.key, session.pendingMfaSecret, `enroll:${session.id}`);
-      const step = totpStep(secret, user.email, code);
+      const step = this.settings.mockOtp ? (code==='123456'?0:null) : totpStep(secret, user.email, code);
       if (step === null) throw fail();
       const recoveryCodes = Array.from({ length: 10 }, () => randomBytes(12).toString('hex'));
       const updated = await tx.authUser.update({ where: { id: user.id }, data: { mfaSecret: encrypt(this.settings.key, secret, `mfa:${user.id}`), mfaLastStep: step, recoveryHashes: recoveryCodes.map(digest), securityVersion: { increment: 1 } } });
@@ -182,8 +182,8 @@ export class AuthService {
         if (!user.recoveryHashes.includes(hash)) throw fail();
         data = { recoveryHashes: user.recoveryHashes.filter(v => v !== hash) };
       } else {
-        const step = totpStep(decrypt(this.settings.key, user.mfaSecret, `mfa:${user.id}`), user.email, code);
-        if (step === null || step <= user.mfaLastStep) throw fail();
+        const step = this.settings.mockOtp ? (code==='123456'?user.mfaLastStep:null) : totpStep(decrypt(this.settings.key, user.mfaSecret, `mfa:${user.id}`), user.email, code);
+        if (step === null || (!this.settings.mockOtp && step <= user.mfaLastStep)) throw fail();
         data = { mfaLastStep: step };
       }
       const updated = await tx.authUser.update({ where: { id: user.id }, data });

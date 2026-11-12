@@ -8,6 +8,7 @@ const settings = readAuthSettings(process.env);
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.endsWith('_test')) throw new Error('Dedicated TEST_DATABASE_URL required');
 const base = settings.appOrigin;
+const apiOrigin=process.env.BROWSER_API_ORIGIN||'http://localhost:4000';
 const artifacts = process.env.AUTH_SCREENSHOTS ?? '../tmp/auth-design';
 await mkdir(artifacts, { recursive: true });
 const db = createDatabase(url);
@@ -41,6 +42,7 @@ try {
   await page.locator('#v2-name').fill('Browser Test Owner');
   await page.locator('#v2-businessName').fill('Browser Test Shop');
   await page.locator('#v2-email').fill(email); await page.locator('#v2-password').fill(pass);
+  await page.locator('#v2-confirmPassword').fill(pass);
   await page.getByRole('button', { name: 'Create business account', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'If eligible' }).waitFor();
   const token = await mailToken('verify');
@@ -54,20 +56,21 @@ try {
   await page.locator('#v2-password').fill(pass);
   await page.getByRole('button', { name: 'Set up authenticator', exact: true }).click();
   const secret = await page.locator('#v2-secret').inputValue();
-  await page.screenshot({ path: `${artifacts}/new-en-1440-mfa.png`, fullPage: true, animations: 'disabled', mask: [page.locator('#v2-secret')] });
+  await page.screenshot({ path: `${artifacts}/new-en-1440-mfa.png`, fullPage: true, animations: 'disabled', mask: [page.locator('#v2-secret'),page.getByTestId('mfa-qr')] });
   await page.locator('#v2-code').fill(totp(secret, email).generate());
   await page.getByRole('button', { name: 'Confirm authenticator', exact: true }).click();
   await page.getByRole('heading', { name: 'Save your recovery codes' }).waitFor();
   const recovery = await page.locator('code').first().innerText();
   await page.getByRole('button', { name: 'I have saved my recovery codes' }).click();
   await page.getByRole('heading', { name: 'Account security' }).waitFor();
-  const csrfStatus = await page.evaluate(async () => (await fetch('http://localhost:4000/api/auth/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status);
+  const csrfStatus = await page.evaluate(async origin => (await fetch(origin+'/api/auth/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, apiOrigin);
   if (csrfStatus !== 403) throw new Error('CSRF protection did not reject browser request');
   await page.screenshot({ path: `${artifacts}/new-en-1440-account.png`, fullPage: true, animations: 'disabled' });
   await page.getByRole('button', { name: 'Lock this device', exact: true }).click();
   await page.locator('#v2-email').fill(email); await page.locator('#v2-password').fill(pass);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.getByRole('heading', { name: 'Verify it is you' }).waitFor();
+  await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
   await page.locator('#v2-code').fill(recovery);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('heading', { name: 'Account security' }).waitFor();
@@ -79,6 +82,7 @@ try {
   const reset = await mailToken('reset');
   await page.goto(`${base}/auth-v2#action=reset&token=${reset}`);
   await page.locator('#v2-password').fill(pass + ' changed');
+  await page.locator('#v2-confirmPassword').fill(pass + ' changed');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Password updated' }).waitFor();
   for (const [lang, width, height] of [['ar', 390, 844], ['en', 390, 844], ['ar', 1440, 1000], ['ar', 320, 800]] as const) {

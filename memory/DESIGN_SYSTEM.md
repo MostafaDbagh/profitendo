@@ -359,3 +359,14 @@ Added bilingual reference, pack-retirement and image controls with useful exampl
 localized the image picker button after screenshot review. Custom unit codes remain
 legible in historical documents. Baseline screenshots: tmp/catalogue-design.
 New verification artifacts: tmp/catalogue-release-design. No app-wide redesign.
+
+### Authentication refinement — 2026-11-12
+
+Preserve the existing auth split branding/card layout. MFA enrollment now adds
+an on-device QR image (white quiet zone, black modules) and manual-key fallback.
+Keep OTP as a separate six-digit numeric-keyboard field; recovery codes have an
+explicit alternate mode. Signup/reset include matching-password confirmation.
+Use translated AR/EN labels, example placeholders and local mock-mode notice.
+Checked QR setup in both languages at 320/390/768/1024/1440px, with no horizontal
+overflow. Before references: `tmp/auth-design`; current screenshots:
+`tmp/auth-mock-design`, `tmp/auth-real-design` (local ignored test artifacts).

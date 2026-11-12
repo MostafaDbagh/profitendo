@@ -1,3 +1,5 @@
+import QRCode from 'qrcode';
+import { MockEmailOtp, otpCode, otpPurpose } from './mock-otp.js';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { ApiError, validateBody } from '../errors.js';
@@ -7,8 +9,8 @@ import { AuthService, type AuthContext } from './service.js';
 import { invite, acceptInvitation, revokeInvitation, disableMember } from './invitations.js';
 const email = z.string().trim().email().max(254).transform(v => v.toLowerCase());
 const password = z.string().min(12).max(128);
-const token = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-const code = z.string().regex(/^(\d{6}|[a-f0-9]{24})$/);
+const token = z.string().length(43).regex(/^[A-Za-z0-9_-]{43}$/);
+const code = z.union([otpCode,z.string().length(24).regex(/^[a-f0-9]{24}$/)]);
 const genericMessage = { detail: 'If eligible, an email will be sent with the next steps.' };
 export function authRouter(auth: AuthService) {
   const router = Router();
@@ -25,7 +27,17 @@ export function authRouter(auth: AuthService) {
     await auth.limit('http', req.ip ?? 'unknown', 120, 60);
     next();
   });
-  router.post('/register', validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120) }).strict()), async (req, res) => {
+  router.get('/config',(_req,res)=>res.json({mockOtp:auth.settings.mockOtp}));
+  const mock=new MockEmailOtp(auth);
+  router.post('/mock-code/request',(_req,_res,next)=>{mock.enabled();next();},validateBody(z.object({email,purpose:otpPurpose}).strict()),async(req,res)=>{
+    await auth.limit('mock-email-ip',req.ip??'',10);await auth.limit('mock-email',req.body.email,3);
+    res.status(202).json(await mock.request(req.body.email,req.body.purpose));
+  });
+  router.post('/mock-code/confirm',(_req,_res,next)=>{mock.enabled();next();},validateBody(z.object({challenge:token,purpose:otpPurpose,code:otpCode}).strict()),async(req,res)=>{
+    await auth.limit('mock-confirm-ip',req.ip??'',30);await auth.limit('mock-confirm',req.body.challenge,5);
+    res.json(await mock.confirm(req.body.challenge,req.body.purpose,req.body.code));
+  });
+  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120) }).strict()), async (req, res) => {
     await auth.limit('register-ip', req.ip ?? '', 5);
     await auth.limit('register-email', req.body.email, 3);
     await auth.register(req.body); res.status(202).json(genericMessage);
@@ -75,9 +87,11 @@ export function authRouter(auth: AuthService) {
   });
   router.post('/mfa/setup', attach, csrf, validateBody(z.object({ password: z.string().max(128) }).strict()), async (req, res) => {
     await auth.limit('mfa', ctx(res).user.id, 10);
-    res.json(await auth.beginMfa(ctx(res), req.body.password));
+    const setup = await auth.beginMfa(ctx(res), req.body.password);
+    const qrCode = await QRCode.toDataURL(setup.uri, { errorCorrectionLevel: 'M', margin: 4, width: 256 });
+    res.json({ ...setup, qrCode });
   });
-  router.post('/mfa/confirm', attach, csrf, validateBody(z.object({ code }).strict()), async (req, res) => {
+  router.post('/mfa/confirm', attach, csrf, validateBody(z.object({ code:otpCode }).strict()), async (req, res) => {
     await auth.limit('mfa', ctx(res).user.id, 10);
     const result = await auth.confirmMfa(ctx(res), req.body.code);
     await sendSession(res, result, { recoveryCodes: result.recoveryCodes });
