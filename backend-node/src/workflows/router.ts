@@ -1,3 +1,4 @@
+import {ReportDeliveryService,preferenceSchema,sendReportSchema} from '../reports/delivery.js';
 import {Router,type Request} from 'express';
 import {z} from 'zod';
 import type {AuthService} from '../auth/service.js';
@@ -12,9 +13,15 @@ import {ReportService} from '../reports/service.js';
 import {MigrationService,previewSchema} from '../migration/service.js';
 export function completionRouter(auth:AuthService){
  const r=Router({mergeParams:true}),{ctx,origin,attach,full,csrf}=authHttp(auth),workflow=new WorkflowService(auth),finance=new FinanceService(auth),reports=new ReportService(auth),migration=new MigrationService(auth);
+ const delivery=new ReportDeliveryService(auth);
  const bid=(req:Request)=>String(req.params.businessId),id=(req:Request)=>String(req.params.id),page=z.coerce.number().int().min(1).max(10000).default(1);
  const query=<T extends z.ZodType>(schema:T,value:unknown):z.infer<T>=>{const p=schema.safeParse(value);if(!p.success)fail('VALIDATION_ERROR',422);return p.data;};
  r.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});r.use(origin,attach,full);r.use((req,res,next)=>req.method==='GET'?next():csrf(req,res,next));r.use((req,_res,next)=>{if(!z.uuid().safeParse(bid(req)).success)fail('INVALID_ID',400);next();});r.param('id',(_req,_res,next,value)=>{if(!z.uuid().safeParse(value).success)fail('INVALID_ID',400);next();});
+ r.get('/report-delivery/settings',async(req,res)=>res.json(await delivery.settings(ctx(res),bid(req))));
+ r.put('/report-delivery/settings',validateBody(preferenceSchema),async(req,res)=>res.json(await delivery.save(ctx(res),bid(req),req.body)));
+ r.get('/report-delivery',async(req,res)=>res.json(await delivery.list(ctx(res),bid(req))));
+ r.get('/report-delivery/:id',async(req,res)=>res.json(await delivery.read(ctx(res),bid(req),id(req))));
+ r.post('/report-delivery/send',validateBody(sendReportSchema),async(req,res)=>{await auth.limit('report-manual',ctx(res).user.id,10,3600);res.status(202).json(await delivery.send(ctx(res),bid(req),req.body));});
  r.get('/snapshot',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),productId:z.uuid()}).strict(),req.query);res.json(await workflow.snapshot(ctx(res),bid(req),q.locationId,q.productId));});
  r.get('/adjustments',async(req,res)=>{const q=query(z.object({kind:kinds,page,locationId:z.uuid().optional(),status:z.enum(['DRAFT','COMPLETED','CANCELLED']).optional(),supplierId:z.uuid().optional()}).strict(),req.query);res.json(await workflow.list(ctx(res),bid(req),q.kind,q.page,q.locationId,q.status,q.supplierId));});
  r.get('/adjustments/source/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['CUSTOMER_RETURN','SUPPLIER_RETURN'])}).strict(),req.query);res.json(await workflow.sourceView(ctx(res),bid(req),q.kind,id(req)));});

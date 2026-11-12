@@ -46,6 +46,8 @@ model AuthUser {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   sessions        AuthSession[]
   tokens          AuthToken[]
+  reportPreferences ReportPreference[]
+  reportDeliveries ReportDelivery[]
   memberships     Membership[]
   @@map("auth_users")
 }
@@ -62,6 +64,8 @@ model Business {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   suspendedAt  DateTime? @map("suspended_at") @db.Timestamptz(3)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  reportPreferences ReportPreference[]
+  reportDeliveries ReportDelivery[]
   memberships  Membership[]
   invitations  Invitation[]
   customRoles BusinessRole[]
@@ -202,6 +206,8 @@ model AuthAudit {
   @@map("auth_audit")
 }
 model AuthMail {
+  reportId String? @unique @map("report_id") @db.Uuid
+  report ReportDelivery? @relation(fields:[reportId],references:[id],onDelete:Cascade)
   id            String @id @default(uuid()) @db.Uuid
   payload       String
   attempts      Int @default(0)
@@ -918,4 +924,47 @@ model BusinessRole {
   @@unique([businessId, id])
   @@unique([businessId, nameKey])
   @@map("business_roles")
+}
+
+model ReportPreference {
+ id String @id @default(uuid()) @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ userId String @map("user_id") @db.Uuid
+ enabled Boolean @default(false)
+ reportTypes String[] @default(["SALES", "GROSS_PROFIT", "NET_PROFIT", "EXPENSES", "RETURNS", "CASH"]) @map("report_types")
+ language String @default("en")
+ revision Int @default(0)
+ updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+ business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+ user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+ @@unique([businessId,userId])
+ @@map("report_preferences")
+}
+model ReportDelivery {
+ id String @id @default(uuid()) @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ userId String @map("user_id") @db.Uuid
+ requestKey String @map("request_key")
+ requestHash String @map("request_hash")
+ automatic Boolean @default(false)
+ closeId String? @map("close_id") @db.Uuid
+ locationId String? @map("location_id") @db.Uuid
+ fromDay String @map("from_day")
+ toDay String @map("to_day")
+ reportTypes String[] @map("report_types")
+ language String
+ snapshot String @default("")
+ attempts Int @default(0)
+ availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+ cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+ failureCode String? @map("failure_code")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+ user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+ mail AuthMail?
+ @@unique([businessId,userId,requestKey])
+ @@index([userId,businessId,createdAt])
+ @@index([availableAt])
+ @@map("report_deliveries")
+
 }

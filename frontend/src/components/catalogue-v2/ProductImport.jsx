@@ -11,7 +11,13 @@ export default function ProductImport({businessId,api,c,lang,close,done,returnFo
   async function upload(){setBusy(true);setError('');try{await discard();setPreview(null);setPage(1);setPreview(await api(`${path}/preview`,{method:'POST',body:{filename:file.name,fileBase64:await readFile(file)}}));}catch(e){setError(e.message);}finally{setBusy(false);}}
   async function commit(){setBusy(true);setError('');try{setResult(await api(`${path}/${preview.id}/commit`,{method:'POST',body:{confirm:true}}));}catch(e){setError(e.message);}finally{setBusy(false);}}
   async function download(){setBusy(true);setError('');try{const data=await api(`${path}/template`),bytes=Uint8Array.from(atob(data.fileBase64),v=>v.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=data.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){setError(e.message);}finally{setBusy(false);}}
-  async function dismiss(){if(result){done();return;}setBusy(true);try{await discard();close();}catch(e){setError(e.message);}finally{setBusy(false);}}
+  function dismiss(){
+    if(result){done();return;}
+    close();
+    // Closing an uncommitted preview must not depend on connectivity. If cleanup
+    // fails, the encrypted preview expires server-side and cannot add products.
+    void discard().catch(()=>{});
+  }
   const rows=preview?.rows.slice((page-1)*25,page*25)||[];
   return <Modal title={c('importProducts')} description={c('importHint')} {...{c,lang,busy,returnFocus}} close={dismiss}>
     <Feedback error={error} c={c}/>

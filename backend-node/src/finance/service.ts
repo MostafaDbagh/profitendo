@@ -1,3 +1,4 @@
+import {queueClosingReports} from '../reports/delivery.js';
 import {randomUUID} from 'node:crypto';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
 import {requireLocation} from '../locations/access.js';
@@ -59,6 +60,6 @@ export class FinanceService{
   const digits=currencyDigits(a.business.baseCurrency),opening=exactMoney(input.opening,digits),counted=exactMoney(input.counted,digits),totals=await this.cashTotals(tx,bid,input.locationId,input.day),expected=opening+totals.inflow-totals.outflow,variance=counted-expected;
   if(scaled(input.expected)!==expected)fail('CASH_TOTAL_CHANGED');if(variance!==0n&&input.reason.length<5)fail('VARIANCE_REASON_REQUIRED',422);if(expected>999999999999999999n||expected< -999999999999999999n||variance>999999999999999999n||variance< -999999999999999999n)fail('MONEY_OVERFLOW',422);
   await tx.business.update({where:{id:bid},data:{currencyLockedAt:a.business.currencyLockedAt??new Date()}});
-  const entry=await tx.cashClose.create({data:{businessId:bid,locationId:input.locationId,day:input.day,opening:input.opening,counted:input.counted,inflow:checked(totals.inflow),outflow:checked(totals.outflow),expected:fixed(expected),variance:fixed(variance),reason:input.reason,currency:a.business.baseCurrency,actorId:ctx.user.id,actorName:ctx.user.name}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'cash.closed',targetId:entry.id,changes:{day:input.day}}});return entry;
+  const entry=await tx.cashClose.create({data:{businessId:bid,locationId:input.locationId,day:input.day,opening:input.opening,counted:input.counted,inflow:checked(totals.inflow),outflow:checked(totals.outflow),expected:fixed(expected),variance:fixed(variance),reason:input.reason,currency:a.business.baseCurrency,actorId:ctx.user.id,actorName:ctx.user.name}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'cash.closed',targetId:entry.id,changes:{day:input.day}}});await queueClosingReports(tx,entry);return entry;
  });}
 }

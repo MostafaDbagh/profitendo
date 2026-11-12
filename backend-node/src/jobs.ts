@@ -11,7 +11,7 @@ async function run(path:string){return new Promise<boolean>(resolve=>{
  child.once('exit',code=>{clearTimeout(timer);child=null;resolve(code===0);});
 });}
 while(!stopping){
- const jobs=['./auth/mail-worker.js','./catalogue/purge-imports.js'];
+ const jobs=['./reports/worker.js','./auth/mail-worker.js','./catalogue/purge-imports.js'];
  if(process.env.B2B_PAYPAL_CLIENT_ID)jobs.push('./billing/paypal/worker.js');
  let healthy=true;
  for(const job of jobs){if(stopping)break;if(!await run(job))healthy=false;}

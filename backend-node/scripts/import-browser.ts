@@ -35,9 +35,11 @@ try{
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download Excel template',exact:true}).click();assert.equal((await download).suggestedFilename(),'product-import-template.xlsx');
  await page.locator('#product-import-file').setInputFiles({name:'invalid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:await workbook('BAD','-1')});await page.getByRole('button',{name:'Preview import',exact:true}).click();await page.getByRole('alert').filter({hasText:'Fix these rows'}).waitFor();assert.equal(await db.product.count({where:{businessId:business.id}}),0);assert.equal(await page.getByRole('button',{name:'Confirm import',exact:true}).count(),0);await shot(page,'new-en-errors');
  const valid=await workbook();
- for(const lang of ['en','ar'])for(const width of [320,390,768,1440]){
-  await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});await page.setViewportSize({width,height:width<768?844:1100});await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);await open(page,lang);
-  await page.getByRole('button',{name:lang==='ar'?'استيراد Excel':'Import Excel',exact:true}).click();await page.locator('#product-import-file').setInputFiles({name:'products.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:valid});await page.getByRole('button',{name:lang==='ar'?'معاينة الاستيراد':'Preview import',exact:true}).click();await page.getByRole('button',{name:lang==='ar'?'تأكيد الاستيراد':'Confirm import',exact:true}).waitFor();await shot(page,`new-${lang}-${width}-preview`);
+ // Resize the same preview; viewport checks must not repeatedly upload files.
+ for(const lang of ['en','ar']){
+  await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);await open(page,lang);
+  await page.getByRole('button',{name:lang==='ar'?'استيراد Excel':'Import Excel',exact:true}).click();await page.locator('#product-import-file').setInputFiles({name:'products.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:valid});await page.getByRole('button',{name:lang==='ar'?'معاينة الاستيراد':'Preview import',exact:true}).click();await page.getByRole('button',{name:lang==='ar'?'تأكيد الاستيراد':'Confirm import',exact:true}).waitFor();
+  for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:width<768?844:1100});await shot(page,`new-${lang}-${width}-preview`);}
  }
  assert.equal(await db.product.count({where:{businessId:business.id}}),0);
  await page.getByRole('button',{name:'تأكيد الاستيراد',exact:true}).click();await page.getByRole('status').filter({hasText:'تم استيراد المنتجات'}).waitFor();assert.equal(await db.product.count({where:{businessId:business.id}}),1);await shot(page,'new-ar-complete');

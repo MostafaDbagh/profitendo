@@ -1,4 +1,5 @@
-import type {AuthService,AuthContext} from '../auth/service.js';
+import type {Prisma} from '../generated/prisma/client.js';
+import type {AuthService,AuthContext,Tx} from '../auth/service.js';
 import {requireLocation} from '../locations/access.js';
 import {locationScope,fail} from '../workflows/shared.js';
 import {fixed,scaled} from '../operations/decimal.js';
@@ -17,24 +18,9 @@ export class ReportService{
   const base={currency,currencyDigits:digits,from:q.from,to:q.to,timeBasis:access.business.timezone};
   const limit=10000;
   if(q.view==='summary'){
-   // A transaction uses one connection; finish each query before starting the next.
-   const sales=await tx.sale.findMany({where:{...scoped,status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1});
-   const returns=await tx.adjustment.findMany({where:{...scoped,status:'COMPLETED',completedAt:range,kind:{in:['CUSTOMER_RETURN','SUPPLIER_RETURN','DAMAGE','COUNT']}},include:{lines:true},take:limit+1});
-   const entries=await tx.moneyEntry.findMany({where:{...scoped,createdAt:range},take:limit+1});
-   const losses=await tx.transferEvent.findMany({where:{businessId:bid,kind:'LOSS',createdAt:range,transfer:{...(q.locationId?{sourceId:q.locationId}:{}),...(where.location?{source:where.location}:{})}},include:{lines:true},take:limit+1});
-   if([sales,returns,entries,losses].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
-   const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
-   const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
-   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
-   const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
-    const delta=scaled(l.delta.toFixed(4));
-    const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
-    return value+(delta<0n?-amount:amount);
-   },0n),0n);
-   const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null).length;
-   const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
-   const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
-   return {...base,saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),expenses:access.permissions['payments.view']?fixed(expenses):undefined,zeroStockProducts:low,...(cost&&access.permissions['payments.view']?{estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)}:{})};
+   const totals=await summaryTotals(tx,bid,range,{...(q.locationId?{locationId:q.locationId}:{}),...(where.location?{location:where.location}:{})},digits);
+   const {expenses,estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,countAdjustmentValue,...publicTotals}=totals;
+   return {...base,...publicTotals,...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,countAdjustmentValue}:{})};
   }
   if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];
@@ -77,4 +63,27 @@ export class ReportService{
   if(q.export){const headers=Object.keys(rows[0]??{}),csv=[headers.map(csvCell).join(','),...rows.map(r=>headers.map(h=>csvCell(r[h])).join(','))].join('\r\n');await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'report.exported',changes:{view:q.view,rowCount:rows.length}}});return {...base,filename:`${q.view}-${q.from}-${q.to}.csv`,csv,total:rows.length};}
   return {...base,headers:Object.keys(rows[0]??{}),page:q.page,pageSize:25,total:pagedTotal??rows.length,items:pagedTotal===undefined?rows.slice((q.page-1)*25,q.page*25):rows};
  });}
+}
+
+/** Pure tenant-scoped totals shared by interactive reports and durable delivery jobs. */
+export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},scope:{locationId?:string;location?:Prisma.LocationWhereInput},digits:number){
+ const scoped={businessId:bid,...scope},limit=10000;
+   // A transaction uses one connection; finish each query before starting the next.
+   const sales=await tx.sale.findMany({where:{...scoped,status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1});
+   const returns=await tx.adjustment.findMany({where:{...scoped,status:'COMPLETED',completedAt:range,kind:{in:['CUSTOMER_RETURN','SUPPLIER_RETURN','DAMAGE','COUNT']}},include:{lines:true},take:limit+1});
+   const entries=await tx.moneyEntry.findMany({where:{...scoped,createdAt:range},take:limit+1});
+   const losses=await tx.transferEvent.findMany({where:{businessId:bid,kind:'LOSS',createdAt:range,transfer:{...(scope.locationId?{sourceId:scope.locationId}:{}),...(scope.location?{source:scope.location}:{})}},include:{lines:true},take:limit+1});
+   if([sales,returns,entries,losses].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
+   const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
+   const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
+   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
+   const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
+    const delta=scaled(l.delta.toFixed(4));
+    const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
+    return value+(delta<0n?-amount:amount);
+   },0n),0n);
+   const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null).length;
+   const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
+   const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
+ return {saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),netTax:fixed(collectedTax-returnedTax),expenses:fixed(expenses),zeroStockProducts:low,grossProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost),estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)};
 }

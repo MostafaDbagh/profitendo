@@ -1,3 +1,5 @@
+import {reportRecipient} from '../reports/delivery-access.js';
+import {billingState} from '../billing/entitlements.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { AuthSettings } from './settings.js';
 import { decrypt } from './crypto.js';
@@ -13,6 +15,16 @@ export async function deliverMailBatch(db: PrismaClient, settings: AuthSettings,
     if (!row) break;
     try {
       const payload = JSON.parse(decrypt(settings.key, row.payload, `mail:${row.id}`)) as MailPayload;
+      if(row.reportId){
+        const allowed=await db.$transaction(async tx=>{
+          const report=await tx.reportDelivery.findUnique({where:{id:row.reportId!}});
+          if(!report||report.cancelledAt)return false;
+          const member=await reportRecipient(tx,report.businessId,report.userId,report.reportTypes,report.locationId);
+          const preference=report.automatic?await tx.reportPreference.findUnique({where:{businessId_userId:{businessId:report.businessId,userId:report.userId}}}):null;
+          return !!member&&member.user.email===payload.to&&(!report.automatic||!!preference?.enabled)&&(await billingState(tx,report.businessId)).active;
+        });
+        if(!allowed){await db.$transaction(async tx=>{await tx.reportDelivery.update({where:{id:row.reportId!},data:{cancelledAt:new Date()}});await tx.authMail.update({where:{id:row.id},data:{payload:'',attempts:8}});});continue;}
+      }
       await send(payload);
       await db.authMail.update({ where: { id: row.id }, data: { deliveredAt: new Date(), payload: '' } });
       delivered++;

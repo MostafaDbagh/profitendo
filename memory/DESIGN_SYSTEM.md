@@ -581,3 +581,13 @@ historical transfer losses lack a saved cost; unknown values are never formatted
 as zero. Retained white/slate/emerald styling and existing typography/spacing.
 Baseline report captures: `tmp/operations-audit-before`. Known and historical
 states verified in AR/EN at five widths: `tmp/transfer-loss-report`.
+
+### Local UI verification, 2026-11-12
+
+- Preserve the shared table toolbar's readable search width: `TableTools` uses a 12rem minimum (capped at container width) and flex wrapping. At 768px the sidebar leaves a narrow content area; allowing search to shrink to zero produces an unusable input and stacked label text.
+- Import-preview cancellation must remain available offline once no mutation is pending. Dismiss locally and attempt server discard best-effort; uncommitted previews expire server-side. Keep the existing modal busy guard during active requests.
+- Before/after evidence: `tmp/ui-coverage/` and `tmp/recovery-ui/`; Arabic/English phone/tablet/desktop checks preserve current colors, type, icons and RTL behavior.
+
+### Closing reports controls, 2026-11-12
+
+The report-delivery controls live in a collapsible white panel within the existing reports page. Reuse the shared emerald `Switch`, checked report options, `Select`, feedback and modal components. The switch is direction-isolated to keep its thumb inside the track in RTL; report content retains its selected delivery language in both app and email. Keep gross and estimated net profit labels distinct. SMTP-unconfigured status is visible and must not be presented as successful email delivery. Screenshots: `tmp/closing-reports-ui/`.
