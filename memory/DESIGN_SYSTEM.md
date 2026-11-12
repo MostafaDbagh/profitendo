@@ -557,3 +557,9 @@ has localized accessible labels, keyboard focus, and type="button" to avoid form
 submission. Reserve space on the actual trailing side in Arabic, including inputs
 with explicit LTR value direction. Existing input styling is retained. Login
 before/after screenshots and AR/EN desktop/mobile checks: `tmp/password-toggle`.
+
+Email icon spacing follow-up: shared Field reserves physical left/right padding
+based on the form language, independently of an input's text direction. This
+prevents LTR email values in Arabic forms from overlapping the right-hand icon.
+Verified empty placeholders and populated values in AR/EN at 390/1440px with
+40px icon clearance; captures in `tmp/email-spacing`. Frontend build passed.
