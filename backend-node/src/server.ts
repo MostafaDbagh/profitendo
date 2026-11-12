@@ -1,3 +1,4 @@
+import { checkSeedEnvironment } from './staging/guard.js';
 import { checkoutConfiguration } from './billing/paypal/launch.js';
 import 'dotenv/config';
 import { pino } from 'pino';
@@ -15,7 +16,7 @@ if(checkoutConfiguration().enabled&&!paypalSettings)throw new Error("Checkout re
 if (!config.CORS_ORIGINS.includes(authSettings.appOrigin)) throw new Error('APP_ORIGIN must be included in CORS_ORIGINS');
 const logger = pino({ level: config.LOG_LEVEL });
 const db = createDatabase(config.DATABASE_URL);
-try { await db.$connect(); await probeDatabase(db); }
+try { await db.$connect(); await probeDatabase(db); await checkSeedEnvironment(db,process.env); }
 catch { logger.fatal('Database unavailable or migrations missing'); await db.$disconnect(); process.exit(1); }
 const server = createApp(config, logger, () => probeDatabase(db), new AuthService(db, authSettings), paypalSettings ? new PayPalClient(paypalSettings) : undefined).listen(config.PORT, config.HOST, () => {
   logger.info({ port: config.PORT, host: config.HOST }, 'API listening');

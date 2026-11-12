@@ -18,6 +18,7 @@ export function billingRouter(auth: AuthService) {
   router.post('/businesses/:businessId/trial', validateBody(z.object({ planId: z.string().uuid() }).strict()), async (req, res) => { res.status(201).json(await service.startTrial(ctx(res), String(req.params.businessId), req.body.planId)); });
   router.get('/plans', async (req, res) => { res.json(await service.plans(ctx(res), page(req.query))); });
   router.post('/plans', validateBody(planSchema), async (req, res) => { res.status(201).json(await service.createPlan(ctx(res), req.body)); });
+  router.put('/plans/:planId/draft',validateBody(planSchema.extend({revision:z.number().int().nonnegative()})),async(req,res)=>{const {revision,...input}=req.body;res.json(await service.updateDraft(ctx(res),String(req.params.planId),revision,input));});
   router.patch('/plans/:planId', validateBody(z.object({ revision: z.number().int().nonnegative(), published: z.boolean() }).strict()), async (req, res) => { res.json(await service.publishPlan(ctx(res), String(req.params.planId), req.body.revision, req.body.published)); });
   router.get('/audit', async (req, res) => { res.json(await service.audit(ctx(res), page(req.query))); });
   return router;

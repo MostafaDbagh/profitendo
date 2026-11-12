@@ -70,7 +70,7 @@ export async function processWebhookBatch(auth: AuthService, provider: PayPalPro
           if (state.revision !== intent.revision) throw new ApiError(409,'CHECKOUT_CHANGED','Retry with current provider state');
           if (!state.providerUpdatedAt || updated >= state.providerUpdatedAt) {
             if (state.providerUpdatedAt?.getTime() === updated.getTime() && state.providerStatus && state.providerStatus !== snapshot.status) throw new ApiError(409,'PROVIDER_EVENT_INVALID','Conflicting provider state');
-            await tx.billingCheckout.update({where:{id:state.id},data:{providerStatus:snapshot.status,providerUpdatedAt:updated,revision:{increment:1}}});
+            await tx.billingCheckout.update({where:{id:state.id},data:{nextBillingAt:snapshot.status==='ACTIVE'&&snapshot.billing_info?.next_billing_time?new Date(snapshot.billing_info.next_billing_time):null,providerStatus:snapshot.status,providerUpdatedAt:updated,revision:{increment:1}}});
           }
           if (sale?.success) {
             const existing = await tx.billingReceipt.findUnique({where:{scope_transactionId:{scope:provider.scope,transactionId:sale.data.id}}});

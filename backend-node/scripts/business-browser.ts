@@ -42,7 +42,7 @@ try {
   await db.businessSubscription.create({ data: { businessId: a.id, planId: '8ac8ae27-f871-47f2-8d70-e38b0aed295c', trialStartedAt: new Date(), trialEndsAt: new Date(Date.now() + 86400000) } });
   await db.membership.createMany({ data: [{ userId: owner.id, businessId: a.id, role: 'OWNER' }, { userId: owner.id, businessId: b.id, role: 'OWNER' }, { userId: staff.id, businessId: a.id, role: 'CASHIER' }] });
   const page = await pageFor(owner.id);
-  await page.goto(`${settings.appOrigin}/business-v2`);
+  await page.goto(`${settings.appOrigin}/business-v2?tab=settings`);
   await page.locator('#business-name').waitFor();
   assert.equal(await page.locator('#business-name').getAttribute('placeholder'), 'e.g. Green Market');
   await screenshot(page, 'new-en-1440-settings');
@@ -92,18 +92,19 @@ try {
   await page.getByRole('button', { name: 'Activity history', exact: true }).click();
   await page.getByRole('cell', { name: 'Business settings changed', exact: true }).first().waitFor();
   // Switching businesses unmounts prior records immediately.
+  await page.getByRole('button',{name:'Business settings',exact:true}).click();
   await page.locator('#active-business').selectOption(b.id);
   await page.locator('#business-name').waitFor(); assert.equal(await page.locator('#business-name').inputValue(), 'Beta Stores');
   assert.equal(await page.getByText(invitationEmail, { exact: true }).count(), 0);
   await page.locator('#active-business').selectOption(a.id); await page.locator('#business-name').waitFor();
-  const viewer = await pageFor(staff.id); await viewer.goto(`${settings.appOrigin}/business-v2`); await viewer.locator('#business-name').waitFor();
+  const viewer = await pageFor(staff.id); await viewer.goto(`${settings.appOrigin}/business-v2?tab=settings`); await viewer.locator('#business-name').waitFor();
   assert(await viewer.locator('#business-name').isDisabled());
   assert.equal(await viewer.getByRole('button', { name: 'Team', exact: true }).count(), 0);
   assert.equal(await viewer.getByRole('button', { name: 'Save changes', exact: true }).count(), 0);
   for (const lang of ['en','ar']) for (const width of [320,390,768,1440]) {
     await page.setViewportSize({ width, height: width < 768 ? 844 : 1000 });
     await page.evaluate(l => localStorage.setItem('profitlens_lang', l), lang);
-    await page.goto(`${settings.appOrigin}/business-v2`); await page.locator('#business-name').waitFor();
+    await page.goto(`${settings.appOrigin}/business-v2?tab=settings`); await page.locator('#business-name').waitFor();
     assert.equal(await page.locator('html').getAttribute('dir'), lang === 'ar' ? 'rtl' : 'ltr');
     await screenshot(page, `new-${lang}-${width}-settings`);
     await page.getByRole('button', { name: lang === 'ar' ? 'الفريق' : 'Team', exact: true }).click();
@@ -116,7 +117,7 @@ try {
       await page.waitForFunction(text => document.activeElement?.textContent === text, lang === 'ar' ? 'تعديل الصلاحيات' : 'Edit access');
     }
   }
-  const signedOut = await pageFor(); await signedOut.goto(`${settings.appOrigin}/business-v2`); await signedOut.locator('#v2-email').waitFor();
+  const signedOut = await pageFor(); await signedOut.goto(`${settings.appOrigin}/business-v2?tab=settings`); await signedOut.locator('#v2-email').waitFor();
   assert(signedOut.url().includes('/auth-v2'));
   await screenshot(signedOut, 'placeholders-en-1440-login');
   assert.equal(errors.length, 0, errors.join('; '));

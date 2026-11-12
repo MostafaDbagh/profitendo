@@ -54,6 +54,20 @@ export class BillingService {
       throw error;
     }
   }
+  async updateDraft(ctx:AuthContext,id:string,revision:number,input:PlanInput){
+    try{return await this.auth.transaction(async tx=>{
+      await requirePlatform(this.auth,tx,ctx);
+      const before=await tx.billingPlan.findUnique({where:{id}});
+      if(!before)throw new ApiError(404,'NOT_FOUND','Plan not found');
+      if(before.revision!==revision)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
+      if(before.published||await tx.businessSubscription.count({where:{planId:id}})||await tx.billingCheckout.count({where:{planId:id}})||await tx.paidApproval.count({where:{planId:id}}))throw new ApiError(409,'PLAN_IN_USE','Create a new plan to change existing customer terms');
+      const changed=await tx.billingPlan.updateMany({where:{id,revision,published:false},data:{...input,revision:{increment:1}}});
+      if(!changed.count)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
+      const old=Object.fromEntries(Object.keys(input).map(k=>[k,before[k as keyof PlanInput]]));
+      await tx.billingAudit.create({data:{actorId:ctx.user.id,planId:id,action:'plan.updated',changes:{before:old,after:{...input}}}});
+      return tx.billingPlan.findUniqueOrThrow({where:{id}});
+    });}catch(e){if((e as {code?:string}).code==='P2002')throw new ApiError(409,'PLAN_CODE_EXISTS','Choose a unique plan code');throw e;}
+  }
   async publishPlan(ctx: AuthContext, id: string, revision: number, published: boolean) {
     return this.auth.transaction(async tx => {
       await requirePlatform(this.auth, tx, ctx);
@@ -76,7 +90,8 @@ export class BillingService {
       const items = await tx.billingAudit.findMany({ skip: (page - 1) * 25, take: 25, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
       const people = await tx.authUser.findMany({ where: { id: { in: items.map(row => row.actorId) } }, select: { id: true, name: true } });
       const plans = await tx.billingPlan.findMany({ where: { id: { in: items.map(row => row.planId) } }, select: { id: true, name: true, nameAr: true } });
-      return { page, pageSize: 25, total: await tx.billingAudit.count(), items: items.map(row => ({ ...row, actorName: people.find(p => p.id === row.actorId)?.name ?? null, planName: plans.find(p => p.id === row.planId)?.name ?? null, planNameAr: plans.find(p => p.id === row.planId)?.nameAr ?? null })) };
+      const businesses=await tx.business.findMany({where:{id:{in:items.flatMap(r=>r.businessId?[r.businessId]:[])}},select:{id:true,name:true}});
+      return { page, pageSize: 25, total: await tx.billingAudit.count(), items: items.map(row => ({ ...row, businessName:businesses.find(b=>b.id===row.businessId)?.name??null, actorName: people.find(p => p.id === row.actorId)?.name ?? null, planName: plans.find(p => p.id === row.planId)?.name ?? null, planNameAr: plans.find(p => p.id === row.planId)?.nameAr ?? null })) };
     });
   }
 }

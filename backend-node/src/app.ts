@@ -1,3 +1,6 @@
+import { approvalRouter } from './billing/approvals.js';
+import { supportRouter } from './support/router.js';
+import { platformBillingRouter } from './platform/billing.js';
 import { imageRouter } from './catalogue/image-router.js';
 import { completionRouter } from './workflows/router.js';
 import { salesRouter } from './sales/router.js';
@@ -56,8 +59,11 @@ export function createApp(config: Pick<Config, 'CORS_ORIGINS'>, logger: Logger, 
     app.use('/api/businesses/:businessId/sales', salesRouter(auth));
     app.use('/api/businesses/:businessId/transfers', transferRouter(auth));
     app.use('/api/businesses', businessRouter(auth));
+    app.use('/api/platform', platformBillingRouter(auth,paypal?.scope));
     app.use('/api/platform', platformRouter(auth));
+    app.use('/api/support', supportRouter(auth));
     app.use('/api/billing', paypalRouter(auth, paypal));
+    app.use('/api/billing', approvalRouter(auth));
     app.use('/api/billing', billingRouter(auth));
   }
   app.use((_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Route not found')));

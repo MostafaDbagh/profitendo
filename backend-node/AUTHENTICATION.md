@@ -59,8 +59,8 @@ Open `http://localhost:3000/auth-v2`. Keep localhost consistent in both URLs;
 registered only when REACT_APP_AUTH_API_URL is set. It uses the existing
 Cairo/Outfit fonts, emerald/slate colors, AuthBranding, MobileLogo and native
 form styles. Existing /auth, Google login and all operational routes still use
-the legacy API. The new page is an account-security preview, not a fake gateway
-to unimplemented business modules. Frontend code remains in the existing JSX
+the legacy API unless B2B primary mode is enabled. Fully authenticated users
+now go directly to their business dashboard (platform overview for Super Admin). Frontend code remains in the existing JSX
 conventions; full frontend TypeScript migration is still future work.
 
 The page supports AR/EN signup, login, email verification, reset, TOTP setup,
@@ -203,3 +203,17 @@ the enrollment URI in the integration test. Artifacts remain ignored under
 `tmp/auth-mock-design` and `tmp/auth-real-design`; prior UI references are under
 `tmp/auth-design`. Reference review used Jawla merchant and Syria recovery UI
 only; no Jawla code or country-specific signup requirements were changed.
+
+## Dashboard landing and Security tab — 2026-11-12
+
+After email/MFA verification and recovery-code acknowledgement, login redirects
+to `/business-v2` for customers or `/platform-v2` for Super Admin. Returning to
+the login URL with a full session redirects as well; verification/reset/invitation
+links still complete their intended actions. MFA requirements are unchanged.
+
+The business workspace defaults to a dashboard with permission-scoped monthly
+report metrics and quick actions. Account security is an ordinary dashboard
+section at `?tab=security`, containing session revocation, password change with
+confirmation, device lock and sign-out. It is not an authentication card or modal.
+Team invitations remain in the existing team/invitations sections. Platform
+administrators have the same inline Security section in their own dashboard.

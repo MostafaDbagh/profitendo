@@ -11,12 +11,13 @@ const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
 const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:process.env.BROWSER_APP_ORIGIN||'http://localhost:3100',NODE_ENV:'test',AUTH_MOCK_OTP:'true',DATABASE_URL:url}),db=createDatabase(url);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},new AuthService(db,settings));
+app.set('trust proxy','loopback');
 const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4100,'localhost',()=>resolve(s));s.on('error',reject);});
 const browser=await chromium.launch({channel:'chrome',headless:true}),email=`browser-mock-${randomUUID()}@example.test`,pass='Local browser password 149!',artifacts='../tmp/auth-mock-design',errors:string[]=[];
 await mkdir(artifacts,{recursive:true});
 try{
- const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('profitlens_lang','en'));
+ const page=await browser.newPage({extraHTTPHeaders:{'X-Forwarded-For':`10.252.${randomBytes(1)[0]}.${randomBytes(1)[0]}`},viewport:{width:1440,height:1000}});page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});
  await page.goto(settings.appOrigin+'/auth-v2');await page.locator('#v2-email').waitFor();
  const button=(name:string)=>page.getByRole('button',{name,exact:true});
  const shot=async(name:string)=>{await page.evaluate(()=>document.fonts.ready);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`${artifacts}/${name}.png`,fullPage:true,animations:'disabled'});};
@@ -33,10 +34,22 @@ try{
   await page.setViewportSize({width,height:1000});const current=await page.evaluate(()=>document.documentElement.dir);if(current!==(lang==='ar'?'rtl':'ltr'))await page.locator('button').first().click();
   assert.equal(await page.evaluate(()=>document.documentElement.dir),lang==='ar'?'rtl':'ltr');await shot(`${lang}-${width}-mfa-qr`);
  }
- await page.locator('button').first().click();await button('Confirm authenticator').click();await page.getByRole('heading',{name:'Save your recovery codes'}).waitFor();const recovery=await page.locator('code').first().innerText();await button('I have saved my recovery codes').click();await page.getByRole('heading',{name:'Account security'}).waitFor();await button('Sign out').click();
- await login(pass);await page.getByRole('heading',{name:'Verify it is you'}).waitFor();await checkOtp();await button('Continue').click();await page.getByRole('heading',{name:'Account security'}).waitFor();await button('Sign out').click();
- await login(pass);await button('Use a recovery code').click();await page.locator('#v2-code').fill(recovery);await button('Continue').click();await page.getByRole('heading',{name:'Account security'}).waitFor();await button('Sign out').click();
- await button('Forgot your password?').click();await page.locator('#v2-email').fill(email);await button('Send verification code').click();await page.locator('#v2-code').fill('123456');await button('Verify code').click();await page.getByRole('heading',{name:'Choose a new password'}).waitFor();await page.locator('#v2-password').fill(pass+' new');await page.locator('#v2-confirmPassword').fill(pass+' new');await shot('en-reset');await button('Continue').click();await page.getByRole('status').filter({hasText:'Password updated'}).waitFor();await login(pass);await page.getByRole('alert').waitFor();await login(pass+' new');await page.getByRole('heading',{name:'Verify it is you'}).waitFor();await page.locator('#v2-code').fill('123456');await button('Continue').click();await page.getByRole('heading',{name:'Account security'}).waitFor();
+ await page.locator('button').first().click();await button('Confirm authenticator').click();await page.getByRole('heading',{name:'Save your recovery codes'}).waitFor();const recovery=await page.locator('code').first().innerText();await button('I have saved my recovery codes').click();await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();await button('Sign out').click();
+ await login(pass);await page.getByRole('heading',{name:'Verify it is you'}).waitFor();await checkOtp();await button('Continue').click();await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();await button('Sign out').click();
+ await login(pass);await button('Use a recovery code').click();await page.locator('#v2-code').fill(recovery);await button('Continue').click();await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();await button('Sign out').click();
+ await button('Forgot your password?').click();await page.locator('#v2-email').fill(email);await button('Send verification code').click();await page.locator('#v2-code').fill('123456');await button('Verify code').click();await page.getByRole('heading',{name:'Choose a new password'}).waitFor();await page.locator('#v2-password').fill(pass+' new');await page.locator('#v2-confirmPassword').fill(pass+' new');await shot('en-reset');await button('Continue').click();await page.getByRole('status').filter({hasText:'Password updated'}).waitFor();await login(pass);await page.getByRole('alert').waitFor();await login(pass+' new');await page.getByRole('heading',{name:'Verify it is you'}).waitFor();await page.locator('#v2-code').fill('123456');await button('Continue').click();await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();
+ await page.locator('#security-current').fill(pass+' new');await page.locator('#security-new').fill(pass+' final');await page.locator('#security-confirm').fill(pass+' mismatch');await button('Change password').click();await page.getByRole('alert').filter({hasText:'passwords do not match'}).waitFor();await page.locator('#security-confirm').fill(pass+' final');await button('Change password').click();await page.locator('#v2-email').waitFor();await login(pass+' final');await page.locator('#v2-code').fill('123456');await button('Continue').click();await page.getByTestId('business-dashboard').waitFor();
+ for(const lang of ['en','ar'])for(const width of [320,390,768,1024,1440]){
+  await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);await page.goto(settings.appOrigin+'/business-v2');await page.getByTestId('business-dashboard').waitFor();await page.setViewportSize({width,height:1000});await shot(`${lang}-${width}-dashboard`);await page.getByRole('navigation').getByRole('button',{name:lang==='ar'?'أمان الحساب':'Account security',exact:true}).click();await page.getByTestId('account-security').waitFor();assert.equal(await page.getByRole('dialog').count(),0);await shot(`${lang}-${width}-security`);
+ }
  assert.deepEqual(errors,[]);console.log('PASS: signup confirmation, email OTP, input type/length, QR, MFA, recovery code, logout, forgot/reset, old-password rejection, new signin, AR/EN and five widths.');
 }finally{
  await browser.close();await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));

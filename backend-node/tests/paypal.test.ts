@@ -47,7 +47,7 @@ async function actor(role:'OWNER'|'VIEWER'|'SUPER_ADMIN'){
  if(role!=='SUPER_ADMIN')await db.membership.create({data:{userId:id,businessId:business,role}});
  return auth.transaction(tx=>auth.makeSession(tx,user,true));
 }
-async function newBusiness(){const b=await db.business.create({data:{name:'Provider retry business'}});bids.push(b.id);await db.membership.create({data:{businessId:b.id,userId:owner.user.id,role:'OWNER'}});return b.id;}
+async function newBusiness(){const b=await db.business.create({data:{name:'Provider retry business'}});bids.push(b.id);await db.membership.create({data:{businessId:b.id,userId:owner.user.id,role:'OWNER'}});await db.paidApproval.create({data:{businessId:b.id,planId,requestedBy:owner.user.id,status:'APPROVED'}});return b.id;}
 function event(type='BILLING.SUBSCRIPTION.ACTIVATED',resource:Record<string,unknown>={id:main.snapshot.id}):PayPalEvent{return {id:`EVENT-${randomUUID()}`,event_type:type,create_time:baseTime,resource};}
 async function receive(e:PayPalEvent){const result=await receiveWebhook(auth,provider,{'paypal-transmission-sig':'TEST-VALID'},e);const row=await db.billingWebhook.findUniqueOrThrow({where:{scope_eventId:{scope:provider.scope,eventId:e.id}}});events.push(row.id);return {row,result};}
 function post(path:string,ctx:AuthContext,body:object={}){return request(app).post(`/api/billing${path}`).set('Cookie',cookie(ctx)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,ctx.token)).send(body);}
@@ -56,6 +56,7 @@ beforeAll(async()=>{
  business=(await db.business.create({data:{name:'Provider billing tenant'}})).id;bids.push(business);
  planId=(await db.billingPlan.create({data:{code:`paypal-test-${randomUUID()}`,name:'Test priced draft',nameAr:'اختبار',priceMinor:2900,currency:'USD',interval:'MONTH',maxMembers:10,maxWarehouses:2,maxShops:3}})).id;pids.push(planId);
  owner=await actor('OWNER');staff=await actor('VIEWER');admin=await actor('SUPER_ADMIN');
+ await db.paidApproval.create({data:{businessId:business,planId,requestedBy:owner.user.id,status:'APPROVED'}});
 });
 afterAll(async()=>{
  await db.billingCancellation.deleteMany({where:{checkout:{businessId:{in:bids}}}});
@@ -269,12 +270,14 @@ it('grants only verified paid periods, never extends for the same payment, and h
  provider.snapshots.set(intent.snapshot.id,{...intent.snapshot,status:'ACTIVE',billing_info:{last_payment:{time:paid,amount:{value:'29.00',currency_code:'USD'}},next_billing_time:end,failed_payments_count:0,outstanding_balance:{value:'0.00',currency_code:'USD'}}});
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(true);
+ expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).nextBillingAt?.toISOString()).toBe(new Date(end).toISOString());
  provider.snapshots.get(intent.snapshot.id)!.billing_info!.next_billing_time='2026-12-11T12:00:00Z';
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).paidUntil?.toISOString()).toBe(end.replace('Z','.000Z'));
  provider.snapshots.get(intent.snapshot.id)!.status='CANCELLED';
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).status).toBe('CANCELLED_PAID');
+ expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).nextBillingAt).toBeNull();
  expect((await auth.transaction(tx=>billingState(tx,bid,new Date('2026-12-12T00:00:00Z')))).active).toBe(false);
  status='REFUNDED';await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(false);

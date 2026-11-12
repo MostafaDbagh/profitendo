@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { Feedback, Select, buttonClass, primaryClass } from '../business-v2/UI';
-export default function PlanForm({api,c,done,cancel,setBusy,busy}) {
-  const [form,setForm] = useState({code:'',name:'',nameAr:'',price:'',currency:'USD',interval:'MONTH',trialDays:14,maxMembers:10,maxWarehouses:2,maxShops:3}), [error,setError] = useState('');
+export default function PlanForm({api,c,done,cancel,setBusy,busy,plan}) {
+  const [form,setForm] = useState(plan?{code:plan.code,name:plan.name,nameAr:plan.nameAr,price:plan.priceMinor===null?'':(plan.priceMinor/100).toFixed(2),currency:plan.currency,interval:plan.interval,trialDays:plan.trialDays,maxMembers:plan.maxMembers,maxWarehouses:plan.maxWarehouses,maxShops:plan.maxShops}:{code:'',name:'',nameAr:'',price:'',currency:'USD',interval:'MONTH',trialDays:14,maxMembers:10,maxWarehouses:2,maxShops:3}), [error,setError] = useState('');
   const set = key => e=>setForm(f=>({...f,[key]:e.target.value}));
   async function submit(e) { e.preventDefault(); setBusy(true); setError(''); try {
     const {price,...values}=form;
     // Money is converted from validated decimal text without floating-point multiplication.
     const [whole,fraction=''] = price.split('.'); const priceMinor=price ? Number(whole)*100+Number(fraction.padEnd(2,'0')) : null;
-    await api('/billing/plans',{method:'POST',body:{...values,priceMinor,...Object.fromEntries(['trialDays','maxMembers','maxWarehouses','maxShops'].map(k=>[k,Number(form[k])]))}}); done();
+    await api(plan?`/billing/plans/${plan.id}/draft`:'/billing/plans',{method:plan?'PUT':'POST',body:{...(plan?{revision:plan.revision}:{}),...values,priceMinor,...Object.fromEntries(['trialDays','maxMembers','maxWarehouses','maxShops'].map(k=>[k,Number(form[k])]))}}); done();
   } catch(e) {setError(e.message);} finally {setBusy(false);} }
   return <form onSubmit={submit} className="space-y-4"><Feedback error={error} c={c}/><fieldset disabled={busy} className="grid sm:grid-cols-2 gap-4">
     <Field id="plan-code" label={c('code')} placeholder={c('codePlaceholder')} dir="ltr" value={form.code} onChange={set('code')} required pattern={'[a-z0-9][a-z0-9\\-]{2,59}'} maxLength={60}/>

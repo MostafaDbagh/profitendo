@@ -67,7 +67,8 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "start:mock": "PORT=3100 HOST=127.0.0.1 REACT_APP_B2B_PRIMARY=true REACT_APP_AUTH_API_URL=http://localhost:4100 BROWSER=none craco start"
+    "start:mock": "PORT=3100 HOST=127.0.0.1 REACT_APP_B2B_PRIMARY=true REACT_APP_AUTH_API_URL=http://localhost:4100 BROWSER=none craco start",
+    "start:staging": "PORT=3200 HOST=127.0.0.1 REACT_APP_B2B_PRIMARY=true REACT_APP_AUTH_API_URL=http://localhost:4200 BROWSER=none craco start"
   },
   "browserslist": {
     "production": [

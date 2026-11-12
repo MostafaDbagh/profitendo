@@ -1,0 +1,15 @@
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {Link} from 'react-router-dom';
+import {useLanguage} from '../context/LanguageContext';
+import {Seo} from '../components/Seo';
+import {Feedback,buttonClass,panelClass} from '../components/business-v2/UI';
+import {Field} from '../components/auth-v2/Fields';
+import SupportInbox,{TicketForm,Thread} from '../components/support-v2/Support';
+import {translator} from '../components/support-v2/copy';
+export default function ContactV2(){
+ const {lang,setLang}=useLanguage(),c=translator(lang),csrf=useRef(''),[session,setSession]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[version,setVersion]=useState(0);
+ const [guest,setGuest]=useState(()=>{const p=new URLSearchParams(window.location.hash.slice(1));return p.get('ticket')&&p.get('token')?{id:p.get('ticket'),token:p.get('token')}:null;});
+ const api=useCallback(async(path,{method='GET',body,signal}={})=>{const r=await fetch(`${process.env.REACT_APP_AUTH_API_URL}/api${path}`,{method,credentials:'include',signal,headers:{...(method==='GET'?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf.current}),...(guest?{'X-Support-Token':guest.token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await r.json();if(!r.ok){const e=new Error(data.error?.code||'failed');e.status=r.status;throw e;}if(data.csrfToken)csrf.current=data.csrfToken;return data;},[guest]);
+ useEffect(()=>{window.history.replaceState(null,'',window.location.pathname);let active=true;api('/auth/me').then(s=>{if(active)setSession(s.stage==='authenticated'?s:null);}).catch(e=>{if(active&&e.status!==401)setError(e.message);}).finally(()=>{if(active)setReady(true);});return()=>{active=false;};},[api]);
+ return <div className="min-h-screen bg-slate-50 text-slate-900"><Seo title={`${c('contact')} | ProfitLens`} path="/contact" noindex/><header className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-wrap justify-between gap-3"><span className="font-bold text-lg">ProfitLens</span><div className="flex gap-2"><Link className={buttonClass} to="/auth-v2">{lang==='ar'?'حسابي':'My account'}</Link><button className={buttonClass} onClick={()=>setLang(lang==='ar'?'en':'ar',false)}>{lang==='ar'?'English':'العربية'}</button></div></header><main className="max-w-5xl mx-auto p-4 md:p-8 space-y-6"><h1 className="text-2xl md:text-3xl font-bold">{c('contact')}</h1><Feedback error={error} c={c}/>{!ready?<p role="status">{c('loading')}</p>:guest?<><div className={`${panelClass} space-y-3`}><p role="status">{c('guestSaved')}</p><Field id="tracking-link" label={c('privateLink')} readOnly dir="ltr" value={`${window.location.origin}/contact#ticket=${guest.id}&token=${guest.token}`}/></div><Thread id={guest.id} {...{api,lang}} guest/></>:<><TicketForm {...{api,lang,session}} key={version} onCreated={data=>{if(data.token)setGuest(data);else setVersion(v=>v+1);}}/>{session&&<SupportInbox key={`list-${version}`} {...{api,lang}}/>}</>}</main></div>;
+}

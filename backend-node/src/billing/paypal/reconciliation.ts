@@ -39,7 +39,7 @@ export async function reconcileCheckout(auth:AuthService,provider:PayPalProvider
     if(!existing)await tx.billingReceipt.create({data:{checkoutId:id,scope:provider.scope,transactionId:receipt.id,eventId:`reconciliation:${receipt.id}`,amountMinor:intent.plan.priceMinor!,currency:intent.plan.currency,paidAt:receipt.paidAt}});
   }
   if(transaction||hold!==current.accessHold)await tx.authAudit.create({data:{businessId:intent.businessId,action:'billing.reconciled',targetId:id,changes:{accessHold:hold,paidUntil:until?.toISOString()??current.paidUntil?.toISOString()??null}}});
-  await tx.billingCheckout.update({where:{id},data:{providerStatus:snapshot.status,providerUpdatedAt:new Date(snapshot.status_update_time),reconciledAt:now,reconciliationError:null,accessHold:hold,revision:{increment:1},...(from&&until&&transaction?{paidFrom:from,paidUntil:until,paidTransaction:transaction}:{})}});
+  await tx.billingCheckout.update({where:{id},data:{nextBillingAt:snapshot.status==='ACTIVE'&&next?new Date(next):null,providerStatus:snapshot.status,providerUpdatedAt:new Date(snapshot.status_update_time),reconciledAt:now,reconciliationError:null,accessHold:hold,revision:{increment:1},...(from&&until&&transaction?{paidFrom:from,paidUntil:until,paidTransaction:transaction}:{})}});
  });
  return {ok:true};
 }

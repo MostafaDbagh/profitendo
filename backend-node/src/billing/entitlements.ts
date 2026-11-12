@@ -4,7 +4,8 @@ import { ApiError } from '../errors.js';
 export async function billingState(tx: Tx, businessId: string, now = new Date()) {
   let subscription = await tx.businessSubscription.findUnique({ where: { businessId }, include: { plan: true } });
   const paid=await tx.billingCheckout.findUnique({where:{businessId},include:{plan:true}});
-  if(paid?.paidFrom&&paid.paidUntil){
+  const approval=paid?await tx.paidApproval.findUnique({where:{businessId_planId:{businessId,planId:paid.planId}}}):null;
+  if(paid?.paidFrom&&paid.paidUntil&&approval?.status==='APPROVED'){
     const active=!paid.accessHold&&paid.paidFrom<=now&&paid.paidUntil>now&&['ACTIVE','CANCELLED','SUSPENDED'].includes(paid.providerStatus??'');
     subscription={id:paid.id,businessId,planId:paid.planId,status:active?'ACTIVE':'EXPIRED',trialStartedAt:paid.paidFrom,trialEndsAt:paid.paidUntil,createdAt:paid.createdAt,plan:paid.plan};
     return {subscription,active,status:paid.accessHold?'REVIEW':active?(paid.providerStatus==='CANCELLED'?'CANCELLED_PAID':'ACTIVE'):'EXPIRED',paidUntil:paid.paidUntil};

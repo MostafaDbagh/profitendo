@@ -370,3 +370,36 @@ Use translated AR/EN labels, example placeholders and local mock-mode notice.
 Checked QR setup in both languages at 320/390/768/1024/1440px, with no horizontal
 overflow. Before references: `tmp/auth-design`; current screenshots:
 `tmp/auth-mock-design`, `tmp/auth-real-design` (local ignored test artifacts).
+
+### Super Admin commercial controls and Contact Us — 2026-11-12
+
+Reused the platform shell and Field/Select/Table/Pager/Modal/Feedback controls.
+Added bilingual approval decisions, revenue/subscriber tables, customer paid
+requests and public/private support conversations. Useful examples in every
+free-text form; no new theme. Tables have a 680px minimum and scroll within
+panels. Before/after evidence: `tmp/admin-services-design`; browser checks cover
+AR/EN at 320/390/768/1024/1440px. Private visitor links use a labeled read-only
+field; messages preserve line breaks without rendering HTML.
+
+Subscriber billing checklist refinement retains the platform table/shell and
+adds owner, renewal, payment state and last payment columns with contained
+horizontal scrolling. Draft editing reuses PlanForm and the existing modal;
+audit details use translated field labels and readable before/after values.
+Extended browser coverage includes plan editing and billing history at all five
+AR/EN widths; screenshots remain in `tmp/admin-services-design`.
+
+### Owner landing correction — 2026-11-12
+
+User explicitly requested dashboard entry after owner login, with account
+security inside the dashboard rather than an auth card. Authentication now
+redirects after required MFA/recovery acknowledgement. Added a default business
+dashboard with real monthly report metrics and permission-scoped quick actions.
+Security reuses the operational panels/fields/buttons as an inline sidebar tab;
+team invitations remain in the team area. No security modal or split auth shell
+is shown after successful login. Both customer/platform dashboards expose the
+Security tab. Existing signed-out/reset/invitation/MFA flows remain separate.
+
+User-provided screenshot is the before reference. New screenshots:
+`tmp/dashboard-design` (actual staging owner) and `tmp/auth-mock-design`
+(AR/EN dashboard/security at five widths). Mock and real auth browser flows,
+password confirmation/change, session logout and staging metrics were verified.

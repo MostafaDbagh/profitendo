@@ -1,3 +1,4 @@
+import ContactV2 from '@/pages/ContactV2';
 import SaleReceiptV2 from "@/pages/SaleReceiptV2";
 import "@/App.css";
 import { useEffect, useState } from "react";
@@ -62,7 +63,7 @@ function AppRouter() {
   if(process.env.REACT_APP_B2B_PRIMARY==='true')return <><ScrollToTop/><Routes>
     <Route path="/auth" element={<AuthV2/>}/><Route path="/auth-v2" element={<AuthV2/>}/>
     <Route path="/business" element={<BusinessV2/>}/><Route path="/business-v2" element={<BusinessV2/>}/>
-    <Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>
+    <Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>
     <Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2/>}/>
     <Route path="*" element={<Navigate to="/business" replace/>}/>
   </Routes></>;
@@ -75,7 +76,7 @@ function AppRouter() {
     <>
     <ScrollToTop />
     <Routes>
-      {process.env.REACT_APP_AUTH_API_URL && <><Route path="/auth-v2" element={<AuthV2 />} /><Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2 />} /><Route path="/business-v2" element={<BusinessV2 />} /><Route path="/billing-v2" element={<BillingV2 />} /><Route path="/platform-v2" element={<PlatformV2 />} /></>}
+      {process.env.REACT_APP_AUTH_API_URL && <><Route path="/auth-v2" element={<AuthV2 />} /><Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2 />} /><Route path="/business-v2" element={<BusinessV2 />} /><Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2 />} /><Route path="/platform-v2" element={<PlatformV2 />} /></>}
       <Route path="/auth" element={<Auth />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />

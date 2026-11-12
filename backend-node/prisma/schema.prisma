@@ -69,6 +69,8 @@ model Business {
   products Product[]
   productImports ProductImport[]
   suppliers Supplier[]
+  paidApprovals PaidApproval[]
+  supportTickets SupportTicket[]
   @@map("businesses")
 }
 model Membership {
@@ -232,6 +234,7 @@ model BillingPlan {
   published     Boolean @default(false)
   revision      Int @default(0)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  approvals PaidApproval[]
   subscriptions BusinessSubscription[]
   checkouts BillingCheckout[]
   @@map("billing_plans")
@@ -264,6 +267,7 @@ model BillingAudit {
 
 // Not exposed as a customer checkout route until paid entitlement work is complete.
 model BillingCheckout {
+  nextBillingAt DateTime? @map("next_billing_at") @db.Timestamptz(3)
   paidFrom DateTime? @map("paid_from") @db.Timestamptz(3)
   paidUntil DateTime? @map("paid_until") @db.Timestamptz(3)
   paidTransaction String? @map("paid_transaction")
@@ -833,4 +837,53 @@ model ProductImage {
  data String
  product Product @relation(fields:[businessId,productId],references:[businessId,id],onDelete:Cascade)
  @@map("product_images")
+}
+
+model PaidApproval {
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  plan BillingPlan @relation(fields:[planId],references:[id])
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  planId String @map("plan_id") @db.Uuid
+  requestedBy String @map("requested_by") @db.Uuid
+  status String @default("PENDING")
+  reason String @default("")
+  revision Int @default(0)
+  decidedBy String? @map("decided_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  @@unique([businessId, planId])
+  @@index([status, createdAt])
+  @@map("paid_approvals")
+}
+model SupportTicket {
+  business Business? @relation(fields:[businessId],references:[id],onDelete:SetNull)
+  id String @id @default(uuid()) @db.Uuid
+  userId String? @map("user_id") @db.Uuid
+  businessId String? @map("business_id") @db.Uuid
+  guestTokenHash String? @map("guest_token_hash")
+  name String
+  email String
+  subject String
+  category String
+  status String @default("NEW")
+  revision Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  messages SupportMessage[]
+  @@index([userId, updatedAt])
+  @@index([status, updatedAt])
+  @@map("support_tickets")
+}
+model SupportMessage {
+  id String @id @default(uuid()) @db.Uuid
+  ticketId String @map("ticket_id") @db.Uuid
+  authorId String? @map("author_id") @db.Uuid
+  fromAdmin Boolean @default(false) @map("from_admin")
+  body String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  ticket SupportTicket @relation(fields:[ticketId],references:[id],onDelete:Cascade)
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
 }

@@ -29,7 +29,7 @@ async function mailToken(action: string) {
 }
 const errors: string[] = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({extraHTTPHeaders:process.env.BROWSER_TEST_IP?{'X-Forwarded-For':process.env.BROWSER_TEST_IP}:{}, viewport: { width: 1440, height: 1000 } });
   page.on('pageerror', e => errors.push(e.message));
   // Isolate the unchanged legacy AuthProvider; new /api/auth traffic is real.
   await page.route('http://127.0.0.1:8001/**', r => r.fulfill({ status: 401, contentType: 'application/json', body: '{"detail":"Not authenticated"}' }));
@@ -62,7 +62,9 @@ try {
   await page.getByRole('heading', { name: 'Save your recovery codes' }).waitFor();
   const recovery = await page.locator('code').first().innerText();
   await page.getByRole('button', { name: 'I have saved my recovery codes' }).click();
-  await page.getByRole('heading', { name: 'Account security' }).waitFor();
+  await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();
   const csrfStatus = await page.evaluate(async origin => (await fetch(origin+'/api/auth/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, apiOrigin);
   if (csrfStatus !== 403) throw new Error('CSRF protection did not reject browser request');
   await page.screenshot({ path: `${artifacts}/new-en-1440-account.png`, fullPage: true, animations: 'disabled' });
@@ -73,7 +75,9 @@ try {
   await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
   await page.locator('#v2-code').fill(recovery);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('heading', { name: 'Account security' }).waitFor();
+  await page.getByTestId('business-dashboard').waitFor();
+  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
+  await page.getByTestId('account-security').waitFor();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('button', { name: 'Forgot your password?', exact: true }).click();
   await page.locator('#v2-email').fill(email);

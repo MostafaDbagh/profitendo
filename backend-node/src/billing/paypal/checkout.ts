@@ -1,3 +1,4 @@
+import { requirePaidApproval } from '../approvals.js';
 import { randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService } from '../../auth/service.js';
 import { ApiError } from '../../errors.js';
@@ -12,6 +13,7 @@ export class CheckoutService {
     providerPlanSchema.parse(providerPlanId);
     const local = await this.auth.transaction(async tx => {
       await requireBusiness(this.auth,tx,ctx,businessId,'billing.manage');
+      await requirePaidApproval(tx,businessId,planId);
       const plan = await tx.billingPlan.findUnique({where:{id:planId}});
       if (!plan?.priceMinor) throw new ApiError(409,'PLAN_UNAVAILABLE','A priced plan is required');
       return plan;
@@ -19,6 +21,7 @@ export class CheckoutService {
     assertPlanTerms(await this.provider.getPlan(providerPlanId),local);
     const intent = await this.auth.transaction(async tx => {
       await requireBusiness(this.auth,tx,ctx,businessId,'billing.manage');
+      await requirePaidApproval(tx,businessId,planId);
       const existing = await tx.billingCheckout.findUnique({where:{businessId}});
       if (existing) {
         if (existing.scope !== this.provider.scope || existing.planId !== planId || existing.providerPlanId !== providerPlanId) throw new ApiError(409,'CHECKOUT_EXISTS','Reconcile the existing checkout before replacing it');
@@ -37,6 +40,7 @@ export class CheckoutService {
     const leaseToken = randomUUID(), now = new Date();
     const claimed = await this.auth.transaction(async tx => {
       await requireBusiness(this.auth,tx,ctx,businessId,'billing.manage');
+      await requirePaidApproval(tx,businessId,planId);
       const row = await tx.billingCheckout.findUniqueOrThrow({where:{id:intent.id}});
       if (row.providerSubscriptionId) throw new ApiError(409,'CHECKOUT_BUSY','Retry checkout status');
       // PayPal retains subscription creation request IDs for 72h. Leave margin;

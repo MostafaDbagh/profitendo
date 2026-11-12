@@ -1,5 +1,5 @@
 import OtpField from '../components/auth-v2/OtpField';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthBranding, MobileLogo } from '../components/auth/AuthBranding';
 import { useLanguage } from '../context/LanguageContext';
@@ -7,9 +7,9 @@ import { authCopy } from '../components/auth-v2/copy';
 import { Field, Submit, inputClass, linkClass } from '../components/auth-v2/Fields';
 import { Seo } from '../components/Seo';
 
-const roles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGER', 'CASHIER', 'VIEWER'];
 export default function AuthV2() {
   const { lang, setLang, t } = useLanguage();
+  const navigate=useNavigate();
   const c = (key) => authCopy[lang]?.[key] || authCopy.en[key] || authCopy[lang].failed;
   const [mockOtp,setMockOtp]=useState(false),[emailChallenge,setEmailChallenge]=useState(null),[recoveryMode,setRecoveryMode]=useState(false),[resendAt,setResendAt]=useState(0),[now,setNow]=useState(Date.now());
   const [initial] = useState(() => new URLSearchParams(window.location.hash.slice(1)));
@@ -21,7 +21,7 @@ export default function AuthV2() {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [form, setForm] = useState({ email: '', password: '', confirmPassword:'', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
   const [qrCode,setQrCode]=useState('');
-  const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]), [sessions, setSessions] = useState([]);
+  const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]);
   const statusRef = useRef(null);
   const call = useCallback(async (path, body) => {
     const response = await fetch(`${process.env.REACT_APP_AUTH_API_URL}/api/auth${path}`, {
@@ -52,13 +52,10 @@ export default function AuthV2() {
     return () => { active = false; window.removeEventListener('hashchange', receiveLink); };
   }, [call]);
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
-  useEffect(() => {
-    if (session?.stage === 'authenticated' && !recovery.length) call('/sessions').then(setSessions).catch(() => setError('failed'));
-  }, [session, recovery.length, call]);
   useEffect(()=>{if(!emailChallenge)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[emailChallenge]);
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
   const switchMode = next => { if(busy)return;setEmailChallenge(null);setRecoveryMode(false);setMode(next); setError(''); setNotice(''); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
-  const clear = () => { setEmailChallenge(null);setRecoveryMode(false);csrf.current = ''; setSession(null); setSecret(''); setQrCode(''); setRecovery([]); setSessions([]); setMode('login'); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
+  const clear = () => { setEmailChallenge(null);setRecoveryMode(false);csrf.current = ''; setSession(null); setSecret(''); setQrCode(''); setRecovery([]); setMode('login'); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
   const run = async work => {
     setBusy(true); setError(''); setNotice('');
     try { await work(); }
@@ -85,18 +82,20 @@ export default function AuthV2() {
   }, [session, linkAction]);
   const isLink = ['verify', 'reset', 'invite','emailCode'].includes(mode);
   const authenticated = session?.stage === 'authenticated' && !isLink;
+  useEffect(()=>{if(!checking&&authenticated&&!recovery.length)navigate(session.user.platformRole==='SUPER_ADMIN'?'/platform-v2':'/business-v2',{replace:true});},[checking,authenticated,recovery.length,session,navigate]);
   const setup = !isLink && session?.stage === 'mfa_setup_required';
   const challenge = !isLink && session?.stage === 'mfa_required';
   const title = recovery.length ? 'recoveryTitle' : authenticated ? 'accountTitle' : setup ? 'mfaSetup' : challenge ? 'mfaTitle' : mode;
   const field = (key, label, extra = {}) => <Field placeholder={c(key === 'code' ? (setup ? 'setupCodePlaceholder' : 'codePlaceholder') : extra.autoComplete === 'new-password' ? 'newPasswordPlaceholder' : `${label}Placeholder`)} id={`v2-${key}`} label={c(label)} value={form[key]} onChange={set(key)} required disabled={busy} {...extra} />;
   const otp=<OtpField value={form.code} onChange={code=>setForm(f=>({...f,code}))} c={c} disabled={busy}/>;
   const signOut = (path = '/logout') => run(async () => { await call(path, {}); clear(); });
+  if(authenticated&&!recovery.length)return <p role="status" className="p-6 text-slate-500">{c('checking')}</p>;
   return <div className="min-h-screen bg-slate-50 flex relative" data-testid="auth-v2-page">
     <Seo title={`${c(title)} | ProfitLens`} description={c('loginHint')} path="/auth-v2" noindex />
     <button type="button" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar', false)} className="absolute top-4 end-4 z-10 px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500">{c('language')}</button>
     <AuthBranding t={t} />
     <main className="flex-1 flex items-center justify-center p-6 pt-20 lg:pt-6 min-w-0">
-      <div className="w-full max-w-md fade-up"><MobileLogo t={t} />
+      <div className="w-full max-w-md fade-up"><MobileLogo t={t} /><Link to="/contact" className={`${linkClass} block mb-4`}>{lang==='ar'?'تواصل معنا':'Contact Us'}</Link>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
           <h1 className="text-2xl font-bold text-slate-900">{c(title)}</h1>
           <p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? 'registerHint' : 'loginHint')}</p>
@@ -104,22 +103,7 @@ export default function AuthV2() {
           {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : recovery.length ? <div className="space-y-5">
             <div dir="ltr" className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs tabular p-3 bg-slate-50 border border-slate-200 rounded-lg">{recovery.map(code => <code key={code} className="break-all select-all">{code}</code>)}</div>
             <button type="button" className={linkClass} onClick={() => setRecovery([])}>{c('savedCodes')}</button>
-          </div> : authenticated ? <div className="space-y-6">
-            <p className="font-semibold text-slate-800 break-words">{session.user.name}<span dir="ltr" className="block text-sm text-slate-500 font-normal break-all">{session.user.email}</span></p>
-            {session.user.platformRole === 'SUPER_ADMIN' && <Link className={`${linkClass} block`} to="/platform-v2">{c('platform')}</Link>}
-            <section><h2 className="font-bold text-slate-900 mb-3">{c('businesses')}</h2><Link className={linkClass} to="/business-v2">{c('manageBusiness')}</Link><Link className={`${linkClass} block mt-2`} to="/billing-v2">{lang === 'ar' ? 'الفوترة وإلغاء الاشتراك' : 'Billing and cancellation'}</Link>{session.memberships.length ? session.memberships.map(m => <p key={m.businessId} className="text-sm text-slate-600 py-2 border-b border-slate-100">{m.business.name} <span className="text-xs text-emerald-700">{c(m.role)}</span></p>) : <p className="text-sm text-slate-500">{c('noBusiness')}</p>}</section>
-            <section><h2 className="font-bold text-slate-900 mb-3">{c('sessions')}</h2><ul className="space-y-3">{sessions.map(s => <li key={s.id} className="flex flex-wrap justify-between items-center gap-2 text-sm"><span className="text-slate-600">{s.current ? c('thisSession') : new Date(s.createdAt).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</span><button disabled={busy} type="button" className={linkClass} onClick={() => run(async () => { await call('/sessions/revoke', { sessionId: s.id }); if (s.current) clear(); else setSessions(await call('/sessions')); })}>{c('revoke')}</button></li>)}</ul></section>
-            {session.memberships.some(m => m.role === 'OWNER') && <form className="space-y-4 border-t border-slate-100 pt-5" onSubmit={e => { e.preventDefault(); run(async () => { await call('/invitations', { businessId: form.businessId, email: form.inviteEmail, role: form.role }); setNotice('inviteSent'); setForm(f => ({ ...f, inviteEmail: '' })); }); }}>
-              <h2 className="font-bold text-slate-900">{c('invitations')}</h2>
-              <div><label htmlFor="v2-businessId" className="text-sm font-medium text-slate-700 mb-1.5 block">{c('business')}</label><select id="v2-businessId" required value={form.businessId} onChange={set('businessId')} className={inputClass}><option value="">{c('chooseBusiness')}</option>{session.memberships.filter(m => m.role === 'OWNER').map(m => <option key={m.businessId} value={m.businessId}>{m.business.name}</option>)}</select></div>
-              {field('inviteEmail', 'inviteEmail', { type: 'email', autoComplete: 'off', dir: 'ltr' })}
-              <div><label htmlFor="v2-role" className="text-sm font-medium text-slate-700 mb-1.5 block">{c('role')}</label><select id="v2-role" value={form.role} onChange={set('role')} className={inputClass}>{roles.map(role => <option key={role} value={role}>{c(role)}</option>)}</select></div><Submit busy={busy}>{c('sendInvite')}</Submit>
-            </form>}
-            <form className="space-y-4 border-t border-slate-100 pt-5" onSubmit={e => { e.preventDefault(); run(async () => { await call('/password', { currentPassword: form.currentPassword, password: form.password }); clear(); setNotice('passwordChanged'); }); }}>
-              <h2 className="font-bold text-slate-900">{c('changePassword')}</h2>{field('currentPassword', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 })}{field('password', 'newPassword', { type: 'password', minLength: 12, maxLength: 128, autoComplete: 'new-password', hint: c('passwordHint') })}<Submit busy={busy}>{c('changePassword')}</Submit>
-            </form>
-            <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-4"><button disabled={busy} className={linkClass} onClick={() => signOut('/lock')}>{c('lock')}</button><button disabled={busy} className={linkClass} onClick={() => signOut()}>{c('logout')}</button><button disabled={busy} className={linkClass} onClick={() => run(async () => { await call('/sessions/revoke', {}); clear(); })}>{c('revokeAll')}</button></div>
-          </div> : <>
+          </div> : authenticated ? <p role="status">{c('checking')}</p> : <>
             <>{mockOtp&&<p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900" role="note">{c('mockNotice')}</p>}</><form onSubmit={submit} className="space-y-4" data-testid="auth-v2-form">
               {mode==='emailCode'?<><p className="text-sm text-slate-600">{c('emailCodeHint')} <bdi>{form.email}</bdi></p>{otp}</>:setup ? secret ? <><p className="text-sm text-slate-600">{c('qrHint')}</p><img data-testid="mfa-qr" src={qrCode} alt={c('qrAlt')} width={256} height={256} className="mx-auto block w-full max-w-64 h-auto bg-white" /><p className="text-sm text-slate-600">{c('secretHint')}</p><label htmlFor="v2-secret" className="text-sm font-medium text-slate-700 block">{c('secretLabel')}</label><input id="v2-secret" readOnly dir="ltr" value={secret} className={`${inputClass} font-mono text-xs`} />{otp}</> : field('password', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 }) : challenge ? <>{recoveryMode?field('code','recoveryCode',{placeholder:c('recoveryPlaceholder'),autoComplete:'off',dir:'ltr',minLength:24,maxLength:24,pattern:'[a-f0-9]{24}'}):otp}<button type="button" disabled={busy} className={linkClass} onClick={()=>{setRecoveryMode(v=>!v);setForm(f=>({...f,code:''}));setError('');}}>{c(recoveryMode?'useAuthenticator':'useRecovery')}</button></> : <>
                 {(mode === 'register' || (mode === 'invite' && session?.stage !== 'authenticated')) && field('name', 'name', { autoComplete: 'name', minLength: 2, maxLength: 100 })}

@@ -34,7 +34,7 @@ try {
   const page = await pageFor(admin.id), ownerPage = await pageFor(customer.id);
   await ownerPage.goto(`${settings.appOrigin}/platform-v2`); await ownerPage.getByRole('alert').filter({ hasText: 'only to platform administrators' }).waitFor();
   assert.equal(await ownerPage.getByRole('button', { name: 'Customer businesses', exact: true }).count(), 0);
-  await page.goto(`${settings.appOrigin}/auth-v2`); await page.getByRole('link', { name: 'Platform administration', exact: true }).click();
+  await page.goto(`${settings.appOrigin}/auth-v2`); await page.waitForURL('**/platform-v2');
   await page.getByRole('heading', { name: 'Overview', exact: true }).waitFor(); await shot(page, 'new-en-1440-overview');
   await page.getByRole('button', { name: 'Customer businesses', exact: true }).click();
   await page.locator('#platform-search').fill(businessName); await page.getByRole('button', { name: 'Search', exact: true }).click();
