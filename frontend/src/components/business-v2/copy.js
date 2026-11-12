@@ -65,3 +65,6 @@ export const staffRoles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGE
 
 Object.assign(businessCopy.ar, {catalogue:'المنتجات',sales:'المبيعات',purchases:'المشتريات',inventory:'المخزون',returns:'المرتجعات',expenses:'المصروفات',payments:'الخزينة'});
 Object.assign(businessCopy.en, {catalogue:'Products',sales:'Sales',purchases:'Purchases',inventory:'Inventory',returns:'Returns',expenses:'Expenses',payments:'Treasury'});
+
+Object.assign(businessCopy.en,{productSaleCount:'Sales count',productUnitsSold:'Units sold',productAvailable:'Available stock'});
+Object.assign(businessCopy.ar,{productSaleCount:'مرات البيع',productUnitsSold:'الوحدات المباعة',productAvailable:'المخزون المتاح'});

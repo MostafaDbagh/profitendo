@@ -444,3 +444,16 @@ current password and authenticator code; rotates the session, clears recovery
 codes and revokes other sessions. Browser verification used a disposable staging
 owner (cleaned up), covering enable/QR/recovery/disable and AR/EN desktop/mobile;
 artifacts tmp/mfa-settings-design. Auth integration tests: 19 passed.
+
+Product insights: product rows now show completed-invoice frequency, gross base
+units sold, and available stock after reservations. Low stock gets a red-tinted
+cell plus a text warning, minimum and affected active locations. Product filters
+include top ten by invoice count and low stock; product CSV exports all matching
+rows (bounded at 10,000 products). Statistics respect business/location access
+and sales/stock permissions. Counts are all-time, before returns, labeled in UI.
+Shared tables now provide bilingual current-page search, column/value filters
+and filtered page CSV export (scope explicitly labeled). Existing server filters
+remain available. CSV neutralizes formula prefixes and excludes action columns.
+Verified isolated integration tests (32), staging product warnings/filters/CSV,
+shared-table search/filter/CSV, AR/EN desktop/mobile. Screenshots in
+ tmp/mfa-settings-design/products-*.png. Existing design tokens/components retained.

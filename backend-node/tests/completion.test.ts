@@ -178,3 +178,14 @@ it('supplier return history and refund reports retain scoped financial totals',a
  const r=await db.purchaseDocument.findFirstOrThrow({where:{businessId:business,kind:'RECEIPT',supplierName:'Test supplier'}}),history=await get(`/adjustments?kind=SUPPLIER_RETURN&supplierId=${r.supplierId}`);expect(history.status).toBe(200);expect(history.body.items.every((x:any)=>x.sourceId===r.id)).toBe(true);
  const day=new Date().toISOString().slice(0,10),report=await get(`/reports?from=${day}&to=${day}&view=refunds`);expect(report.status,report.text).toBe(200);expect(report.body.items.length).toBeGreaterThan(0);expect(report.body.items.every((r:any)=>Number(r.outstanding)>=0)).toBe(true);
 });
+it('shows product sale frequency, scoped available stock, low stock and filtered exports',async()=>{
+ const sale=await sold('3'),productId=sale.lines[0].productId;
+ await db.product.update({where:{id:productId},data:{minimumStock:'98',name:'Insight test product'}});
+ const insights=(query:string,who=owner,bid=business)=>request(app).get(`/api/businesses/${bid}/products/insights?${query}`).set('Cookie',cookie(who));
+ const result=await insights('search=Insight%20test%20product');expect(result.status,result.text).toBe(200);const row=result.body.items.find((p:{id:string})=>p.id===productId);expect(row.saleCount).toBe(1);expect(row.unitsSold).toBe('3.0000');expect(row.available).toBe('97.0000');expect(row.lowStock).toBe(true);
+ const top=await insights('filter=top&search=Insight%20test%20product');expect(top.body.items[0].id).toBe(productId);
+ const low=await insights('filter=low&search=Insight%20test%20product');expect(low.body.total).toBe(1);
+ const csv=await insights('export=true&search=Insight%20test%20product');expect(csv.body.csv).toContain('Insight test product');expect(csv.body.csv).toContain('saleCount');
+ expect((await insights('',foreign)).status).toBe(403);expect((await insights('',admin)).status).toBe(403);
+ const restricted=await insights('search=Insight%20test%20product',unassigned);expect(restricted.status).toBe(200);expect(restricted.body.items[0].saleCount??0).toBe(0);expect(restricted.body.items[0].available??'0.0000').toBe('0.0000');
+});
