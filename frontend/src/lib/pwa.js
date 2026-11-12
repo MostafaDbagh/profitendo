@@ -37,7 +37,14 @@ export function dismissInstall() {
 
 export function registerServiceWorker({ onUpdate } = {}) {
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
+  // Development bundles must never be served by an old offline shell.
+  if (process.env.NODE_ENV !== "production") {
+    navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(
+      registrations.filter(reg => reg.active?.scriptURL === `${window.location.origin}/service-worker.js`).map(reg => reg.unregister())
+    )).catch(() => {});
+    return;
+  }
+  const register = () => {
     navigator.serviceWorker
       .register("/service-worker.js")
       .then((reg) => {
@@ -52,7 +59,9 @@ export function registerServiceWorker({ onUpdate } = {}) {
         });
       })
       .catch(() => {});
-  });
+  };
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
 }
 
 export function applyServiceWorkerUpdate(reg) {

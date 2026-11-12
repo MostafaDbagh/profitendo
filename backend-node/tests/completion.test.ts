@@ -90,6 +90,22 @@ it('counts record discrepancies and require an unchanged stock snapshot',async()
  const stale=await adjustment('COUNT',[{productId:p,quantity:'6'}]),damage=await adjustment('DAMAGE',[{productId:p,quantity:'1'}]);expect((await approve(damage)).status).toBe(200);expect((await approve(stale)).body.error.code).toBe('COUNT_STALE');
  const zero=await adjustment('COUNT',[{productId:p,quantity:'0'}]);expect((await approve(zero)).status).toBe(200);expect(await stock(source,p)).toBe('0.0000');
 });
+it('values posted count gains and losses at saved cost and excludes drafts',async()=>{
+ const day=new Date().toISOString().slice(0,10),path=`/reports?from=${day}&to=${day}&view=summary`;
+ const before=(await get(path)).body;
+ const p=await funded('10'),loss=await adjustment('COUNT',[{productId:p,quantity:'8'}]);
+ expect((await get(path)).body.countAdjustmentValue).toBe(before.countAdjustmentValue);
+ expect((await approve(loss)).status).toBe(200);
+ const afterLoss=(await get(path)).body;
+ expect(Number(afterLoss.countAdjustmentValue)-Number(before.countAdjustmentValue)).toBeCloseTo(-19.75,4);
+ expect(Number(afterLoss.estimatedProfit)-Number(before.estimatedProfit)).toBeCloseTo(-19.75,4);
+ const gain=await adjustment('COUNT',[{productId:p,quantity:'9'}]);
+ expect((await approve(gain)).status).toBe(200);
+ await db.product.update({where:{id:p},data:{purchasePrice:'999'}});
+ const afterGain=(await get(path)).body;
+ expect(Number(afterGain.countAdjustmentValue)-Number(afterLoss.countAdjustmentValue)).toBeCloseTo(9.88,4);
+ expect(Number(afterGain.estimatedProfit)-Number(afterLoss.estimatedProfit)).toBeCloseTo(9.88,4);
+});
 it('damage respects reservations and approval rollback preserves all lines',async()=>{
  const a=await funded('10'),b=await funded('1'),d=await adjustment('DAMAGE',[{productId:a,quantity:'2'},{productId:b,quantity:'2'}]);expect((await approve(d)).body.error.code).toBe('INSUFFICIENT_STOCK');expect(await stock(source,a)).toBe('10.0000');expect(await db.stockMovement.count({where:{sourceId:d.id}})).toBe(0);
  await db.stockBalance.updateMany({where:{productId:a},data:{reserved:'10'}});const r=await adjustment('DAMAGE',[{productId:a,quantity:'1'}]);expect((await approve(r)).body.error.code).toBe('INSUFFICIENT_STOCK');

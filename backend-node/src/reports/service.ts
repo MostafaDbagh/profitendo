@@ -24,8 +24,13 @@ export class ReportService{
    if([sales,returns,entries].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
+   const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
+    const delta=scaled(l.delta.toFixed(4));
+    const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
+    return value+(delta<0n?-amount:amount);
+   },0n),0n);
    const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
-   return {...base,saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),expenses:access.permissions['payments.view']?fixed(expenses):undefined,zeroStockProducts:low,...(cost&&access.permissions['payments.view']?{estimatedProfit:fixed(sold-customerReturns-saleCost+recoveredCost-damageCost-expenses),estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost)}:{})};
+   return {...base,saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),expenses:access.permissions['payments.view']?fixed(expenses):undefined,zeroStockProducts:low,...(cost&&access.permissions['payments.view']?{estimatedProfit:fixed(sold-customerReturns-saleCost+recoveredCost-damageCost-expenses+countAdjustmentValue),estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)}:{})};
   }
   if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];
