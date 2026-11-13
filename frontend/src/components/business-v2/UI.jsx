@@ -1,5 +1,5 @@
 import TableTools from './TableTools';
-import { useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { inputClass } from '../auth-v2/Fields';
 export const buttonClass = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50';
@@ -8,12 +8,18 @@ export const panelClass = 'bg-white border border-slate-200 rounded-xl shadow-sm
 export function Select({ id, label, children, ...props }) {
   return <div><label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label><select id={id} className={inputClass} {...props}>{children}</select></div>;
 }
+export const UpgradeContext = createContext(null);
 export function Feedback({ error, notice, c, retry }) {
   const ref = useRef(null);
+  const upgrade = useContext(UpgradeContext);
+  const limited = ['MEMBER_LIMIT_REACHED', 'LOCATION_LIMIT_REACHED'].includes(error);
+  const ar = upgrade?.lang === 'ar';
   useEffect(() => { if (error || notice) ref.current?.focus(); }, [error, notice]);
   if (!error && !notice) return null;
   return <div ref={ref} tabIndex={-1} role={error ? 'alert' : 'status'} className={`p-3 rounded-lg border text-sm ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-    {c(error || notice)}{error && retry && <button type="button" className="underline ms-3 font-semibold" onClick={retry}>{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
+    {c(error || notice)}
+    {limited && upgrade && <div className="mt-3 space-y-3"><p>{upgrade.canUpgrade ? (ar ? 'قم بترقية خطتك لإضافة المزيد.' : 'Upgrade your plan to add more.') : (ar ? 'تواصل مع مالك النشاط لترقية الخطة وإضافة المزيد.' : 'Contact your business owner to upgrade the plan and add more.')}</p>{upgrade.canUpgrade && <button type="button" className={primaryClass} onClick={upgrade.onUpgrade}>{ar ? 'ترقية الخطة' : 'Upgrade plan'}</button>}</div>}
+    {error && retry && !limited && <button type="button" className="underline ms-3 font-semibold" onClick={retry}>{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
   </div>;
 }
 export function Pager({ data, setPage, c }) {
