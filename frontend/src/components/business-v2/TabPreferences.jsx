@@ -2,7 +2,7 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 import { useState } from 'react';
 import { Feedback, panelClass, primaryClass, buttonClass } from './UI';
 const bottom = ['security', 'settings'];
-const fixed = ['dashboard', 'security', 'settings'];
+const fixed = ['dashboard', 'billing', 'security', 'settings'];
 export default function TabPreferences({ context, api, c, lang, availableTabs, hiddenTabs, tabOrder, onTabsSaved }) {
   const [hidden, setHidden] = useState(hiddenTabs), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [order, setOrder] = useState(() => [...tabOrder, ...availableTabs.map(([key])=>key).filter(key=>!tabOrder.includes(key))]);

@@ -262,23 +262,28 @@ it('fences expired cancellation workers and safely recovers abandoned leases',as
 
 it('grants only verified paid periods, never extends for the same payment, and holds refunds',async()=>{
  const {reconcileCheckout}=await import('../src/billing/paypal/reconciliation.js');
- const {billingState}=await import('../src/billing/entitlements.js');
+ const {billingState,requireMemberCapacity}=await import('../src/billing/entitlements.js');
  const bid=await newBusiness(),intent=await checkout.create(owner,bid,planId,providerPlanId);
- const paid='2026-11-10T12:00:00Z',end='2026-12-10T12:00:00Z',now=new Date('2026-11-11T12:00:00Z');
+ const now=new Date(),paid=new Date(now.getTime()-86400000).toISOString(),end=new Date(now.getTime()+29*86400000).toISOString();
+ await db.businessSubscription.create({data:{businessId:bid,planId,trialStartedAt:new Date('2026-10-01T12:00:00Z'),trialEndsAt:new Date('2026-10-15T12:00:00Z')}});
+ expect((await auth.transaction(tx=>billingState(tx,bid,now)))).toMatchObject({active:false,status:'EXPIRED'});
+
+ await expect(auth.transaction(tx=>requireMemberCapacity(tx,bid))).rejects.toMatchObject({code:'SUBSCRIPTION_REQUIRED'});
  let status='COMPLETED';
  const reconciler:PayPalProvider={scope:provider.scope,getPlan:()=>provider.getPlan(),getSubscription:id=>provider.getSubscription(id),createSubscription:(...args)=>provider.createSubscription(args[0],args[1]),cancelSubscription:id=>provider.cancelSubscription(id),verifyWebhook:(...args)=>provider.verifyWebhook(...args),getTransactions:async()=>({transactions:[{id:'PAYMENT-NEW',status,time:paid,amount_with_breakdown:{gross_amount:{currency_code:'USD',value:'29.00'}}}],total_items:1,total_pages:1})};
  provider.snapshots.set(intent.snapshot.id,{...intent.snapshot,status:'ACTIVE',billing_info:{last_payment:{time:paid,amount:{value:'29.00',currency_code:'USD'}},next_billing_time:end,failed_payments_count:0,outstanding_balance:{value:'0.00',currency_code:'USD'}}});
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(true);
+ await expect(auth.transaction(tx=>requireMemberCapacity(tx,bid))).resolves.toBeUndefined();
  expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).nextBillingAt?.toISOString()).toBe(new Date(end).toISOString());
- provider.snapshots.get(intent.snapshot.id)!.billing_info!.next_billing_time='2026-12-11T12:00:00Z';
+ provider.snapshots.get(intent.snapshot.id)!.billing_info!.next_billing_time=new Date(new Date(end).getTime()+86400000).toISOString();
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
- expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).paidUntil?.toISOString()).toBe(end.replace('Z','.000Z'));
+ expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).paidUntil?.toISOString()).toBe(end);
  provider.snapshots.get(intent.snapshot.id)!.status='CANCELLED';
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).status).toBe('CANCELLED_PAID');
  expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).nextBillingAt).toBeNull();
- expect((await auth.transaction(tx=>billingState(tx,bid,new Date('2026-12-12T00:00:00Z')))).active).toBe(false);
+ expect((await auth.transaction(tx=>billingState(tx,bid,new Date(new Date(end).getTime()+2*86400000)))).active).toBe(false);
  status='REFUNDED';await reconcileCheckout(auth,reconciler,intent.intentId,now);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(false);
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).status).toBe('REVIEW');

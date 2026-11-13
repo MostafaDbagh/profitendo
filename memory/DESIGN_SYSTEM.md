@@ -654,3 +654,28 @@ until OTP confirmation; returned only in the owner's phone-verification stage,
 then cleared after confirmation. Existing MFA policy unchanged. Verified UI at
 AR/EN 320/390/1440, validation/submitted payload, 25 auth/contact integration tests,
 typechecks and frontend build. No real SMS/email sent. Screenshots: tmp/marketing-polish/phone-*.
+
+### Trial expiry dashboard access, 13 November 2026
+
+Expired trials retain authenticated dashboard/report reads and owner billing access.
+The workspace adds a compact amber expiry notice using existing buttons and spacing,
+with owner renewal navigation or staff guidance. Subscription remains a visible,
+fixed owner tab even when older preferences hid it. Notice refreshes on navigation,
+window focus and once per minute, with a timer at the period boundary; paid status
+refreshes on focus/interval in the billing screen. Backend context exposes only
+subscription status, activity, period end and whether it is paid, after tenant
+permission checks. Billing distinguishes expired paid periods from expired trials.
+UI evidence: tmp/trial-expiry, Arabic/English 320/390/768/1440, real isolated login,
+existing dashboard, renewal link, live expiry and simulated confirmed renewal.
+Provider verification and entitlement restoration are covered with a fake provider
+in billing/paypal integration tests; no real payment is made by these checks.
+
+### Public feature highlights, 13 November 2026
+
+Home and Features now lead the existing module list with two open, ruled highlights:
+customizable per-user dashboard tabs and daily/closing reports. Arabic and English
+copy distinguishes manual requests from automatic delivery after closing, labels
+net profit as estimated, and qualifies email delivery by service activation. Both
+features also appear in the pricing lists. Existing marketing typography, emerald
+accents and responsive layout retained; before/after captures at 390/1440 in both
+languages: tmp/feature-highlights. Browser layout checks and production build passed.

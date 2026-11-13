@@ -1,7 +1,7 @@
 import { customRole, customRoleCatalog, roleGrants } from './custom-roles.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { AuthService, AuthContext } from '../auth/service.js';
-import { requireMemberCapacity } from '../billing/entitlements.js';
+import { billingState, requireMemberCapacity } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
 import { requireBusiness } from './access.js';
 import { effectivePermissions, PERMISSIONS, permissionKeys, roleCatalog, type Permission } from './permissions.js';
@@ -24,7 +24,9 @@ export class BusinessService {
   async get(ctx: AuthContext, businessId: string) {
     return this.auth.transaction(async tx => {
       const access = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
-      return { business: access.business, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
+      const state = await billingState(tx, businessId);
+      const subscriptionAccess = { active: state.active, status: state.status, endsAt: state.subscription?.trialEndsAt ?? null, paid: !!state.paidUntil };
+      return { subscriptionAccess, business: access.business, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
     });
   }
   async preferences(ctx: AuthContext, businessId: string, hiddenTabs: string[], tabOrder?: string[]) {

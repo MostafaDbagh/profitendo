@@ -1,3 +1,4 @@
+import SubscriptionNotice from '../components/business-v2/SubscriptionNotice';
 import {useTabScroll} from '../hooks/useTabScroll';
 import TabPreferences from '../components/business-v2/TabPreferences';
 import Dashboard from '../components/business-v2/Dashboard';
@@ -38,12 +39,12 @@ function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const orderedSections = [...sections].sort((a,b) => {const rank = key => tabOrder.includes(key) ? tabOrder.indexOf(key) : tabOrder.length + sections.findIndex(([id])=>id===key);const bottom = ['security','settings'];if(bottom.includes(a[0])||bottom.includes(b[0]))return (bottom.includes(a[0])?100+bottom.indexOf(a[0]):0)-(bottom.includes(b[0])?100+bottom.indexOf(b[0]):0);return rank(a[0])-rank(b[0]);});
   const availableTabs = orderedSections.filter(([, permission]) => !permission||context.permissions[permission]);
   const hiddenTabs = savedPreferences?.hiddenTabs ?? context.hiddenTabs ?? [];
-  const visible = availableTabs.filter(([key]) => ['dashboard','security','settings'].includes(key) || !hiddenTabs.includes(key));
+  const visible = availableTabs.filter(([key]) => ['dashboard','billing','security','settings'].includes(key) || !hiddenTabs.includes(key));
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const Component = { dashboard:Dashboard,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, invitations: Invitations, audit: Audit }[current];
   return <div className="md:flex min-w-0">
     <nav aria-label={c('title')} className="md:w-72 shrink-0 bg-white border-b md:border-b-0 md:border-e border-slate-200 p-4 md:p-6"><div className="flex flex-wrap md:flex-col gap-2">{visible.map(([key, , Icon]) => <button key={key} type="button" aria-current={current === key ? 'page' : undefined} onClick={() => setSection(key)} className={`flex items-center gap-3 text-start px-4 py-3 rounded-xl border text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${key === 'security' ? 'mt-4 border-t border-slate-200' : ''} ${current === key ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'text-slate-600 border-transparent hover:bg-slate-50'}`}><Icon className="w-5 h-5" aria-hidden="true" />{c(key)}</button>)}</div></nav>
-    <main ref={contentRef} tabIndex={-1} className="outline-none flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6">{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}<Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></div></main>
+    <main ref={contentRef} tabIndex={-1} className="outline-none flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}<Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} /></div></div></main>
   </div>;
 }
 export default function BusinessV2() {

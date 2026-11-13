@@ -20,15 +20,15 @@ export function Pricing({ headingLevel = "h2" }) {
   const plans = [
     {
       key: "free", testid: "lp-plan-free", name: t("lpPlanFree"), price: t("lpPlanFreePrice"), period: t("lpTrialPeriod"),
-      features: ["lpFree1", "lpFree2", "lpFree3", "lpFree4"], cta: t("lpStartFree"), ctaTestid: "lp-cta-free", highlight: false,
+      features: ["lpFree1", "lpFree2", "lpFree3", "lpPlanDashboard", "lpPlanClosing", "lpFree4"], cta: t("lpStartFree"), ctaTestid: "lp-cta-free", highlight: false,
     },
     {
       key: "premium", testid: "lp-plan-premium", name: t("lpPlanPremium"), price: "$29", period: t("perMonth"),
-      features: ["lpFree1", "lpFree2", "lpFree3"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-premium", highlight: false,
+      features: ["lpFree1", "lpFree2", "lpFree3", "lpPlanDashboard", "lpPlanClosing"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-premium", highlight: false,
     },
     {
       key: "annual", testid: "lp-plan-annual", name: t("lpPlanAnnual"), price: "$99", period: t("lpAnnualFirstYear"),
-      renewal: t("lpAnnualRenewal"), features: ["lpFree1", "lpFree2", "lpFree3"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-annual",
+      renewal: t("lpAnnualRenewal"), features: ["lpFree1", "lpFree2", "lpFree3", "lpPlanDashboard", "lpPlanClosing"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-annual",
       highlight: true, badge: t("lpBestValue"),
     },
   ];
@@ -111,7 +111,7 @@ export function Faq() {
       <div className={`${sectionCls} max-w-3xl`}>
         <SectionTitle title={t("lpFaqTitle")} testid="lp-faq-title" />
         <div className="space-y-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((n) => (
+          {[1, 2, 3, 4, 5, 6].map((n) => (
             <div key={n} data-testid={`lp-faq-item-${n}`} className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
               <button onClick={() => setOpen(open === n ? null : n)} data-testid={`lp-faq-q-${n}`}
                 aria-expanded={open === n} aria-controls={`faq-answer-${n}`}

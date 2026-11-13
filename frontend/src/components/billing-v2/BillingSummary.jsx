@@ -4,7 +4,7 @@ import { planName } from './copy';
 export default function BillingSummary({ data, context, c, lang }) {
   const t = (en, ar) => lang === 'ar' ? ar : en;
   const plan = data.subscription?.plan;
-  const status = ({ ACTIVE:t('Paid subscription active','اشتراك مدفوع نشط'), CANCELLED_PAID:t('Cancelled · access until period end','ملغى — متاح حتى نهاية الفترة'), REVIEW:t('Payment under review','الدفع قيد المراجعة') })[data.status] || c(data.status);
+  const status = data.status==='EXPIRED' && data.paidUntil ? t('Subscription expired','انتهى الاشتراك') : ({ ACTIVE:t('Paid subscription active','اشتراك مدفوع نشط'), CANCELLED_PAID:t('Cancelled · access until period end','ملغى — متاح حتى نهاية الفترة'), REVIEW:t('Payment under review','الدفع قيد المراجعة') })[data.status] || c(data.status);
   const usage = plan ? [
     { key:'teamPlaces', icon:Users, used:data.usage.reservedMembers, limit:plan.maxMembers },
     { key:'maxWarehouses', icon:Warehouse, used:data.locationUsage?.maxWarehouses ?? 0, limit:plan.maxWarehouses },

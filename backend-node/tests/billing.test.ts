@@ -117,3 +117,21 @@ it('allows business-owner billing without optional authenticator enrollment',asy
  try {const response=await get(`/billing/businesses/${business}`,owner);expect(response.status,response.text).toBe(200);}
  finally{await db.authUser.update({where:{id:owner.id},data:{mfaSecret:user.mfaSecret}});}
 });
+
+
+it('keeps expired-trial login, dashboard and billing accessible without allowing new paid operations',async()=>{
+ const login=await request(app).post('/api/auth/login').set('Origin',settings.appOrigin).send({email:(await db.authUser.findUniqueOrThrow({where:{id:owner.id}})).email,password:'Billing test passphrase 194!'});
+ expect(login.status,login.text).toBe(200);
+ expect((await get('/businesses')).body.some((b:{id:string})=>b.id===business)).toBe(true);
+ const context=await get(`/businesses/${business}`);
+ expect(context.status).toBe(200);expect(context.body.subscriptionAccess).toMatchObject({active:false,status:'EXPIRED',paid:false});
+ const summary=await get(`/businesses/${business}/workflows/reports?view=summary&from=2026-11-01&to=2026-11-13`);
+ expect(summary.status,summary.text).toBe(200);expect(summary.body.saleCount).toBe(0);
+ expect((await get(`/billing/businesses/${business}`)).status).toBe(200);
+ expect((await write(`/businesses/${business}/invitations`,{email:`${run}-expired@example.test`,role:'VIEWER'})).body.error.code).toBe('SUBSCRIPTION_REQUIRED');
+ expect((await get(`/businesses/${business}`,admin)).status).toBe(403);
+ const {billingState}=await import('../src/billing/entitlements.js');
+ const sub=await db.businessSubscription.findUniqueOrThrow({where:{businessId:business}});
+ expect((await auth.transaction(tx=>billingState(tx,business,new Date(sub.trialEndsAt.getTime()-1)))).active).toBe(true);
+ expect((await auth.transaction(tx=>billingState(tx,business,sub.trialEndsAt))).active).toBe(false);
+});

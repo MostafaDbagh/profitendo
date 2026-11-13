@@ -1,7 +1,7 @@
 import BillingSummary from './BillingSummary';
 import { Link } from 'react-router-dom';
 import PaidAccess from './PaidAccess';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, primaryClass, buttonClass, panelClass } from '../business-v2/UI';
 import Receipts from './Receipts';
@@ -12,6 +12,14 @@ export default function Subscription({ context, api, lang }) {
   const path = `/billing/businesses/${context.business.id}`, { data, error, reload } = useResource(api,path);
   const [selected,setSelected] = useState(null), [busy,setBusy] = useState(false), [failure,setFailure] = useState(''), [notice,setNotice] = useState('');
   const trigger = useRef(null);
+  const refreshStatus = useRef(reload);
+  refreshStatus.current = reload;
+  useEffect(() => {
+    const refresh = () => refreshStatus.current();
+    window.addEventListener('focus', refresh);
+    const timer = setInterval(refresh, 60000);
+    return () => { window.removeEventListener('focus', refresh); clearInterval(timer); };
+  }, []);
   async function start() { setBusy(true); setFailure(''); try { await api(`${path}/trial`,{method:'POST',body:{planId:selected.id}}); setSelected(null); setNotice('started'); reload(); } catch(e) { setFailure(e.message); } finally { setBusy(false); } }
   return <section className="space-y-7"><div className="space-y-2"><h2 className="text-2xl font-bold text-slate-900">{c('billing')}</h2><p className="text-sm text-slate-500">{lang==='ar'?'خطتك، حدود الاستخدام، وسجل المدفوعات في مكان واحد.':'Your plan, usage limits, and payment history in one place.'}</p></div><Feedback error={error} notice={notice} c={c} retry={error==='BILLING_MFA_SETUP_REQUIRED'?undefined:reload} />{error==='BILLING_MFA_SETUP_REQUIRED'&&<Link className={primaryClass} to="?tab=security">{c('security')}</Link>}{!data && !error && <p role="status">{c('loading')}</p>}{data && <>
     <BillingSummary {...{data,context,c,lang}} />

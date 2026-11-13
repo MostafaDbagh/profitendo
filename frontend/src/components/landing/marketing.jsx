@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ShoppingCart, ShoppingBag, Boxes, Wallet, BookOpenCheck, BarChart3,
-  ArrowDown, Bot,
+  ArrowDown, Bot, PanelsTopLeft, FileCheck2,
   Store, Building2, Factory, Truck, Briefcase, CheckCircle2, UserPlus, PackagePlus, Rocket,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
@@ -64,6 +64,14 @@ export function Modules({ headingLevel = "h2" }) {
   return (
     <section id="features" className={sectionCls} data-testid="lp-features">
       <SectionTitle headingLevel={headingLevel} title={t("lpModulesTitle")} testid="lp-modules-title" />
+      <div className="grid md:grid-cols-2 gap-8 md:gap-12 border-y border-emerald-200 py-8 mb-8" data-testid="lp-feature-highlights">
+        {[["dashboard", PanelsTopLeft], ["closing", FileCheck2]].map(([key, Icon]) => <article key={key} className="text-start">
+          <Icon className="w-7 h-7 text-emerald-700 mb-4" aria-hidden="true" />
+          <h3 className="text-xl font-bold text-slate-900 mb-3">{t(`lpHighlight_${key}`)}</h3>
+          <p className="text-sm leading-loose text-slate-600">{t(`lpHighlight_${key}_d`)}</p>
+          <p className="text-sm font-semibold text-emerald-800 mt-4">{t(`lpHighlight_${key}_note`)}</p>
+        </article>)}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {mods.map(([key, Icon, tone]) => (
           <div key={key} data-testid={`lp-module-${key}`}
