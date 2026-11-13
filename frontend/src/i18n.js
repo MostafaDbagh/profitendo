@@ -1,6 +1,8 @@
 export const translations = {
   ar: {
     appName: "ProfitLens",
+    authOverviewTitle: "صورة أوضح لأداء أعمالك",
+    authOverviewDescription: "تابع مبيعاتك ومصروفاتك وأرباحك في مكان واحد.",
     tagline: "اعرف ربحك الحقيقي",
     navDashboard: "لوحة التحكم",
     navProducts: "المنتجات",
@@ -1129,6 +1131,8 @@ export const translations = {
   },
   en: {
     appName: "ProfitLens",
+    authOverviewTitle: "A clearer view of your business.",
+    authOverviewDescription: "Track your sales, expenses and profits in one place.",
     tagline: "Know your real profit",
     navDashboard: "Dashboard",
     navProducts: "Products",

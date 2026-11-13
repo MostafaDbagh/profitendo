@@ -601,3 +601,11 @@ Treasury/Expenses retain the existing table and shared Modal/Field/Feedback cont
 ### Owner contact verification, 13 November 2026
 
 AuthV2 reuses its current emerald/slate brand split, Field/Submit/OtpField, fonts and RTL/LTR behavior for the required Syrian-phone step. Email verification reuses the existing code-entry screen with real generated codes. Owner MFA stays optional; the phone hint states that distinction. Real browser flow captured both languages at 320/390/768/1024/1440, invalid number/code feedback, reload/direct-route gating and successful entry. Before/after screenshots: `tmp/login-check/onboarding-before.png`, `onboarding-after.png`; responsive evidence: `tmp/contact-onboarding-ui/`.
+
+### Authentication branding copy, 13 November 2026
+
+Removed the decorative 100% net-profit and AR/EN statistics at the user's request. The shared authentication brand panel now uses dedicated bilingual overview copy: “صورة أوضح لأداء أعمالك” with a short sales/expenses/profit description. Kept existing emerald panel, logo, fonts and responsive visibility. Checked Arabic/English at 390/1024/1440px; screenshots: `tmp/login-check/branding-*`.
+
+### Authentication logo navigation, 13 November 2026
+
+Desktop and mobile authentication logos are keyboard-accessible React Router links to `/`, preserving their appearance and adding visible focus rings. B2B-primary mode now renders the existing public Landing page at `/` instead of redirecting that path to the workspace. Verified both logo clicks at 1440px and 390px against local staging.
