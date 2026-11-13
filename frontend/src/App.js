@@ -62,6 +62,7 @@ function AppRouter() {
   const location = useLocation();
   if(process.env.REACT_APP_B2B_PRIMARY==='true')return <><ScrollToTop/><Routes>
     <Route path="/" element={<Landing/>}/>
+    <Route path="/features" element={<FeaturesPage/>}/><Route path="/pricing" element={<PricingPage/>}/><Route path="/about" element={<AboutPage/>}/>
     <Route path="/auth" element={<AuthV2/>}/><Route path="/auth-v2" element={<AuthV2/>}/>
     <Route path="/business" element={<BusinessV2/>}/><Route path="/business-v2" element={<BusinessV2/>}/>
     <Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>

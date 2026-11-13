@@ -56,7 +56,7 @@ export class ContactVerification{
     const taken=await tx.authUser.findUnique({where:{phone:destination}});if(taken&&taken.id!==user.id)return false;
    }
    await tx.verificationChallenge.update({where:{id:row.id},data:{usedAt:new Date()}});
-   await tx.authUser.update({where:{id:user.id},data:channel==='EMAIL'?{emailVerifiedAt:new Date()}:{phone:destination,phoneVerifiedAt:new Date()}});
+   await tx.authUser.update({where:{id:user.id},data:channel==='EMAIL'?{emailVerifiedAt:new Date()}:{phone:destination,phoneVerifiedAt:new Date(),pendingPhone:null}});
    if(channel==='EMAIL')await tx.authToken.updateMany({where:{userId:user.id,kind:'VERIFY_EMAIL',usedAt:null},data:{usedAt:new Date()}});
    await queueWelcome(this.auth,tx,user.id);await this.auth.audit(tx,`${channel.toLowerCase()}.verified`,user.id);return true;
   }).catch(e=>{if(e.code==='P2002')return false;throw e;});

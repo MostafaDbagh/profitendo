@@ -1,12 +1,14 @@
-import { Link } from "react-router-dom";
-import { TrendingUp, Languages, MessageCircle, Mail } from "lucide-react";
+import { useState } from "react";
+import { Link, NavLink } from "react-router-dom";
+import { TrendingUp, Languages, MessageCircle, Mail, Menu, X } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 
 export const REGISTER_URL = "/auth?mode=register";
 export const LOGIN_URL = "/auth";
 
-export function LandingNav() {
+export function LandingNav({ light = false }) {
   const { t, lang, setLang } = useLanguage();
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/60" data-testid="lp-nav">
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 px-5 h-16">
@@ -18,9 +20,9 @@ export function LandingNav() {
         </Link>
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-1 me-2">
-            <Link to="/features" data-testid="lp-nav-features" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavFeatures")}</Link>
-            <Link to="/pricing" data-testid="lp-nav-pricing" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavPricing")}</Link>
-            <Link to="/about" data-testid="lp-nav-about" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavAbout")}</Link>
+            <NavLink to="/features" data-testid="lp-nav-features" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavFeatures")}</NavLink>
+            <NavLink to="/pricing" data-testid="lp-nav-pricing" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavPricing")}</NavLink>
+            <NavLink to="/about" data-testid="lp-nav-about" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavAbout")}</NavLink>
           </div>
           <button onClick={() => setLang(lang === "ar" ? "en" : "ar")} data-testid="lp-lang-toggle"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
@@ -36,7 +38,11 @@ export function LandingNav() {
             {t("lpHeroCta")}
           </Link>
         </div>
+          {light && <button className="home-menu-toggle" aria-label={lang === 'ar' ? 'القائمة' : 'Menu'} aria-expanded={menuOpen} aria-controls="home-mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={21}/> : <Menu size={21}/>}</button>}
       </div>
+      {light && menuOpen && <nav id="home-mobile-nav" className="home-mobile-nav" aria-label={lang === 'ar' ? 'التنقل' : 'Navigation'}>
+        {[["/features", "lpNavFeatures"], ["/pricing", "lpNavPricing"], ["/about", "lpNavAbout"], [LOGIN_URL, "lpLogin"]].map(([href, key]) => <NavLink key={key} to={href} onClick={() => setMenuOpen(false)}>{t(key)}</NavLink>)}
+      </nav>}
     </header>
   );
 }
@@ -53,9 +59,9 @@ export function Footer() {
           <span className="font-bold text-slate-200">{t("appName")}</span>
         </div>
         <div className="flex items-center gap-4">
-          <a href="https://wa.me/963985566918" target="_blank" rel="noreferrer" data-testid="lp-footer-whatsapp"
+          <a href="https://wa.me/963985566918" target="_blank" rel="noreferrer" aria-label="WhatsApp" data-testid="lp-footer-whatsapp"
             className="text-slate-400 hover:text-emerald-400 transition-colors"><MessageCircle className="w-5 h-5" /></a>
-          <a href="mailto:profitlens.team@gmail.com" data-testid="lp-footer-email"
+          <a href="mailto:profitlens.team@gmail.com" aria-label="Email" data-testid="lp-footer-email"
             className="text-slate-400 hover:text-emerald-400 transition-colors"><Mail className="w-5 h-5" /></a>
         </div>
         <p className="text-xs text-slate-500">{t("lpFooterRights")}</p>

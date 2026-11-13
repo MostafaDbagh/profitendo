@@ -58,3 +58,17 @@ it('fails safely without configured providers and does not force platform MFA en
  const email=await register();vi.stubEnv('SMTP_HOST','');expect((await post('/email-code/request',{email})).body.error.code).toBe('EMAIL_UNAVAILABLE');vi.stubEnv('SMTP_HOST','smtp.example.test');
  await db.authUser.update({where:{id:a.ctx.user.id},data:{platformRole:'SUPER_ADMIN'}});expect(auth.stage(await auth.login(a.email,password))).toBe('phone_verification_required');
 });
+it('keeps registration phone encrypted, prefills only its owner, and clears it after verification',async()=>{
+ const email=`contact-${randomUUID()}@example.test`;emails.push(email);
+ const body={email,password,name:'Phone owner',businessName:'Phone business',phone:mobile(7)};
+ expect((await post('/register',{...body,phone:'+971501234567'})).status).toBe(422);
+ expect((await post('/register',body)).status).toBe(202);
+ const user=await db.authUser.findUniqueOrThrow({where:{email}});
+ expect(user.phone).toBeNull();expect(user.phoneVerifiedAt).toBeNull();expect(user.pendingPhone).not.toContain(mobile(7));
+ const code=await emailCode(email);expect((await post('/email-code/confirm',codeBody(code))).status).toBe(200);
+ const ctx=await auth.login(email,password),session=await auth.sessionResult(ctx);
+ expect(session.pendingPhone).toBe('+963'+mobile(7).slice(1));expect(session.user).not.toHaveProperty('phone');
+ const challenge=await phoneCode(ctx,session.pendingPhone!);expect((await post('/phone-code/confirm',codeBody(challenge),ctx)).status).toBe(200);
+ expect((await db.authUser.findUniqueOrThrow({where:{email}})).pendingPhone).toBeNull();
+ expect(await auth.sessionResult(await auth.authenticate(ctx.token))).not.toHaveProperty('pendingPhone');
+});

@@ -37,6 +37,7 @@ model AuthUser {
   name            String
   passwordHash    String @map("password_hash")
   platformRole    PlatformRole @default(USER) @map("platform_role")
+  pendingPhone String? @map("pending_phone")
   phone String? @unique
   phoneVerifiedAt DateTime? @map("phone_verified_at") @db.Timestamptz(3)
   welcomeQueuedAt DateTime? @map("welcome_queued_at") @db.Timestamptz(3)

@@ -52,7 +52,7 @@ export function authRouter(auth: AuthService) {
     await auth.limit('mock-confirm-ip',req.ip??'',30);await auth.limit('mock-confirm',req.body.challenge,5);
     res.json(await mock.confirm(req.body.challenge,req.body.purpose,req.body.code));
   });
-  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
+  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),phone:z.string().min(9).max(40).optional(),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
     await auth.limit('register-ip', req.ip ?? '', 5);
     await auth.limit('register-email', req.body.email, 3);
     await auth.register(req.body); res.status(202).json(genericMessage);

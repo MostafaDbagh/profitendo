@@ -1,3 +1,4 @@
+import {normalizeSyrianMobile} from './sms-settings.js';
 import {queueWelcome} from './welcome.js';
 import { randomBytes, randomUUID, randomInt } from 'node:crypto';
 import type { Prisma, PrismaClient, AuthUser, AuthSession } from '../generated/prisma/client.js';
@@ -63,12 +64,14 @@ export class AuthService {
     await tx.authToken.create({ data: { tokenHash: digest(token), userId: user.id, kind, expiresAt: new Date(Date.now() + (kind === 'VERIFY_EMAIL' ? 24 * hour : hour / 2)) } });
     if(!this.settings.mockOtp)await this.queueMail(tx, user.email, kind === 'VERIFY_EMAIL' ? 'Verify your ProfitLens email' : 'Reset your ProfitLens password', kind === 'VERIFY_EMAIL' ? 'verify' : 'reset', token);
   }
-  async register(input: { email: string; password: string; name: string; businessName: string; language?:'en'|'ar' }) {
+  async register(input: { email: string; password: string; name: string; businessName: string; language?:'en'|'ar'; phone?:string }) {
+    const phone=input.phone===undefined?null:normalizeSyrianMobile(input.phone);
+    if(input.phone!==undefined&&!phone)throw new ApiError(422,'INVALID_PHONE','Enter a Syrian mobile number');
     const hash = await passwordHash(input.password);
     try {
       await this.transaction(async tx => {
         if (await tx.authUser.findUnique({ where: { email: input.email } })) return;
-        const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash, language:input.language??'en' } });
+        const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash, language:input.language??'en', pendingPhone:phone?encrypt(this.settings.key,phone,'registration-phone'):null } });
         const business = await tx.business.create({ data: { name: input.businessName } });
         await tx.membership.create({ data: { userId: user.id, businessId: business.id, role: 'OWNER' } });
         if(!this.settings.emailOtp)await this.issueToken(tx, user, 'VERIFY_EMAIL');
@@ -141,7 +144,7 @@ export class AuthService {
   async sessionResult(ctx: AuthContext) {
     const stage = this.stage(ctx);
     const memberships = stage === 'authenticated' ? await this.db.membership.findMany({ where: { userId: ctx.user.id, disabledAt: null, business: { suspendedAt: null } }, select: { businessId: true, role: true, business: { select: { name: true } } } }) : [];
-    return { user: publicUser(ctx.user), stage, mfaEnabled: !!ctx.user.mfaSecret, mfaMandatory: false, memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
+    return { user: publicUser(ctx.user), stage, ...(stage==='phone_verification_required'&&ctx.user.pendingPhone?{pendingPhone:decrypt(this.settings.key,ctx.user.pendingPhone,'registration-phone')}:{}), mfaEnabled: !!ctx.user.mfaSecret, mfaMandatory: false, memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
   }
   async assertSession(tx: Tx, ctx: AuthContext) {
     const user = await this.lockUser(tx, ctx.user.id);

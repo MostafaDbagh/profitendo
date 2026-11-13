@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ShoppingCart, ShoppingBag, Boxes, Wallet, BookOpenCheck, BarChart3,
-  ArrowDown, Bot, TrendingUp, TrendingDown, Percent, Banknote, Package,
+  ArrowDown, Bot,
   Store, Building2, Factory, Truck, Briefcase, CheckCircle2, UserPlus, PackagePlus, Rocket,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
@@ -9,10 +10,10 @@ import { REGISTER_URL } from "./chrome";
 
 const sectionCls = "max-w-6xl mx-auto px-5 py-16 sm:py-24";
 
-function SectionTitle({ title, sub, testid }) {
+function SectionTitle({ title, sub, testid, headingLevel: Heading = "h2" }) {
   return (
     <div className="text-center max-w-2xl mx-auto mb-12">
-      <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-100" data-testid={testid}>{title}</h2>
+      <Heading className="text-3xl sm:text-4xl font-extrabold text-slate-100" data-testid={testid}>{title}</Heading>
       {sub && <p className="text-slate-400 mt-4 leading-relaxed">{sub}</p>}
     </div>
   );
@@ -50,7 +51,7 @@ export function Hero() {
   );
 }
 
-export function Modules() {
+export function Modules({ headingLevel = "h2" }) {
   const { t } = useLanguage();
   const mods = [
     ["sales", ShoppingCart, "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"],
@@ -62,7 +63,7 @@ export function Modules() {
   ];
   return (
     <section id="features" className={sectionCls} data-testid="lp-features">
-      <SectionTitle title={t("lpModulesTitle")} testid="lp-modules-title" />
+      <SectionTitle headingLevel={headingLevel} title={t("lpModulesTitle")} testid="lp-modules-title" />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {mods.map(([key, Icon, tone]) => (
           <div key={key} data-testid={`lp-module-${key}`}
@@ -100,26 +101,18 @@ export function Accounting() {
 
 export function AiSection() {
   const { t } = useLanguage();
-  const caps = ["lpAiCap1", "lpAiCap2", "lpAiCap3", "lpAiCap4", "lpAiCap5", "lpAiCap6"];
   return (
     <section className={sectionCls} data-testid="lp-ai">
       <div className="relative rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/60 to-teal-500/10 p-8 sm:p-14 overflow-hidden">
         <div className="absolute -top-24 -end-24 w-72 h-72 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" aria-hidden="true" />
         <div className="relative max-w-3xl">
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-extrabold mb-6" data-testid="lp-ai-premium-badge">
-            <Bot className="w-4 h-4" /> Premium
+            <Bot className="w-4 h-4" /> {t("lpAiComingSoon")}
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-50 leading-tight" data-testid="lp-ai-title">{t("lpAiTitle")}</h2>
           <p className="text-slate-300 mt-5 leading-relaxed" data-testid="lp-ai-desc">{t("lpAiDesc")}</p>
           <p className="text-emerald-300/90 font-bold text-sm mt-4" data-testid="lp-ai-tag">{t("lpAiTag")}</p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8" data-testid="lp-ai-caps">
-            {caps.map((k) => (
-              <li key={k} className="flex items-center gap-2.5 text-sm text-slate-200 font-medium">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                {t(k)}
-              </li>
-            ))}
-          </ul>
+
         </div>
       </div>
     </section>
@@ -127,37 +120,33 @@ export function AiSection() {
 }
 
 export function KpiPreview() {
-  const { t } = useLanguage();
-  const kpis = [
-    ["lpKpiSales", TrendingUp, "text-emerald-400"],
-    ["lpKpiCogs", Package, "text-rose-400"],
-    ["lpKpiGross", BarChart3, "text-sky-400"],
-    ["lpKpiNet", Banknote, "text-teal-400"],
-    ["lpKpiMargin", Percent, "text-amber-400"],
-    ["lpKpiInventory", Boxes, "text-violet-400"],
-    ["lpKpiCash", Wallet, "text-emerald-400"],
-    ["lpKpiProducts", TrendingDown, "text-rose-400"],
-  ];
-  return (
-    <section className={sectionCls} data-testid="lp-kpis">
-      <SectionTitle title={t("lpKpiTitle")} sub={t("lpKpiSub")} testid="lp-kpi-title" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map(([key, Icon, tone], i) => (
-          <div key={key} data-testid={`lp-kpi-${i + 1}`} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-400">{t(key)}</span>
-              <Icon className={`w-4 h-4 ${tone}`} />
-            </div>
-            <div className="flex items-end gap-1 h-10" aria-hidden="true">
-              {[40, 65, 45, 80, 55, 90, 70, 100].map((h, j) => (
-                <span key={j} className="flex-1 rounded-sm bg-emerald-500/25" style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          </div>
-        ))}
+  const { t, lang } = useLanguage();
+  const [period, setPeriod] = useState('month');
+  const ar = lang === 'ar';
+  const values = period === 'month'
+    ? ['120,000', '72,000', '48,000', '30,000', '25%', '86,000', '42,000', '40%']
+    : ['32,000', '19,200', '12,800', '8,000', '25%', '86,000', '42,000', '40%'];
+  const labels = ['lpKpiSales','lpKpiCogs','lpKpiGross','lpKpiNet','lpKpiMargin','lpKpiInventory','lpKpiCash','lpKpiProducts'];
+  return <section className={`${sectionCls} report-section`} data-testid="lp-kpis">
+    <div className="report-intro">
+      <SectionTitle title={t('lpKpiTitle')} sub={t('lpKpiSub')} testid="lp-kpi-title"/>
+      <p className="report-disclaimer">{ar ? 'مثال توضيحي ببيانات تجريبية، وليس تقريرًا من حسابك.' : 'An illustrative preview with sample data, not a report from your account.'}</p>
+    </div>
+    <div className="report-preview">
+      <div className="report-toolbar">
+        <span>{ar ? 'ملخص الأداء' : 'Performance summary'}</span>
+        <div className="report-period" role="group" aria-label={ar ? 'فترة المثال' : 'Sample period'}>
+          {[['month', ar ? 'هذا الشهر' : 'This month'], ['week', ar ? 'هذا الأسبوع' : 'This week']].map(([key,label])=><button key={key} type="button" aria-pressed={period===key} onClick={()=>setPeriod(key)}>{label}</button>)}
+        </div>
       </div>
-    </section>
-  );
+      <dl className="report-ledger" aria-live="polite">
+        {labels.map((key,i)=><div className={i===3 ? 'report-result' : ''} key={key}>
+          <dt>{t(key)}{i===7 && <small>{ar ? 'هامش المنتج التجريبي' : 'Sample product margin'}</small>}</dt>
+          <dd><bdi>{values[i]}</bdi>{![4,7].includes(i)&&<small>{ar?'ل.س':'SYP'}</small>}</dd>
+        </div>)}
+      </dl>
+    </div>
+  </section>;
 }
 
 export function Audience() {

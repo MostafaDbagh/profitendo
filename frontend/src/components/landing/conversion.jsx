@@ -6,36 +6,36 @@ import { REGISTER_URL } from "./chrome";
 
 const sectionCls = "max-w-6xl mx-auto px-5 py-16 sm:py-24";
 
-function SectionTitle({ title, sub, testid }) {
+function SectionTitle({ title, sub, testid, headingLevel: Heading = "h2" }) {
   return (
     <div className="text-center max-w-2xl mx-auto mb-12">
-      <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-100" data-testid={testid}>{title}</h2>
+      <Heading className="text-3xl sm:text-4xl font-extrabold text-slate-100" data-testid={testid}>{title}</Heading>
       {sub && <p className="text-slate-400 mt-4 leading-relaxed">{sub}</p>}
     </div>
   );
 }
 
-export function Pricing() {
+export function Pricing({ headingLevel = "h2" }) {
   const { t } = useLanguage();
   const plans = [
     {
-      key: "free", testid: "lp-plan-free", name: t("lpPlanFree"), price: t("lpPlanFreePrice"), period: "",
+      key: "free", testid: "lp-plan-free", name: t("lpPlanFree"), price: t("lpPlanFreePrice"), period: t("lpTrialPeriod"),
       features: ["lpFree1", "lpFree2", "lpFree3", "lpFree4"], cta: t("lpStartFree"), ctaTestid: "lp-cta-free", highlight: false,
     },
     {
       key: "premium", testid: "lp-plan-premium", name: t("lpPlanPremium"), price: "$29", period: t("perMonth"),
-      features: ["lpPrem1", "lpPrem2", "lpPrem3", "lpPrem4"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-premium", highlight: false,
+      features: ["lpFree1", "lpFree2", "lpFree3"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-premium", highlight: false,
     },
     {
       key: "annual", testid: "lp-plan-annual", name: t("lpPlanAnnual"), price: "$99", period: t("lpAnnualFirstYear"),
-      renewal: t("lpAnnualRenewal"), features: ["lpPrem1", "lpPrem2", "lpPrem3", "lpPrem4"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-annual",
+      renewal: t("lpAnnualRenewal"), features: ["lpFree1", "lpFree2", "lpFree3"], cta: t("lpStartPremium"), ctaTestid: "lp-cta-annual",
       highlight: true, badge: t("lpBestValue"),
     },
   ];
   return (
     <section id="pricing" className={`border-y border-slate-800/60 bg-slate-900/40`} data-testid="lp-pricing">
       <div className={sectionCls}>
-        <SectionTitle title={t("lpPriceTitle")} sub={t("lpPriceSub")} testid="lp-price-title" />
+        <SectionTitle headingLevel={headingLevel} title={t("lpPriceTitle")} sub={t("lpPriceSub")} testid="lp-price-title" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {plans.map((p) => (
             <div key={p.key} data-testid={p.testid}
@@ -111,16 +111,16 @@ export function Faq() {
       <div className={`${sectionCls} max-w-3xl`}>
         <SectionTitle title={t("lpFaqTitle")} testid="lp-faq-title" />
         <div className="space-y-3">
-          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((n) => (
             <div key={n} data-testid={`lp-faq-item-${n}`} className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
               <button onClick={() => setOpen(open === n ? null : n)} data-testid={`lp-faq-q-${n}`}
-                aria-expanded={open === n}
+                aria-expanded={open === n} aria-controls={`faq-answer-${n}`}
                 className="w-full flex items-center justify-between gap-4 px-6 py-4 text-start font-bold text-slate-100 hover:bg-slate-800/40 transition-colors">
                 {t(`lpFaq${n}Q`)}
                 <ChevronDown className={`w-5 h-5 text-emerald-400 shrink-0 transition-transform duration-200 ${open === n ? "rotate-180" : ""}`} />
               </button>
               {open === n && (
-                <p className="px-6 pb-5 text-sm text-slate-400 leading-relaxed" data-testid={`lp-faq-a-${n}`}>{t(`lpFaq${n}A`)}</p>
+                <p id={`faq-answer-${n}`} className="px-6 pb-5 text-sm text-slate-400 leading-relaxed" data-testid={`lp-faq-a-${n}`}>{t(`lpFaq${n}A`)}</p>
               )}
             </div>
           ))}
@@ -162,20 +162,20 @@ export function Support() {
 }
 
 export function FinalCta() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   return (
-    <section className="relative overflow-hidden" data-testid="lp-final">
-      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute -bottom-40 start-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-3xl" />
-      </div>
-      <div className={`${sectionCls} relative text-center`}>
-        <h2 className="text-3xl sm:text-5xl font-extrabold text-slate-50" data-testid="lp-final-title">{t("lpFinalTitle")}</h2>
-        <p className="text-slate-400 mt-4 text-base sm:text-lg" data-testid="lp-final-sub">{t("lpFinalSub")}</p>
-        <Link to={REGISTER_URL} data-testid="lp-final-cta"
-          className="inline-flex px-10 py-4 mt-10 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-base transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5">
-          {t("lpHeroCta")}
-        </Link>
-        <p className="text-sm text-emerald-400/90 font-semibold mt-5">{t("lpHeroTrust")}</p>
+    <section data-testid="lp-final">
+      <div className="final-cta-layout">
+        <div className="final-cta-copy">
+          <h2 data-testid="lp-final-title">{t("lpFinalTitle")}</h2>
+          <p data-testid="lp-final-sub">{t("lpFinalSub")}</p>
+        </div>
+        <div className="final-cta-action">
+          <Link to={REGISTER_URL} data-testid="lp-final-cta" className="home-primary">
+            {lang === 'ar' ? 'جرّب مجانًا لمدة 14 يومًا' : 'Try free for 14 days'}
+          </Link>
+          <p><Check size={15} aria-hidden="true"/>{lang === 'ar' ? 'بدون بطاقة بنكية' : 'No credit card required'}</p>
+        </div>
       </div>
     </section>
   );

@@ -609,3 +609,48 @@ Removed the decorative 100% net-profit and AR/EN statistics at the user's reques
 ### Authentication logo navigation, 13 November 2026
 
 Desktop and mobile authentication logos are keyboard-accessible React Router links to `/`, preserving their appearance and adding visible focus rings. B2B-primary mode now renders the existing public Landing page at `/` instead of redirecting that path to the workspace. Verified both logo clicks at 1440px and 390px against local staging.
+
+### Public home redesign, 13 November 2026
+
+User selected Product Design option 3: light white/mint split hero, emerald actions,
+Cairo/Outfit, enlarged existing chart mark and an explicitly labeled sample financial
+report. Home-only `.home-page` styling refines shared sections into open ruled rows,
+light pricing and FAQ treatments. Other marketing and operational routes retain
+their themes. Existing copy/sections, SEO and test IDs preserved. Mobile home adds
+a keyboard-accessible menu; existing public routes are exposed in B2B mode.
+Start-free links now initialize AuthV2 registration from the mode query parameter.
+Verified AR/EN at 320/390/768/1024/1487px, language/keyboard/menu/FAQ/link interactions,
+no overflow or page errors, and production build. Evidence: tmp/home-redesign;
+selected design and comparison details: design-qa.md.
+
+### Public detail pages, 13 November 2026
+
+Features, Pricing and About now share the approved light home design via
+MarketingLayout: white/mint surfaces, emerald actions, active route navigation
+and mobile menu. Shared Modules/Pricing support a page-level h1; About uses a
+responsive two-column introduction with existing copy. Home uses the same shell.
+Verified AR/EN at 320/390/768/1440 on all three routes (24 combinations), active
+navigation, mobile menu, FAQ, 14-day trial label, signup links and no overflow or
+page errors. Production build passed. Screenshots: tmp/home-redesign.
+
+### Public section refinement, 13 November 2026
+
+User requested less generic public pages. Retain the approved split hero and
+pricing comparison; use purposeful variation across supporting sections: open AI
+capability index, interactive explicitly labeled sample report (month/week),
+compact audience/security strips, sequential setup rows, split FAQ/support, and
+horizontal final CTA. Removed decorative repeated KPI charts and robot emoji.
+All public routes inherit the shared treatment. AR/EN responsive checks and build
+passed; before/after evidence in tmp/marketing-polish and review in design-qa.md.
+
+### Registration phone field, 13 November 2026
+
+Matched Jawlaha Register.tsx's separate +963 prefix and national-number field.
+PhoneInput is shared by owner registration and phone verification, with LTR
+number/prefix layout inside either language. Accepts Arabic/Persian digits and
+local/international pasted Syrian mobile formats. Registration contact is stored
+encrypted in pending_phone (additive migration), never marked verified or reserved
+until OTP confirmation; returned only in the owner's phone-verification stage,
+then cleared after confirmation. Existing MFA policy unchanged. Verified UI at
+AR/EN 320/390/1440, validation/submitted payload, 25 auth/contact integration tests,
+typechecks and frontend build. No real SMS/email sent. Screenshots: tmp/marketing-polish/phone-*.
