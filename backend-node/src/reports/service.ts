@@ -41,7 +41,7 @@ export class ReportService{
   }else if(q.view==='payments'){
    const where={...scoped,createdAt:range,...(!purchase?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
    if(!q.export)pagedTotal=await tx.moneyEntry.count({where});
-   rows=(await tx.moneyEntry.findMany({where,orderBy:[{createdAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,kind:r.kind,method:r.method,date:r.createdAt.toISOString(),amount:r.amount.toFixed(digits),currency:r.currency,reason:r.reason}));
+   rows=(await tx.moneyEntry.findMany({where,orderBy:[{createdAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,kind:r.kind,reversalOfId:r.reversalOfId??'',method:r.method,date:r.createdAt.toISOString(),amount:r.amount.toFixed(digits),currency:r.currency,reason:r.reason}));
   }
   else if(q.view==='refunds'){
    const refundWhere={...scoped,kind:'CUSTOMER_RETURN',status:'COMPLETED'};

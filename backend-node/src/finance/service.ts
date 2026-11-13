@@ -6,7 +6,7 @@ import {scaled,fixed} from '../operations/decimal.js';
 import {checked,exactMoney,currencyDigits,lineGross} from '../sales/money.js';
 import {fail,hash,entitled,locationScope} from '../workflows/shared.js';
 import {businessDay,lockCash} from './cash.js';
-import type {PaymentInput,CloseInput} from './contracts.js';
+import type {PaymentInput,CloseInput,ReversalInput} from './contracts.js';
 export const incoming=(kind:string)=>kind==='SUPPLIER_REFUND'||kind==='CASH_IN';
 export async function supplierBalance(tx:Tx,bid:string,id:string){
  const d=await tx.purchaseDocument.findFirst({where:{businessId:bid,id,kind:'RECEIPT',status:'COMPLETED'},include:{lines:true}});if(!d)fail('NOT_FOUND',404);
@@ -25,7 +25,7 @@ export class FinanceService{
  async list(ctx:AuthContext,bid:string,page:number,locationId?:string,kind?:'EXPENSE'){return this.auth.transaction(async tx=>{
   const {where,access}=await locationScope(this.auth,tx,ctx,bid,'payments.view');if(locationId)await requireLocation(this.auth,tx,ctx,bid,locationId,'payments.view',false);
   const filter={...where,...(kind?{kind}:{}),...(locationId?{locationId}:{}),...(!kind&&(!access.permissions['catalogue.cost']||!access.permissions['purchasing.view'])?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
-  return {page,pageSize:25,total:await tx.moneyEntry.count({where:filter}),items:(await tx.moneyEntry.findMany({where:filter,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{location:{select:{name:true}}}})).map(({clientKey,requestHash,...e})=>e)};
+  return {page,pageSize:25,total:await tx.moneyEntry.count({where:filter}),items:(await tx.moneyEntry.findMany({where:filter,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{location:{select:{name:true}},reversedBy:{select:{id:true,reason:true,actorName:true,createdAt:true}},reversalOf:{select:{id:true,reason:true,actorName:true,createdAt:true}}}})).map(({clientKey,requestHash,...e})=>e)};
  });}
  async create(ctx:AuthContext,bid:string,input:PaymentInput,retry=true):Promise<{id:string}>{try{return await this.auth.transaction(async tx=>{
   const a=await requireLocation(this.auth,tx,ctx,bid,input.locationId,'payments.manage',false);if(!a.permissions['payments.view'])fail('FORBIDDEN',403);
@@ -39,12 +39,27 @@ export class FinanceService{
   const entry=await tx.moneyEntry.create({data:{id:randomUUID(),businessId:bid,locationId:input.locationId,kind:input.kind,createdAt:postedAt,sourceId:input.sourceId??null,clientKey:input.clientKey,requestHash,method:input.method,amount:input.amount,currency:a.business.baseCurrency,reference:input.reference,reason:input.reason,actorId:ctx.user.id,actorName:ctx.user.name}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'payment.recorded',targetId:entry.id,changes:{kind:input.kind}}});return {id:entry.id};
  });}catch(e){if(retry&&(e as {code?:string}).code==='P2002')return this.create(ctx,bid,input,false);throw e;}}
+ async reverse(ctx:AuthContext,bid:string,id:string,input:ReversalInput,retry=true):Promise<{id:string}>{try{return await this.auth.transaction(async tx=>{
+  const original=await tx.moneyEntry.findFirst({where:{businessId:bid,id}});if(!original)fail('NOT_FOUND',404);
+  const a=await requireLocation(this.auth,tx,ctx,bid,original.locationId,'payments.reverse',false);
+  if(!a.permissions['payments.view']||!a.permissions['payments.manage'])fail('FORBIDDEN',403);
+  if(original.kind.startsWith('SUPPLIER')&&(!a.permissions['catalogue.cost']||!a.permissions['purchasing.manage']))fail('FORBIDDEN',403);
+  await tx.$queryRaw`SELECT id FROM businesses WHERE id=${bid}::uuid FOR UPDATE`;
+  const requestHash=hash({reversalOfId:id,...input}),prior=await tx.moneyEntry.findUnique({where:{businessId_clientKey:{businessId:bid,clientKey:input.clientKey}}});
+  if(prior){if(prior.requestHash!==requestHash)fail('IDEMPOTENCY_CONFLICT');return {id:prior.id};}
+  if(original.reversalOfId)fail('REVERSAL_NOT_ALLOWED');
+  if(await tx.moneyEntry.findUnique({where:{reversalOfId:id}}))fail('PAYMENT_ALREADY_REVERSED');
+  if(a.location.archivedAt)fail('LOCATION_ARCHIVED');await entitled(tx,bid);
+  const postedAt=original.method==='CASH'?(await lockCash(tx,bid,original.locationId,a.business.timezone)).at:new Date();
+  const entry=await tx.moneyEntry.create({data:{businessId:bid,locationId:original.locationId,kind:original.kind,sourceId:original.sourceId,reversalOfId:id,clientKey:input.clientKey,requestHash,method:original.method,amount:original.amount.negated(),currency:original.currency,reference:original.reference,reason:input.reason,actorId:ctx.user.id,actorName:ctx.user.name,createdAt:postedAt}});
+  await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'payment.reversed',targetId:id,changes:{reversalId:entry.id,reason:input.reason,amount:original.amount.toFixed(4),kind:original.kind}}});return {id:entry.id};
+ });}catch(e){if(retry&&(e as {code?:string}).code==='P2002')return this.reverse(ctx,bid,id,input,false);throw e;}}
  async cashTotals(tx:Tx,bid:string,locationId:string,day:string){
   // SQL uses the business timezone, including DST, and includes all cash sources.
   const rows=await tx.$queryRaw<{inflow:string;outflow:string}[]>`
    SELECT COALESCE(SUM(inflow),0)::text AS inflow,COALESCE(SUM(outflow),0)::text AS outflow FROM (
     SELECT p.amount AS inflow,0::numeric AS outflow FROM sale_payments p JOIN sales s ON s.id=p.sale_id AND s.business_id=p.business_id JOIN businesses b ON b.id=s.business_id WHERE s.business_id=${bid}::uuid AND s.location_id=${locationId}::uuid AND p.method='CASH' AND to_char(p.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
-    UNION ALL SELECT CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN e.amount ELSE 0 END,CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN 0 ELSE e.amount END FROM money_entries e JOIN businesses b ON b.id=e.business_id WHERE e.business_id=${bid}::uuid AND e.location_id=${locationId}::uuid AND e.method='CASH' AND to_char(e.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
+    UNION ALL SELECT GREATEST(CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN e.amount ELSE -e.amount END,0),GREATEST(CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN -e.amount ELSE e.amount END,0) FROM money_entries e JOIN businesses b ON b.id=e.business_id WHERE e.business_id=${bid}::uuid AND e.location_id=${locationId}::uuid AND e.method='CASH' AND to_char(e.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
    ) flows`;
   return {inflow:scaled(rows[0]!.inflow),outflow:scaled(rows[0]!.outflow)};
  }

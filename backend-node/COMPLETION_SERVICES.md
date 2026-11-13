@@ -80,9 +80,8 @@ first money entry or close, even without products.
 
 Opening cash is an explicit physical amount, not an automatically carried balance.
 No shifts, till hardware integration, split POS payments, bank settlement imports,
-expense approval queue or payment reversal workflow is included. Existing posted
-records should never be edited to correct a mistake; formal reversal functionality
-is a separate follow-up, not a hidden database change.
+or expense approval queue is included. Posted records cannot be edited.
+Audited payment reversals are now implemented; see the update below.
 
 ## 16 — dashboard and reports
 
@@ -293,3 +292,16 @@ The additive migration is applied to local staging, its API is restarted, and a 
 - `npm run test:browser:closing-reports`: real UI enable/save → cash close → automatic in-app report → disable → manual send → captured email and in-app content match. Arabic/English at 320/390/768/1024/1440, report detail, staff restrictions and email setup notice passed. Screenshots: `tmp/closing-reports-ui/`.
 - Read-only staging UI verification passed: `tmp/login-check/closing-reports.png`. No report preference was enabled on behalf of a real account.
 - Backend build/type checks and frontend production build passed; the pre-existing frontend bundle-size warning remains.
+
+
+## Audited payment and expense reversals — 2026-11-12
+
+Treasury and Expenses now expose **Reverse entry** for eligible entries, with a required reason and explicit confirmation. Owners and operations managers receive `payments.reverse` by default; other staff need a delegated permission, `payments.manage`, `payments.view`, and location access. Supplier entries additionally require cost visibility and purchasing management. The same live tenant, session and subscription checks apply server-side.
+
+`POST /api/businesses/:businessId/workflows/payments/:id/reverse` creates a full equal-and-opposite entry of the original kind, currency, method, location and source. Original rows remain immutable. A unique original-entry link prevents second reversals, and durable request keys make retries safe. A database trigger enforces exact matching and prevents reversing a reversal or linking across businesses. `payment.reversed` records the reason, original amount, actor and correction ID atomically.
+
+Corrections post today in the business timezone. Earlier cash closings and saved report snapshots remain unchanged; today's cash reversals count in the opposite cash-flow direction. Today's closed drawer rejects cash reversals, while noncash corrections remain possible. Business locking serializes reversals with closing. Negative ledger amounts naturally reconcile supplier/customer balances and recorded expenses/profit; reports and CSV include the original-entry link. The UI shows Posted/Reversed/Reversal, linked history, who/when/reason, and asks users to record a correct replacement separately. This only corrects recorded transactions; it does not initiate bank/card refunds. No partial reversal, reversal-of-reversal, backdating or reopening cash closings is exposed.
+
+Validation: all 238 integration tests passed; all 9 focused reversal tests passed after adding the final closing-race case. Real browser checks passed expense posting/reversal, response loss after commit and same-key retry, single correction/audit, cash totals, linked history, AR/EN at 320/390/768/1024/1440, keyboard containment and focus restoration. Backend typecheck/build and frontend production build passed (existing bundle-size advisory remains). Screenshots: `tmp/payment-reversals-ui/`; staging screen: `tmp/login-check/payments-after.png`. The pre-change Treasury screen was also captured and visually inspected during implementation.
+
+Migration `20261112140000_payment_reversals` is applied to isolated test and guarded local staging databases. Staging API restarted; no real business payment was reversed during verification.

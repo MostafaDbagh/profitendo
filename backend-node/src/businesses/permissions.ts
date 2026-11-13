@@ -11,6 +11,7 @@ export const PERMISSIONS = {
   'counts.create': { ownerOnly: false },
   'counts.approve': { ownerOnly: false },
   'payments.view': { ownerOnly: false },
+  'payments.reverse': { ownerOnly: false },
   'payments.manage': { ownerOnly: false },
   'cash.close': { ownerOnly: false },
   'reports.deliver': { ownerOnly: false },
@@ -62,7 +63,7 @@ export const permissionKeys = Object.keys(PERMISSIONS) as Permission[];
 export const staffRoles = ['OPERATIONS_MANAGER', 'WAREHOUSE_STAFF', 'SHOP_MANAGER', 'CASHIER', 'VIEWER'] as const;
 export const ROLE_DEFAULTS: Record<MembershipRole, readonly Permission[]> = {
   OWNER: permissionKeys,
-  OPERATIONS_MANAGER: ['reports.deliver','returns.view','returns.create','returns.approve','counts.view','counts.create','counts.approve','payments.view','payments.manage','cash.close','reports.view','sales.view','sales.create','sales.discount','sales.manage','transfers.view','transfers.create','transfers.dispatch','transfers.receive','transfers.resolve','inventory.view','suppliers.view','suppliers.manage','purchasing.view','purchasing.manage','receiving.create','receiving.confirm','business.view', 'team.view', 'roles.view', 'audit.view', 'locations.view', 'locations.all', 'catalogue.view', 'catalogue.manage', 'catalogue.cost'],
+  OPERATIONS_MANAGER: ['payments.reverse','reports.deliver','returns.view','returns.create','returns.approve','counts.view','counts.create','counts.approve','payments.view','payments.manage','cash.close','reports.view','sales.view','sales.create','sales.discount','sales.manage','transfers.view','transfers.create','transfers.dispatch','transfers.receive','transfers.resolve','inventory.view','suppliers.view','suppliers.manage','purchasing.view','purchasing.manage','receiving.create','receiving.confirm','business.view', 'team.view', 'roles.view', 'audit.view', 'locations.view', 'locations.all', 'catalogue.view', 'catalogue.manage', 'catalogue.cost'],
   WAREHOUSE_STAFF: ['returns.view','returns.create','counts.view','counts.create','transfers.view','transfers.create','transfers.dispatch','transfers.receive','inventory.view','suppliers.view','purchasing.view','receiving.create','business.view', 'locations.view', 'catalogue.view'],
   SHOP_MANAGER: ['returns.view','returns.create','returns.approve','counts.view','counts.create','counts.approve','payments.view','payments.manage','cash.close','reports.view','sales.view','sales.create','sales.discount','sales.manage','transfers.view','transfers.create','transfers.dispatch','transfers.receive','inventory.view','suppliers.view','purchasing.view','receiving.create','business.view', 'locations.view', 'catalogue.view'],
   CASHIER: ['returns.view','returns.create','sales.view','sales.create','business.view', 'locations.view', 'catalogue.view'],

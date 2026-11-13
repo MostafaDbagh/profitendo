@@ -591,3 +591,8 @@ states verified in AR/EN at five widths: `tmp/transfer-loss-report`.
 ### Closing reports controls, 2026-11-12
 
 The report-delivery controls live in a collapsible white panel within the existing reports page. Reuse the shared emerald `Switch`, checked report options, `Select`, feedback and modal components. The switch is direction-isolated to keep its thumb inside the track in RTL; report content retains its selected delivery language in both app and email. Keep gross and estimated net profit labels distinct. SMTP-unconfigured status is visible and must not be presented as successful email delivery. Screenshots: `tmp/closing-reports-ui/`.
+
+
+### Payment reversal controls, 2026-11-12
+
+Treasury/Expenses retain the existing table and shared Modal/Field/Feedback controls. Added status and action columns, a reason/confirmation dialog, and linked original/reversal details. Emerald action styling, slate history panels and bilingual labels match existing screens. Mixed-direction actor names, timestamps and IDs use `bdi`. Mobile tables scroll inside the existing table container; dialogs tested at 320–1440px in Arabic/English with keyboard focus restoration. Screenshots: `tmp/payment-reversals-ui/`.

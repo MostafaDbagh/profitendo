@@ -800,6 +800,9 @@ model MoneyEntry {
  actorName String @map("actor_name")
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
  location Location @relation(fields:[businessId,locationId],references:[businessId,id],onDelete:Restrict)
+ reversalOfId String? @unique @map("reversal_of_id") @db.Uuid
+ reversalOf MoneyEntry? @relation("MoneyReversal",fields:[reversalOfId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+ reversedBy MoneyEntry? @relation("MoneyReversal")
  @@unique([businessId,clientKey])
  @@index([businessId,locationId,createdAt])
  @@index([businessId,sourceId,kind])

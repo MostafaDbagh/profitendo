@@ -8,7 +8,7 @@ import {fail} from './shared.js';
 import {WorkflowService} from './service.js';
 import {adjustmentSchema,adjustmentAction,kinds} from './contracts.js';
 import {FinanceService} from '../finance/service.js';
-import {paymentSchema,closeSchema} from '../finance/contracts.js';
+import {paymentSchema,closeSchema,reversalSchema} from '../finance/contracts.js';
 import {ReportService} from '../reports/service.js';
 import {MigrationService,previewSchema} from '../migration/service.js';
 export function completionRouter(auth:AuthService){
@@ -30,6 +30,7 @@ export function completionRouter(auth:AuthService){
  r.post('/adjustments/:id/status',validateBody(adjustmentAction),async(req,res)=>res.json(await workflow.transition(ctx(res),bid(req),id(req),req.body)));
  r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional(),kind:z.literal('EXPENSE').optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId,q.kind));});
  r.post('/payments',validateBody(paymentSchema),async(req,res)=>res.status(201).json(await finance.create(ctx(res),bid(req),req.body)));
+ r.post('/payments/:id/reverse',validateBody(reversalSchema),async(req,res)=>res.status(201).json(await finance.reverse(ctx(res),bid(req),id(req),req.body)));
  r.get('/balances/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['SUPPLIER','CUSTOMER'])}).strict(),req.query);res.json(await finance.balance(ctx(res),bid(req),q.kind,id(req)));});
  r.get('/cash',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),day:z.iso.date()}).strict(),req.query);res.json(await finance.cash(ctx(res),bid(req),q.locationId,q.day));});
  r.post('/cash',validateBody(closeSchema),async(req,res)=>res.json(await finance.close(ctx(res),bid(req),req.body)));
