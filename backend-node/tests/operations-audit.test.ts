@@ -195,3 +195,36 @@ it('snapshots transit-loss cost, scopes it to the source, hides costs from staff
  const historical=await get(path);expect(historical.body.estimatedProfit).toBeNull();expect(historical.body.unvaluedTransferLosses).toBe(1);expect(historical.body.sales).toBe(after.body.sales);
  expect((await get(`${path}&locationId=${destination}`)).body.estimatedProfit).toBe(destinationBefore.body.estimatedProfit);
 });
+
+it.each([['0.005','0.0200'],['0.3333','1.0000']])('fully restocking split returns exactly reverses rounded cost %s',async(unitCost,expectedCost)=>{
+ const location=await db.location.create({data:{businessId:business,code:`COST-${randomUUID().slice(0,6).toUpperCase()}`,name:'Cost rounding audit',kind:'SHOP'}});
+ const p=await funded('3');await db.product.update({where:{id:p},data:{purchasePrice:unitCost,sellingPrice:'1'}});
+ await auth.transaction(tx=>postStock(tx,{businessId:business,locationId:location.id,productId:p,delta:'3',type:'TEST_OPENING',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'cost audit',actorId:owner.user.id,notes:''}));
+ const draft=await api('/sales',{clientKey:randomUUID(),locationId:location.id,lines:[{productId:p,quantity:'3'}]});expect(draft.status,draft.text).toBe(201);
+ const sale=await api(`/sales/${draft.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:draft.body.total,payment:{method:'CARD',received:draft.body.total,reference:'Cost audit'},confirm:true});expect(sale.status,sale.text).toBe(200);
+ const day=new Date().toISOString().slice(0,10),path=`/reports?from=${day}&to=${day}&locationId=${location.id}`;
+ expect((await get(path)).body.estimatedCost).toBe(expectedCost);
+ const returnedAt:Date[]=[];
+ for(let i=0;i<3;i++){const d=await adjustment('CUSTOMER_RETURN',[{productId:p,sourceLineId:sale.body.lines[0].id,quantity:'1',condition:'RESTOCK'}],{locationId:location.id,sourceId:sale.body.id});const result=await approve(d);expect(result.status,result.text).toBe(200);returnedAt.push(new Date(result.body.completedAt));}
+ const summary=(await get(path)).body;expect(summary.estimatedCost).toBe('0.0000');expect(summary.grossProfit).toBe('0.0000');expect(summary.estimatedProfit).toBe('0.0000');
+ const {summaryTotals}=await import('../src/reports/service.js');
+ const first=await auth.transaction(tx=>summaryTotals(tx,business,{gte:new Date(0),lt:returnedAt[1]!},{locationId:location.id},2));
+ const later=await auth.transaction(tx=>summaryTotals(tx,business,{gte:returnedAt[1]!,lt:new Date(Date.now()+1000)},{locationId:location.id},2));
+ expect(Number(first.estimatedCost)+Number(later.estimatedCost)).toBe(0);
+ expect(later.estimatedCost).toBe(unitCost==='0.005'?'-0.0100':'-0.6700');
+
+});
+
+it('keeps damaged return cost while allocating the restocked remainder across report ranges',async()=>{
+ const location=await db.location.create({data:{businessId:business,code:`MIX-${randomUUID().slice(0,6).toUpperCase()}`,name:'Mixed return cost audit',kind:'SHOP'}});
+ const p=await funded('3');await db.product.update({where:{id:p},data:{purchasePrice:'0.3333',sellingPrice:'1'}});
+ await auth.transaction(tx=>postStock(tx,{businessId:business,locationId:location.id,productId:p,delta:'3',type:'TEST_OPENING',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'mixed audit',actorId:owner.user.id,notes:''}));
+ const draft=await api('/sales',{clientKey:randomUUID(),locationId:location.id,lines:[{productId:p,quantity:'3'}]});expect(draft.status,draft.text).toBe(201);
+ const sale=await api(`/sales/${draft.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:draft.body.total,payment:{method:'CARD',received:draft.body.total,reference:'Mixed cost'},confirm:true});expect(sale.status,sale.text).toBe(200);
+ let boundary:Date|undefined;
+ for(const condition of ['DAMAGED','RESTOCK','RESTOCK']){const d=await adjustment('CUSTOMER_RETURN',[{productId:p,sourceLineId:sale.body.lines[0].id,quantity:'1',condition}],{locationId:location.id,sourceId:sale.body.id});const result=await approve(d);expect(result.status,result.text).toBe(200);if(condition==='RESTOCK'&&!boundary)boundary=new Date(result.body.completedAt);}
+ const {summaryTotals}=await import('../src/reports/service.js');
+ const all=await auth.transaction(tx=>summaryTotals(tx,business,{gte:new Date(0),lt:new Date(Date.now()+1000)},{locationId:location.id},2));
+ const later=await auth.transaction(tx=>summaryTotals(tx,business,{gte:boundary!,lt:new Date(Date.now()+1000)},{locationId:location.id},2));
+ expect(all.estimatedCost).toBe('0.3300');expect(all.grossProfit).toBe('-0.3300');expect(later.estimatedCost).toBe('-0.6700');
+});

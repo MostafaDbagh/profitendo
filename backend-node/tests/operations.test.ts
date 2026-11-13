@@ -174,6 +174,17 @@ it('uses approved order costs for cost-blind receiving and prevents order cancel
  expect((await write(`/purchases/${response.body.id}/status`,{revision:0,action:'cancel',confirm:true})).status).toBe(200);
  expect((await write(`/purchases/${order.id}/status`,{revision:order.revision,action:'cancel',confirm:true})).status).toBe(200);
 });
+it('preserves approved order prices when cost-blind staff add receipt lines during draft editing',async()=>{
+ const order=await submit(await draft({kind:'ORDER',lines:[{productId:product,quantity:'3',unitCost:'0.4321'},{productId:secondProduct,quantity:'3',unitCost:'0.9876'}]}));
+ const response=await write('/purchases',input({orderId:order.id,lines:[{productId:product,quantity:'1'}]}),staff);
+ expect(response.status,response.text).toBe(201);
+ const saved=await write(`/purchases/${response.body.id}`,{revision:0,documentDate:'2026-11-11',lines:[{productId:product,quantity:'2'},{productId:secondProduct,quantity:'1'}]},staff,'patch');
+ expect(saved.status,saved.text).toBe(200);expect(saved.text).not.toContain('unitCost');
+ const priced=(await get(`/purchases/${response.body.id}`)).body;
+ expect(priced.lines.find((l:{productId:string})=>l.productId===product).unitCost).toBe('0.4321');
+ expect(priced.lines.find((l:{productId:string})=>l.productId===secondProduct).unitCost).toBe('0.9876');
+ expect(priced.totalValue).toBe('1.85180000');
+});
 it('blocks archive with stock or open documents, and rechecks supplier, location access and entitlement at posting',async()=>{
  const pending=await submit(await draft());
  const archive=await request(app).patch(`/api/businesses/${business}/locations/${location}`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:0,active:false});

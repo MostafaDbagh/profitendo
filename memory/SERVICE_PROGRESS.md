@@ -570,3 +570,43 @@ Latest user requirement overrides earlier mandatory-owner-MFA notes: authenticat
 Implemented encrypted/keyed five-minute email and phone verification challenges, five-attempt limits, resend invalidation, per-IP/account/number quotas, one verified phone per account, MsgPlus SMS outbox/worker, and a one-time bilingual welcome email after owner verification (or staff invitation acceptance). No Jawlaha credentials copied. SMTP is shared by verification, welcome, auth links/invitations and closing reports. Real SMTP/MsgPlus keys, approved sender/template and actual delivery remain external setup gates. See `backend-node/SERVICES_SETUP.md` for exact environment fields and startup/check commands. Migration 20261113110000_owner_verification applied to test and local staging. 38 unit/HTTP tests, 244 integration tests and generated-code browser onboarding passed.
 
 Latest correction, 13 November 2026: MFA enrollment is optional for EVERY role, including SUPER_ADMIN. Enrolled accounts still complete MFA at login; all roles can disable it with password and a valid authenticator code. Earlier mandatory-platform-MFA notes are superseded. Email/phone verification rules are unchanged.
+
+## Five-specialist journey audit — 13 November 2026
+
+Five AI reviewers covered accounting, purchasing/inventory, sales/returns,
+closing/report delivery, and authentication/isolation/subscriptions. They were not
+human accountants and this is not accounting certification.
+
+Confirmed fixes:
+- Editing an order-linked receipt now inherits the approved order price for newly
+  added lines rather than silently using catalogue cost. Existing snapshots and
+  explicitly authorized cost edits are preserved. Failing-then-passing regression
+  in operations.test.ts.
+- Partial restock returns now cumulatively allocate the original rounded sale-line
+  cost; previously repeated partial returns could invent or lose a cent of profit.
+  Regressions cover both rounding directions, report-range additivity and mixed
+  damaged/restocked returns in operations-audit.test.ts.
+- Public copy was checked against the active B2B app. Credit sales and automatic
+  double-entry financial statements are not supported by its current Node routes;
+  those legacy marketing promises were replaced with supported operations.
+
+Final backend regression: 251 integration tests across 20 files and 38 unit/HTTP
+checks across 7 files passed. Typechecks and frontend production build passed.
+Chrome full journey: account/email verification, optional TOTP, trial, warehouse/
+shop, cashier invitation/assignment, products, receiving, transfers, sale, customer
+return, count/damage, payments/expenses, cash close and report CSV. Reconciled $29
+sale, $3 refund, $15 expense, $111 closing cash, 192 stock units, $520 supplier balance.
+AR/EN report screens at 320/390/768/1024/1440 passed. Evidence: tmp/full-business-journey.
+Recovery browser tests proved committed import/sale retries after response loss and
+API restart do not duplicate product/payment/stock writes (tmp/recovery-ui).
+Closing reports and required email/Syrian-phone onboarding passed independent Chrome
+checks at five widths in both languages (tmp/five-audit-closing-reports and
+ tmp/five-audit-contact-onboarding). Harnesses updated for current local ports and
+registration phone; return selection now uses product identity, not unstable row order.
+
+Limits: SMTP/SMS captured locally; PayPal simulated, no live settlement tested.
+SMTP acceptance followed by worker crash can duplicate notification email; it does
+not duplicate financial transactions. A broad purchasing UI pass timed out during
+final navigation; fresh supported quick UI pass succeeded. Existing pg concurrent-
+query deprecation warnings remain. Do not describe this audit as proving flawless
+software or production payment readiness.

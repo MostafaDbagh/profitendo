@@ -2,6 +2,7 @@ import type {Prisma} from '../generated/prisma/client.js';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
 import {requireLocation} from '../locations/access.js';
 import {locationScope,fail} from '../workflows/shared.js';
+import {credit} from '../workflows/service.js';
 import {fixed,scaled} from '../operations/decimal.js';
 import {currencyDigits,lineGross} from '../sales/money.js';
 export type ReportQuery={from:string;to:string;locationId?:string;view:'summary'|'stock'|'sales'|'purchases'|'returns'|'payments'|'balances'|'refunds';page:number;lowStock:boolean;export:boolean};
@@ -76,7 +77,7 @@ export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},sc
    if([sales,returns,entries,losses].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
-   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.filter(l=>l.condition==='RESTOCK').reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
+   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=await recoveredReturnCost(tx,bid,returns.filter(d=>d.kind==='CUSTOMER_RETURN').flatMap(d=>d.lines),digits),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
    const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
     const delta=scaled(l.delta.toFixed(4));
     const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
@@ -86,4 +87,29 @@ export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},sc
    const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
    const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
  return {saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),netTax:fixed(collectedTax-returnedTax),expenses:fixed(expenses),zeroStockProducts:low,grossProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost),estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)};
+}
+
+
+// Allocate the original rounded sale-line cost cumulatively, just like refund
+// credits. Rounding every partial return independently invents or loses cents.
+// Include earlier returns and damaged quantities so date-filtered reports remain
+// additive and never recover more than the original cost.
+async function recoveredReturnCost(tx:Tx,bid:string,current:Prisma.AdjustmentLineGetPayload<{}>[],digits:number){
+ const sourceIds=[...new Set(current.flatMap(l=>l.sourceLineId?[l.sourceLineId]:[]))];
+ if(!sourceIds.length)return 0n;
+ const sources=await tx.saleLine.findMany({where:{businessId:bid,id:{in:sourceIds}}});
+ const sourceById=new Map(sources.map(l=>[l.id,l]));
+ const history=await tx.adjustmentLine.findMany({where:{businessId:bid,sourceLineId:{in:sourceIds},document:{kind:'CUSTOMER_RETURN',status:'COMPLETED'}},orderBy:[{document:{completedAt:'asc'}},{id:'asc'}],take:10001});
+ if(history.length>10000)fail('REPORT_TOO_LARGE',422);
+ const selected=new Set(current.filter(l=>l.condition==='RESTOCK').map(l=>l.id));
+ const cumulative=new Map<string,{quantity:bigint;cost:bigint}>();let recovered=0n;
+ for(const line of history){
+  const source=sourceById.get(line.sourceLineId!);if(!source)fail('NOT_FOUND',404);
+  const before=cumulative.get(source.id)??{quantity:0n,cost:0n},quantity=scaled(line.quantity.toFixed(4));
+  const total=lineGross(source.baseQuantity.toFixed(4),source.unitCost.toFixed(4),digits);
+  const amount=scaled(credit(total,source.baseQuantity.toFixed(4),before.quantity,before.cost,quantity,digits));
+  cumulative.set(source.id,{quantity:before.quantity+quantity,cost:before.cost+amount});
+  if(selected.has(line.id))recovered+=amount;
+ }
+ return recovered;
 }

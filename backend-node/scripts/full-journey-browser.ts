@@ -10,7 +10,7 @@ import { readAuthSettings } from '../src/auth/settings.js';
 import { decrypt, totp } from '../src/auth/crypto.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
-const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3300'}),db=createDatabase(url),auth=new AuthService(db,settings);
+const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3200'}),db=createDatabase(url),auth=new AuthService(db,settings);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
 const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4301,'localhost',()=>resolve(s));s.on('error',reject);});
 const browser=await chromium.launch({channel:'chrome',headless:true}),ids:string[]=[],bids:string[]=[],errors:string[]=[],artifacts='../tmp/full-business-journey';await mkdir(artifacts,{recursive:true});
@@ -23,7 +23,7 @@ async function shot(page:Page,name:string){
 }
 async function newPage(){
  const context=await browser.newContext({viewport:{width:1440,height:1100}});
- await context.route('http://localhost:4300/api/**',async route=>{const u=new URL(route.request().url());const response=await route.fetch({url:`http://localhost:4301${u.pathname}${u.search}`});await route.fulfill({response});});
+ await context.route('http://localhost:4200/api/**',async route=>{const u=new URL(route.request().url());const response=await route.fetch({url:`http://localhost:4301${u.pathname}${u.search}`});await route.fulfill({response});});
  const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});return page;
 }
@@ -45,7 +45,7 @@ try{
  const page=await newPage();primaryPage=page;
  await page.goto(settings.appOrigin+'/auth-v2');
  await page.getByRole('button',{name:'Create a business account',exact:true}).click();
- for(const [id,value] of Object.entries({name:'Journey Owner',businessName:'Journey Grocery',email,password:pass,confirmPassword:pass}))await page.locator(`#v2-${id}`).fill(value);
+ for(const [id,value] of Object.entries({name:'Journey Owner',businessName:'Journey Grocery','register-phone':'944123456',email,password:pass,confirmPassword:pass}))await page.locator(`#v2-${id}`).fill(value);
  await page.getByRole('button',{name:'Create business account',exact:true}).click();await page.getByRole('status').filter({hasText:'If eligible'}).waitFor();
  const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
  const membership=await db.membership.findFirstOrThrow({where:{userId:user.id}});bids.push(membership.businessId);const business=await db.business.findUniqueOrThrow({where:{id:membership.businessId}});
@@ -97,7 +97,7 @@ try{
  const sale=await db.sale.findFirstOrThrow({where:{businessId:business.id}});assert.equal(sale.total.toFixed(2),'29.00');assert.equal((await db.salePayment.findFirstOrThrow({where:{saleId:sale.id}})).change.toFixed(2),'21.00');await shot(page,'04-sale-receipt');log('Sold basket for $29; $50 cash yields $21 change');
  await section(page,'Returns');await page.getByRole('button',{name:'New record',exact:true}).click();await choose(page,'Choose location','Grocery neighbourhood shop');await choose(page,'Choose original document',sale.reference);
  // Return quantities default to blank. Return only one milk.
- await page.locator('#adjust-quantity-1').fill('1');await page.locator('#adjust-reason').fill('Customer returned one unopened milk bottle');await page.getByRole('button',{name:'Save draft',exact:true}).click();await action(page,'Approve & post');await page.getByRole('heading',{name:/Completed$/}).waitFor();log('Customer return restores one sellable milk bottle');
+ await page.getByRole('heading',{name:/Fresh milk 1 litre/}).locator('..').locator('input[id^="adjust-quantity-"]').fill('1');await page.locator('#adjust-reason').fill('Customer returned one unopened milk bottle');await page.getByRole('button',{name:'Save draft',exact:true}).click();await action(page,'Approve & post');await page.getByRole('heading',{name:/Completed$/}).waitFor();log('Customer return restores one sellable milk bottle');
  for(const [kind,product,quantity] of [['DAMAGE','Fresh milk','2'],['COUNT','Basmati rice','79']] as const){
   await section(page,'Counts & damage');await page.locator('#adjust-kind').selectOption(kind);await page.getByRole('button',{name:'New record',exact:true}).click();await choose(page,'Choose location','Grocery main warehouse');await choose(page,'Find products',product);await page.locator('#adjust-quantity-0').fill(quantity);await page.locator('#adjust-reason').fill(kind==='DAMAGE'?'Two milk bottles damaged during warehouse handling':'Physical rice count found one missing unit');await page.getByRole('button',{name:'Save draft',exact:true}).click();await action(page,'Approve & post');await page.getByRole('heading',{name:/Completed$/}).waitFor();await page.getByRole('button',{name:'Close',exact:true}).click();
  }
@@ -117,6 +117,7 @@ try{
 }catch(error){if(primaryPage){await primaryPage.screenshot({path:`${artifacts}/failure.png`,fullPage:true}).catch(()=>{});console.error((await primaryPage.locator('body').innerText()).slice(-5000));}throw error;}
 
 finally{
+ for(const context of browser.contexts())await context.unrouteAll({behavior:'ignoreErrors'});
  await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));
  await db.$transaction(async tx=>{
   const triggers=[['transfer_event_lines','transfer_event_lines_immutable'],['transfer_events','transfer_events_immutable'],['stock_movements','stock_history_immutable'],['adjustments','adjustment_immutable'],['adjustment_lines','adjustment_lines_immutable'],['money_entries','money_entries_immutable'],['cash_closes','cash_closes_immutable'],['sale_payments','sale_payments_immutable'],['sale_lines','completed_sale_lines_immutable'],['sales','completed_sale_immutable']];for(const [table,trigger] of triggers)await tx.$executeRawUnsafe(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`);

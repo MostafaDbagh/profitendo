@@ -16,7 +16,7 @@ import {postStock} from '../src/operations/inventory.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
 const key=process.env.RECOVERY_KEY||randomBytes(32).toString('hex');
-const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:key,APP_ORIGIN:'http://localhost:3300'});
+const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:key,APP_ORIGIN:'http://localhost:3200'});
 const db=createDatabase(url),auth=new AuthService(db,settings);
 if(process.env.RECOVERY_CHILD==='true'){
  const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
@@ -40,10 +40,10 @@ if(process.env.RECOVERY_CHILD==='true'){
   uid=randomUUID();const user=await db.authUser.create({data:{id:uid,name:'Recovery tester',email:`${uid}@example.test`,emailVerifiedAt:new Date(),passwordHash:await passwordHash('Recovery browser password 914!'),mfaSecret:encrypt(settings.key,'JBSWY3DPEHPK3PXP',`mfa:${uid}`)}});
   await db.membership.create({data:{businessId:bid,userId:uid,role:'OWNER'}});
   const session=await auth.transaction(tx=>auth.makeSession(tx,user,true));
-  const context=await browser.newContext({viewport:{width:390,height:844}});await context.addCookies([{name:settings.cookieName,value:session.token,url:'http://localhost:4300',httpOnly:true,sameSite:'Lax'}]);
+  const context=await browser.newContext({viewport:{width:390,height:844}});await context.addCookies([{name:settings.cookieName,value:session.token,url:'http://localhost:4200',httpOnly:true,sameSite:'Lax'}]);
   let failure:'none'|'preview-before'|'commit-after'|'checkout-after'='none';
   let commitId='',checkoutKey='';
-  await context.route('http://localhost:4300/api/**',async route=>{
+  await context.route('http://localhost:4200/api/**',async route=>{
    const u=new URL(route.request().url());
    if(failure==='preview-before'&&u.pathname.endsWith('/preview')){failure='none';await route.abort('connectionfailed');return;}
    let response;try{response=await route.fetch({url:`http://localhost:4302${u.pathname}${u.search}`,maxRetries:0,timeout:5000});}catch{await route.abort('connectionfailed');return;}

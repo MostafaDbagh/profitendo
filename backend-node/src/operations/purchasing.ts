@@ -109,7 +109,13 @@ export class PurchasingService{
    if(doc.status!=='DRAFT')throw stateError();
    await entitled(tx,businessId);
    const lines=await this.lines(tx,businessId,input.lines,access.permissions['catalogue.cost'],doc);
-   await this.order(tx,businessId,doc.orderId,doc.supplierId,doc.locationId,lines);
+   const order=await this.order(tx,businessId,doc.orderId,doc.supplierId,doc.locationId,lines);
+   // Newly added receipt lines inherit the approved order price, just as on
+   // creation. Preserve existing receipt snapshots and explicit authorized edits.
+   if(order)for(const line of lines){
+    if(!doc.lines.some(old=>old.productId===line.productId)&&input.lines.find(l=>l.productId===line.productId)?.unitCost===undefined)
+     line.unitCost=order.lines.find(l=>l.productId===line.productId)!.unitCost.toFixed(4);
+   }
    const changed=await tx.purchaseDocument.updateMany({where:{id,businessId,revision:input.revision,status:'DRAFT'},data:{documentDate:new Date(input.documentDate),notes:input.notes,supplierReference:input.supplierReference,revision:{increment:1}}});
    if(!changed.count)throw conflict();
    await tx.purchaseLine.deleteMany({where:{businessId,documentId:id}});
