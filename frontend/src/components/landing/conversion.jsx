@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, ChevronDown, ShieldCheck, Lock, Users, BookOpenCheck, HardDriveDownload, CreditCard, MessageCircle, Mail } from "lucide-react";
+import { Check, ChevronDown, ShieldCheck, Lock, Users, BookOpenCheck, CreditCard, MessageCircle, Mail } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { REGISTER_URL } from "./chrome";
 
@@ -83,7 +83,7 @@ export function Pricing({ headingLevel = "h2" }) {
 export function Security() {
   const { t } = useLanguage();
   const items = [
-    ["lpSec1", Lock], ["lpSec2", Users], ["lpSec3", BookOpenCheck], ["lpSec4", HardDriveDownload], ["lpSec5", CreditCard],
+    ["lpSec1", Lock], ["lpSec2", Users], ["lpSec3", BookOpenCheck], ["lpSec4", Mail], ["lpSec5", CreditCard],
   ];
   return (
     <section className={sectionCls} data-testid="lp-security">
