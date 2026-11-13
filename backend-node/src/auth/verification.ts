@@ -5,6 +5,7 @@ import {ApiError} from '../errors.js';
 import {emailConfigured} from './mail-settings.js';
 import {normalizePhone,smsConfigured} from './sms-settings.js';
 import {queueWelcome} from './welcome.js';
+import {verificationEmail} from './verification-email.js';
 const invalid=()=>new ApiError(400,'INVALID_OTP','The code is incorrect or expired');
 export class ContactVerification{
  constructor(readonly auth:AuthService){}
@@ -33,8 +34,7 @@ export class ContactVerification{
    if(!this.auth.settings.mockOtp){
     const messageId=randomUUID();
     if(channel==='EMAIL'){
-     const ar=user.language==='ar',subject=ar?'رمز التحقق من بريدك في ProfitLens':'Your ProfitLens email verification code';
-     await tx.authMail.create({data:{id:messageId,payload:encrypt(this.auth.settings.key,JSON.stringify({verificationId:id,to:destination,subject,text:`${subject}\n\n${code}\n\n${ar?'صالح لمدة 5 دقائق. لا تشارك الرمز مع أي شخص.':'Valid for 5 minutes. Do not share this code.'}`}),`mail:${messageId}`)}});
+     await tx.authMail.create({data:{id:messageId,payload:encrypt(this.auth.settings.key,JSON.stringify({verificationId:id,to:destination,...verificationEmail(user.language,code)}),`mail:${messageId}`)}});
     }else await tx.smsOutbox.create({data:{id:messageId,challengeId:id,payload:encrypt(this.auth.settings.key,JSON.stringify({phone:destination,code,name:user.name}),`sms:${messageId}`)}});
    }
    await this.auth.audit(tx,`${channel.toLowerCase()}_code.requested`,userId);
