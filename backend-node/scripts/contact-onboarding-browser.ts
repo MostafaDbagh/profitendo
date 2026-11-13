@@ -1,0 +1,39 @@
+import {chromium} from 'playwright';
+import {randomBytes,randomUUID,randomInt} from 'node:crypto';
+import {mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {pino} from 'pino';
+import {createDatabase} from '../src/database.js';
+import {createApp} from '../src/app.js';
+import {AuthService} from '../src/auth/service.js';
+import {readAuthSettings} from '../src/auth/settings.js';
+import {decrypt} from '../src/auth/crypto.js';
+import {deliverSmsBatch} from '../src/auth/sms.js';
+import {deliverMailBatch} from '../src/auth/mail.js';
+const url=process.env.TEST_DATABASE_URL;if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Test database required');
+Object.assign(process.env,{SMTP_HOST:'smtp.example.test',SMTP_PORT:'587',SMTP_USER:'test',SMTP_PASSWORD:'test',MAIL_FROM:'hello@example.test',MSGPLUS_API_KEY:'test',MSGPLUS_SENDER_NAME:'ProfitLens',MSGPLUS_TEMPLATE_ID:'1'});
+const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3300',AUTH_OWNER_PHONE_REQUIRED:'true',AUTH_EMAIL_VERIFICATION:'otp'}),db=createDatabase(url),auth=new AuthService(db,settings),app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
+app.set('trust proxy','loopback');const testIp=`198.19.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
+const testPhone=`09${randomInt(10000000,99999999)}`;
+const server=await new Promise<ReturnType<typeof app.listen>>(resolve=>{const s=app.listen(4306,'localhost',()=>resolve(s));});
+const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}}),artifacts='../tmp/contact-onboarding-ui',email=`onboarding-${randomUUID()}@example.test`,password='Verified owner password 854!',mailIds:string[]=[],errors:string[]=[];await mkdir(artifacts,{recursive:true});
+page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);
+await page.route('http://localhost:4300/api/**',async route=>{const u=new URL(route.request().url());const r=await route.fetch({url:`http://localhost:4306${u.pathname}${u.search}`,headers:{...route.request().headers(),'X-Forwarded-For':testIp}});await route.fulfill({response:r});});
+await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});
+async function mail(){const result=[];for(const row of await db.authMail.findMany({where:{payload:{not:''}}})){try{const payload=JSON.parse(decrypt(settings.key,row.payload,`mail:${row.id}`));if(payload.to===email){if(!mailIds.includes(row.id))mailIds.push(row.id);result.push({row,payload});}}catch{}}return result;}
+async function shot(name:string){await page.evaluate(async()=>{await document.fonts.ready;window.scrollTo(0,0);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});assert.equal(await page.getByTestId('auth-v2-page').count()+await page.getByTestId('business-dashboard').count(),1);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`${artifacts}/${name}.png`,fullPage:true,animations:'disabled'});}
+async function submit(){await page.locator('[data-testid="auth-v2-form"] button[type="submit"]').click();}
+try{
+ await page.goto(settings.appOrigin+'/auth-v2');await page.getByRole('button',{name:'Create a business account',exact:true}).click();await page.locator('#v2-name').fill('Owner Onboarding');await page.locator('#v2-businessName').fill('Verified Market');await page.locator('#v2-email').fill(email);await page.locator('#v2-password').fill(password);await page.locator('#v2-confirmPassword').fill(password);await submit();await page.locator('#v2-code').waitFor();
+ const emailCode=(await mail()).find(m=>m.payload.verificationId)!.payload.text.match(/\b\d{6}\b/)[0];await shot('email-code');await page.locator('#v2-code').fill(emailCode);await submit();await page.locator('#v2-password').fill(password);await submit();await page.locator('#v2-phone').waitFor();
+ await page.goto(settings.appOrigin+'/business-v2');await page.locator('#v2-phone').waitFor();assert(page.url().includes('auth-v2'));
+ for(const lang of ['en','ar']){if(await page.evaluate(()=>document.documentElement.lang)!==lang)await page.getByRole('button',{name:lang==='ar'?'العربية':'English',exact:true}).click();for(const width of [320,390,768,1024,1440]){await page.setViewportSize({width,height:1000});await shot(`${lang}-${width}-phone`);}}
+ await page.getByRole('button',{name:'English',exact:true}).click();await page.locator('#v2-phone').fill('+971501234567');await page.getByRole('button',{name:'Send verification code',exact:true}).click();await page.getByRole('alert').waitFor();await page.locator('#v2-phone').fill(testPhone);await page.getByRole('button',{name:'Send verification code',exact:true}).click();await page.locator('#v2-code').waitFor();
+ const user=await db.authUser.findUniqueOrThrow({where:{email}}),row=await db.smsOutbox.findFirstOrThrow({where:{challenge:{userId:user.id}}});await db.smsOutbox.update({where:{id:row.id},data:{availableAt:new Date(0)}});const captured:any[]=[];await deliverSmsBatch(db,settings,async payload=>{captured.push(payload);},1);assert.equal(captured.length,1);assert.equal(captured[0].phone,'+963'+testPhone.slice(1));
+ for(const lang of ['en','ar']){if(await page.evaluate(()=>document.documentElement.lang)!==lang)await page.getByRole('button',{name:lang==='ar'?'العربية':'English',exact:true}).click();for(const width of [320,768,1440]){await page.setViewportSize({width,height:1000});await shot(`${lang}-${width}-sms-code`);}}
+ await page.getByRole('button',{name:'English',exact:true}).click();await page.locator('#v2-code').fill(captured[0].code==='000000'?'000001':'000000');await page.getByRole('button',{name:'Verify code',exact:true}).click();await page.getByRole('alert').waitFor();await page.locator('#v2-code').fill(captured[0].code);await page.getByRole('button',{name:'Verify code',exact:true}).click();await page.getByTestId('business-dashboard').waitFor();await shot('verified-owner-workspace');
+ const updated=await db.authUser.findUniqueOrThrow({where:{email}});assert(updated.emailVerifiedAt&&updated.phoneVerifiedAt);assert.equal(updated.mfaSecret,null);
+ const welcome=(await mail()).filter(m=>m.payload.subject==='Welcome to ProfitLens');assert.equal(welcome.length,1);await db.authMail.update({where:{id:welcome[0]!.row.id},data:{createdAt:new Date(0),availableAt:new Date(0)}});const sent:any[]=[];await deliverMailBatch(db,settings,async p=>{sent.push(p);},1);assert.equal(sent.length,1);assert(sent[0].text.includes('Verified Market'));assert(sent[0].text.includes('trial or subscription'));assert.deepEqual(errors,[]);
+ console.log('PASS: real generated email/SMS codes captured, owner gated until both verified, optional owner MFA, one welcome email, AR/EN responsive flow');
+}catch(e){console.error((await page.locator('body').innerText()).slice(-3500));await shot('failure').catch(()=>{});throw e;}
+finally{await mail();await browser.close();await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));const user=await db.authUser.findUnique({where:{email}});await db.authMail.deleteMany({where:{id:{in:mailIds}}});if(user){const m=await db.membership.findMany({where:{userId:user.id}});await db.authAudit.deleteMany({where:{userId:user.id}});await db.business.deleteMany({where:{id:{in:m.map(x=>x.businessId)}}});await db.authUser.delete({where:{id:user.id}});}await db.$disconnect();}

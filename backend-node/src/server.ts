@@ -1,3 +1,5 @@
+import {readSmsSettings} from './auth/sms-settings.js';
+import {readMailSettings} from './auth/mail-settings.js';
 import { checkSeedEnvironment } from './staging/guard.js';
 import { checkoutConfiguration } from './billing/paypal/launch.js';
 import 'dotenv/config';
@@ -11,6 +13,8 @@ import { PayPalClient } from './billing/paypal/client.js';
 import { createApp } from './app.js';
 const config = readConfig(process.env);
 const authSettings = readAuthSettings(process.env);
+readMailSettings(process.env);
+readSmsSettings(process.env);
 const paypalSettings = readPayPalSettings(process.env);
 if(checkoutConfiguration().enabled&&!paypalSettings)throw new Error("Checkout requires provider configuration");
 if (!config.CORS_ORIGINS.includes(authSettings.appOrigin)) throw new Error('APP_ORIGIN must be included in CORS_ORIGINS');

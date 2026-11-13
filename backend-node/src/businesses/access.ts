@@ -14,6 +14,7 @@ export async function requireBusiness(auth: AuthService, tx: Tx, ctx: AuthContex
   if (!membership || membership.disabledAt || membership.business.suspendedAt) {
     throw new ApiError(403, 'FORBIDDEN', 'Business access is not available');
   }
+  if(membership.role==='OWNER'&&auth.settings.ownerPhoneRequired&&!user.phoneVerifiedAt)throw new ApiError(403,'PHONE_UNVERIFIED','Verify your phone first');
   const permissions = effectivePermissions(membership.role, membership.permissionOverrides);
   if (!permissions['business.view'] || !permissions[permission]) throw new ApiError(403, 'FORBIDDEN', 'You do not have permission for this action');
   return { user, session, membership, business: membership.business, permissions };

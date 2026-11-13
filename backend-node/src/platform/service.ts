@@ -5,7 +5,7 @@ export type StatusChange = { revision: number; active: boolean; reason: string }
 export async function requirePlatform(auth: AuthService, tx: Tx, ctx: AuthContext) {
   const current = await auth.assertSession(tx, ctx);
   if (current.user.platformRole !== 'SUPER_ADMIN') throw new ApiError(403, 'PLATFORM_FORBIDDEN', 'Platform administrator access required');
-  if (!current.user.mfaSecret || !current.session.mfaVerified) throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
+  if (current.user.mfaSecret && !current.session.mfaVerified) throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
   return current;
 }
 const conflict = () => new ApiError(409, 'REVISION_CONFLICT', 'This record changed. Reload before saving');

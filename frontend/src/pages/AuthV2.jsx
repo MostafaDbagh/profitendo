@@ -1,3 +1,4 @@
+import PhoneVerification from '../components/auth-v2/PhoneVerification';
 import OtpField from '../components/auth-v2/OtpField';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,6 +12,7 @@ export default function AuthV2() {
   const { lang, setLang, t } = useLanguage();
   const navigate=useNavigate();
   const c = (key) => authCopy[lang]?.[key] || authCopy.en[key] || authCopy[lang].failed;
+  const [emailOtp,setEmailOtp]=useState(false);
   const [mockOtp,setMockOtp]=useState(false),[emailChallenge,setEmailChallenge]=useState(null),[recoveryMode,setRecoveryMode]=useState(false),[resendAt,setResendAt]=useState(0),[now,setNow]=useState(Date.now());
   const [initial] = useState(() => new URLSearchParams(window.location.hash.slice(1)));
   const [mode, setMode] = useState(() => ['verify', 'reset', 'invite'].includes(initial.get('action')) ? initial.get('action') : 'login');
@@ -52,7 +54,7 @@ export default function AuthV2() {
     window.addEventListener('hashchange', receiveLink);
     let active = true;
     setChecking(true); setInitialFailed(false); setError('');
-    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setSession(data);}}).catch(err=>{if(active){setError(err.message);setInitialFailed(true);}}).finally(()=>{if(active)setChecking(false);});
+    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setEmailOtp(config.emailOtp);setSession(data);}}).catch(err=>{if(active){setError(err.message);setInitialFailed(true);}}).finally(()=>{if(active)setChecking(false);});
     return () => { active = false; window.removeEventListener('hashchange', receiveLink); };
   }, [call, checkAttempt]);
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
@@ -66,10 +68,10 @@ export default function AuthV2() {
     catch (e) { setError(e.message); if (e.message === 'SESSION_EXPIRED' || e.message === 'UNAUTHENTICATED') clear(); }
     finally { setBusy(false); }
   };
-  async function startEmailCode(purpose){const data=await call('/mock-code/request',{email:form.email,purpose});setEmailChallenge({...data,purpose});setResendAt(Date.now()+30000);setNow(Date.now());setMode('emailCode');setForm(f=>({...f,code:'',password:'',confirmPassword:''}));}
+  async function startEmailCode(purpose){const realVerify=emailOtp&&purpose==='VERIFY_EMAIL';const data=await call(realVerify?'/email-code/request':'/mock-code/request',realVerify?{email:form.email}:{email:form.email,purpose});setEmailChallenge({...data,purpose,realVerify});setResendAt(Date.now()+30000);setNow(Date.now());setMode('emailCode');setForm(f=>({...f,code:'',password:'',confirmPassword:''}));}
   const submit = e => { e.preventDefault(); run(async () => {
     if(['register','reset'].includes(mode)&&form.password!==form.confirmPassword)throw new Error('PASSWORD_MISMATCH');
-    if(mode==='emailCode'){const data=await call('/mock-code/confirm',{challenge:emailChallenge.challenge,purpose:emailChallenge.purpose,code:form.code});setEmailChallenge(null);setForm(f=>({...f,code:''}));if(data.resetToken){linkToken.current=data.resetToken;setMode('reset');}else{setMode('login');setNotice('verified');}}
+    if(mode==='emailCode'){const data=await call(emailChallenge.realVerify?'/email-code/confirm':'/mock-code/confirm',{challenge:emailChallenge.challenge,...(emailChallenge.realVerify?{}:{purpose:emailChallenge.purpose}),code:form.code});setEmailChallenge(null);setForm(f=>({...f,code:''}));if(data.resetToken){linkToken.current=data.resetToken;setMode('reset');}else{setMode('login');setNotice('verified');}}
     else if (mode === 'verify') { await call('/verification/confirm', { token: linkToken.current }); linkToken.current = ''; setMode('login'); setNotice('verified'); }
     else if (mode === 'reset') { await call('/reset-password', { token: linkToken.current, password: form.password }); linkToken.current = ''; clear(); setNotice('resetDone'); }
     else if (mode === 'invite') { await call('/invitations/accept', { token: linkToken.current, ...(session?.stage === 'authenticated' ? {} : { ...(form.name ? { name: form.name } : {}), ...(form.password ? { password: form.password } : {}) }) }); linkToken.current = ''; setForm(f => ({ ...f, password: '' })); setMode('login'); setNotice('inviteDone'); }
@@ -78,7 +80,7 @@ export default function AuthV2() {
       else { const data = await call('/mfa/confirm', { code: form.code }); const { recoveryCodes, ...safeSession } = data; setSession(safeSession); setRecovery(recoveryCodes); setSecret(''); setQrCode(''); setForm(f => ({ ...f, code: '' })); }
     } else if (session?.stage === 'mfa_required') { setSession(await call('/mfa/verify', { code: form.code })); setForm(f => ({ ...f, code: '' })); }
     else if (mode === 'login') { setSession(await call('/login', { email: form.email, password: form.password })); setForm(f => ({ ...f, password: '' })); }
-    else if (mode === 'register') { await call('/register', { email: form.email, password: form.password, name: form.name, businessName: form.businessName }); setForm(f => ({ ...f, password: '',confirmPassword:'' })); if(mockOtp)await startEmailCode('VERIFY_EMAIL');else setNotice('checkEmail'); }
+    else if (mode === 'register') { await call('/register', { email: form.email, password: form.password, name: form.name, businessName: form.businessName,language:lang }); setForm(f => ({ ...f, password: '',confirmPassword:'' })); if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else setNotice('checkEmail'); }
     else if (mode === 'forgot') { if(mockOtp)await startEmailCode('PASSWORD_RESET');else{await call('/forgot-password', { email: form.email }); setNotice('checkEmail');} }
   }); };
   useEffect(() => {
@@ -89,7 +91,8 @@ export default function AuthV2() {
   useEffect(()=>{if(!checking&&authenticated&&!recovery.length)navigate(session.user.platformRole==='SUPER_ADMIN'?'/platform-v2':'/business-v2',{replace:true});},[checking,authenticated,recovery.length,session,navigate]);
   const setup = !isLink && session?.stage === 'mfa_setup_required';
   const challenge = !isLink && session?.stage === 'mfa_required';
-  const title = recovery.length ? 'recoveryTitle' : authenticated ? 'accountTitle' : setup ? 'mfaSetup' : challenge ? 'mfaTitle' : mode;
+  const phone=!isLink&&session?.stage==='phone_verification_required';
+  const title = phone?'phoneVerification': recovery.length ? 'recoveryTitle' : authenticated ? 'accountTitle' : setup ? 'mfaSetup' : challenge ? 'mfaTitle' : mode;
   const field = (key, label, extra = {}) => <Field key={`${mode}-${session?.stage || 'anonymous'}-${key}`} placeholder={c(key === 'code' ? (setup ? 'setupCodePlaceholder' : 'codePlaceholder') : extra.autoComplete === 'new-password' ? 'newPasswordPlaceholder' : `${label}Placeholder`)} id={`v2-${key}`} label={c(label)} value={form[key]} onChange={set(key)} required disabled={busy} {...extra} />;
   const otp=<OtpField value={form.code} onChange={code=>setForm(f=>({...f,code}))} c={c} disabled={busy}/>;
   const signOut = (path = '/logout') => run(async () => { await call(path, {}); clear(); });
@@ -102,12 +105,12 @@ export default function AuthV2() {
       <div className="w-full max-w-md fade-up"><MobileLogo t={t} /><Link to="/contact" className={`${linkClass} block mb-4`}>{lang==='ar'?'تواصل معنا':'Contact Us'}</Link>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
           <h1 className="text-2xl font-bold text-slate-900">{c(title)}</h1>
-          <p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? 'registerHint' : 'loginHint')}</p>
+          {!phone&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? 'registerHint' : 'loginHint')}</p>}
           {(error || notice) && <div ref={statusRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`text-sm p-3 rounded-lg border mb-5 ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{c(error || notice)}</div>}
           {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : initialFailed ? <button type="button" className={linkClass} onClick={() => setCheckAttempt(value => value + 1)}>{c('retryConnection')}</button> : recovery.length ? <div className="space-y-5">
             <div dir="ltr" className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs tabular p-3 bg-slate-50 border border-slate-200 rounded-lg">{recovery.map(code => <code key={code} className="break-all select-all">{code}</code>)}</div>
             <button type="button" className={linkClass} onClick={() => setRecovery([])}>{c('savedCodes')}</button>
-          </div> : authenticated ? <p role="status">{c('checking')}</p> : <>
+          </div> : authenticated ? <p role="status">{c('checking')}</p> : phone ? <PhoneVerification {...{call,c,mockOtp}} done={setSession} logout={()=>signOut()}/> : <>
             <>{mockOtp&&<p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900" role="note">{c('mockNotice')}</p>}</><form onSubmit={submit} className="space-y-4" data-testid="auth-v2-form">
               {mode==='emailCode'?<><p className="text-sm text-slate-600">{c('emailCodeHint')} <bdi>{form.email}</bdi></p>{otp}</>:setup ? secret ? <><p className="text-sm text-slate-600">{c('qrHint')}</p><img data-testid="mfa-qr" src={qrCode} alt={c('qrAlt')} width={256} height={256} className="mx-auto block w-full max-w-64 h-auto bg-white" /><p className="text-sm text-slate-600">{c('secretHint')}</p><label htmlFor="v2-secret" className="text-sm font-medium text-slate-700 block">{c('secretLabel')}</label><input id="v2-secret" readOnly dir="ltr" value={secret} className={`${inputClass} font-mono text-xs`} />{otp}</> : field('password', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 }) : challenge ? <>{recoveryMode?field('code','recoveryCode',{placeholder:c('recoveryPlaceholder'),autoComplete:'off',dir:'ltr',minLength:24,maxLength:24,pattern:'[a-f0-9]{24}'}):otp}<button type="button" disabled={busy} className={linkClass} onClick={()=>{setRecoveryMode(v=>!v);setForm(f=>({...f,code:''}));setError('');}}>{c(recoveryMode?'useAuthenticator':'useRecovery')}</button></> : <>
                 {(mode === 'register' || (mode === 'invite' && session?.stage !== 'authenticated')) && field('name', 'name', { autoComplete: 'name', required: mode !== 'invite', minLength: 2, maxLength: 100 })}
@@ -121,7 +124,7 @@ export default function AuthV2() {
               <Submit busy={busy}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
             </form>
             {mode==='emailCode'&&<button type="button" className={`${linkClass} mt-4`} disabled={busy||now<resendAt} onClick={()=>run(()=>startEmailCode(emailChallenge.purpose))}>{now<resendAt?`${c('resendIn')} ${Math.max(0,Math.ceil((resendAt-now)/1000))}`:c('resendCode')}</button>}
-            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}
+            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}
             {(setup || challenge) && <button type="button" disabled={busy} className={`${linkClass} mt-5`} onClick={() => signOut()}>{c('logout')}</button>}
           </>}
         </div>

@@ -1,3 +1,4 @@
+import {ContactVerification} from './verification.js';
 import QRCode from 'qrcode';
 import { MockEmailOtp, otpCode, otpPurpose } from './mock-otp.js';
 import { Router, type Response } from 'express';
@@ -27,7 +28,21 @@ export function authRouter(auth: AuthService) {
     await auth.limit('http', req.ip ?? 'unknown', 120, 60);
     next();
   });
-  router.get('/config',(_req,res)=>res.json({mockOtp:auth.settings.mockOtp}));
+  router.get('/config',(_req,res)=>res.json({mockOtp:auth.settings.mockOtp,emailOtp:auth.settings.emailOtp,ownerPhoneRequired:auth.settings.ownerPhoneRequired}));
+  const verification=new ContactVerification(auth);
+  router.post('/email-code/request',validateBody(z.object({email}).strict()),async(req,res)=>{
+    await auth.limit('email-code-ip',req.ip??'',10,900);await auth.limit('email-code-account',req.body.email,3,900);
+    res.status(202).json(await verification.requestEmail(req.body.email));
+  });
+  router.post('/email-code/confirm',validateBody(z.object({challenge:token,code:otpCode}).strict()),async(req,res)=>{
+    await auth.limit('email-code-confirm',req.ip??'',30,900);res.json(await verification.confirm(req.body.challenge,req.body.code,'EMAIL'));
+  });
+  router.post('/phone-code/request',attach,csrf,validateBody(z.object({phone:z.string().min(9).max(40)}).strict()),async(req,res)=>{
+    await auth.limit('phone-code-ip',req.ip??'',10,3600);res.status(202).json(await verification.requestPhone(ctx(res),req.body.phone));
+  });
+  router.post('/phone-code/confirm',attach,csrf,validateBody(z.object({challenge:token,code:otpCode}).strict()),async(req,res)=>{
+    await auth.limit('phone-code-confirm',ctx(res).user.id,20,900);await verification.confirm(req.body.challenge,req.body.code,'PHONE',ctx(res));await sendSession(res,await auth.authenticate(ctx(res).token));
+  });
   const mock=new MockEmailOtp(auth);
   router.post('/mock-code/request',(_req,_res,next)=>{mock.enabled();next();},validateBody(z.object({email,purpose:otpPurpose}).strict()),async(req,res)=>{
     await auth.limit('mock-email-ip',req.ip??'',10);await auth.limit('mock-email',req.body.email,3);
@@ -37,7 +52,7 @@ export function authRouter(auth: AuthService) {
     await auth.limit('mock-confirm-ip',req.ip??'',30);await auth.limit('mock-confirm',req.body.challenge,5);
     res.json(await mock.confirm(req.body.challenge,req.body.purpose,req.body.code));
   });
-  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120) }).strict()), async (req, res) => {
+  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
     await auth.limit('register-ip', req.ip ?? '', 5);
     await auth.limit('register-email', req.body.email, 3);
     await auth.register(req.body); res.status(202).json(genericMessage);
@@ -51,6 +66,7 @@ export function authRouter(auth: AuthService) {
     router.post(path, validateBody(z.object({ email }).strict()), async (req, res) => {
       await auth.limit('email-ip', req.ip ?? '', 10);
       await auth.limit('email-account', req.body.email, 3);
+      if(kind==='VERIFY_EMAIL'&&auth.settings.emailOtp){res.status(202).json(await verification.requestEmail(req.body.email));return;}
       await auth.requestToken(req.body.email, kind); res.status(202).json(genericMessage);
     });
   }

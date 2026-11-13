@@ -20,6 +20,7 @@ export function authHttp(auth: AuthService) {
     next();
   };
   const full: RequestHandler = (_req, res, next) => {
+    if(auth.stage(ctx(res))==='phone_verification_required')throw new ApiError(403,'PHONE_UNVERIFIED','Verify your phone first');
     if (auth.stage(ctx(res)) !== 'authenticated') throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
     next();
   };

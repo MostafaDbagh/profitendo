@@ -1,3 +1,5 @@
+> Current policy (13 November 2026): authenticator MFA is optional for every role, including platform admins and billing. Only enrolled accounts must complete the sign-in challenge. Any role can disable MFA using their password and a valid code. This supersedes mandatory-enrollment wording in historical notes below.
+
 # Service 2: authentication
 
 ## What is implemented

@@ -596,3 +596,8 @@ The report-delivery controls live in a collapsible white panel within the existi
 ### Payment reversal controls, 2026-11-12
 
 Treasury/Expenses retain the existing table and shared Modal/Field/Feedback controls. Added status and action columns, a reason/confirmation dialog, and linked original/reversal details. Emerald action styling, slate history panels and bilingual labels match existing screens. Mixed-direction actor names, timestamps and IDs use `bdi`. Mobile tables scroll inside the existing table container; dialogs tested at 320–1440px in Arabic/English with keyboard focus restoration. Screenshots: `tmp/payment-reversals-ui/`.
+
+
+### Owner contact verification, 13 November 2026
+
+AuthV2 reuses its current emerald/slate brand split, Field/Submit/OtpField, fonts and RTL/LTR behavior for the required Syrian-phone step. Email verification reuses the existing code-entry screen with real generated codes. Owner MFA stays optional; the phone hint states that distinction. Real browser flow captured both languages at 320/390/768/1024/1440, invalid number/code feedback, reload/direct-route gating and successful entry. Before/after screenshots: `tmp/login-check/onboarding-before.png`, `onboarding-after.png`; responsive evidence: `tmp/contact-onboarding-ui/`.

@@ -1,10 +1,11 @@
+import {queueWelcome} from './welcome.js';
 import { randomBytes, randomUUID, randomInt } from 'node:crypto';
 import type { Prisma, PrismaClient, AuthUser, AuthSession } from '../generated/prisma/client.js';
 import { ApiError } from '../errors.js';
 import type { AuthSettings } from './settings.js';
 import { digest, randomToken, passwordHash, passwordMatches, encrypt, decrypt, csrfFor, newTotpSecret, totp, totpStep } from './crypto.js';
 export type Tx = Prisma.TransactionClient;
-export type AuthContext = { token: string; session: AuthSession; user: AuthUser; mfaRequired: boolean };
+export type AuthContext = { token: string; session: AuthSession; user: AuthUser; mfaRequired: boolean; phoneRequired?:boolean };
 const fail = () => new ApiError(401, 'INVALID_CREDENTIALS', 'Email, password or verification code is incorrect');
 const invalidToken = () => new ApiError(400, 'INVALID_TOKEN', 'This link is invalid or has expired');
 const hour = 3600000;
@@ -62,15 +63,15 @@ export class AuthService {
     await tx.authToken.create({ data: { tokenHash: digest(token), userId: user.id, kind, expiresAt: new Date(Date.now() + (kind === 'VERIFY_EMAIL' ? 24 * hour : hour / 2)) } });
     if(!this.settings.mockOtp)await this.queueMail(tx, user.email, kind === 'VERIFY_EMAIL' ? 'Verify your ProfitLens email' : 'Reset your ProfitLens password', kind === 'VERIFY_EMAIL' ? 'verify' : 'reset', token);
   }
-  async register(input: { email: string; password: string; name: string; businessName: string }) {
+  async register(input: { email: string; password: string; name: string; businessName: string; language?:'en'|'ar' }) {
     const hash = await passwordHash(input.password);
     try {
       await this.transaction(async tx => {
         if (await tx.authUser.findUnique({ where: { email: input.email } })) return;
-        const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash } });
+        const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash, language:input.language??'en' } });
         const business = await tx.business.create({ data: { name: input.businessName } });
         await tx.membership.create({ data: { userId: user.id, businessId: business.id, role: 'OWNER' } });
-        await this.issueToken(tx, user, 'VERIFY_EMAIL');
+        if(!this.settings.emailOtp)await this.issueToken(tx, user, 'VERIFY_EMAIL');
         await this.audit(tx, 'account.registered', user.id, business.id);
       });
     } catch (e) { if ((e as { code?: string }).code !== 'P2002') throw e; }
@@ -97,17 +98,19 @@ export class AuthService {
         await tx.authUser.update({ where: { id: row.userId }, data: { passwordHash: hash!, securityVersion: { increment: 1 } } });
         await tx.authSession.deleteMany({ where: { userId: row.userId } });
       }
+      if(kind==='VERIFY_EMAIL'&&this.settings.emailOtp)await queueWelcome(this,tx,row.userId);
       await this.audit(tx, kind === 'VERIFY_EMAIL' ? 'email.verified' : 'password.reset', row.userId);
     });
   }
+  async needsPhone(tx:Tx|PrismaClient,user:AuthUser){return this.settings.ownerPhoneRequired&&!user.phoneVerifiedAt&&!!await tx.membership.findFirst({where:{userId:user.id,role:'OWNER',disabledAt:null}});}
   async requiresMfa(tx: Tx | PrismaClient, user: AuthUser) {
-    return !!user.mfaSecret || user.platformRole === 'SUPER_ADMIN';
+    return !!user.mfaSecret;
   }
   async makeSession(tx: Tx, user: AuthUser, mfaVerified = false) {
     const token = randomToken(), required = await this.requiresMfa(tx, user);
     const session = await tx.authSession.create({ data: { userId: user.id, tokenHash: digest(token), securityVersion: user.securityVersion,
       mfaVerified, expiresAt: new Date(Date.now() + (required && !mfaVerified ? 10 * 60000 : 12 * hour)) } });
-    return { token, session, user, mfaRequired: required };
+    return { token, session, user, mfaRequired: required, phoneRequired:await this.needsPhone(tx,user) };
   }
   async login(email: string, password: string) {
     const snapshot = await this.db.authUser.findUnique({ where: { email } });
@@ -130,15 +133,15 @@ export class AuthService {
     // Do not resurrect a session revoked concurrently.
     const touched = await this.db.authSession.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
     if (!touched.count) throw new ApiError(401, 'SESSION_EXPIRED', 'Sign in again');
-    return { token, session, user: session.user, mfaRequired: await this.requiresMfa(this.db, session.user) };
+    return { token, session, user: session.user, mfaRequired: await this.requiresMfa(this.db, session.user),phoneRequired:await this.needsPhone(this.db,session.user) };
   }
   stage(ctx: AuthContext) {
-    return ctx.mfaRequired && !ctx.session.mfaVerified ? (ctx.user.mfaSecret ? 'mfa_required' : 'mfa_setup_required') : 'authenticated';
+    return ctx.mfaRequired && !ctx.session.mfaVerified ? (ctx.user.mfaSecret ? 'mfa_required' : 'mfa_setup_required') : ctx.phoneRequired?'phone_verification_required':'authenticated';
   }
   async sessionResult(ctx: AuthContext) {
     const stage = this.stage(ctx);
     const memberships = stage === 'authenticated' ? await this.db.membership.findMany({ where: { userId: ctx.user.id, disabledAt: null, business: { suspendedAt: null } }, select: { businessId: true, role: true, business: { select: { name: true } } } }) : [];
-    return { user: publicUser(ctx.user), stage, mfaEnabled: !!ctx.user.mfaSecret, mfaMandatory: ctx.user.platformRole === 'SUPER_ADMIN', memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
+    return { user: publicUser(ctx.user), stage, mfaEnabled: !!ctx.user.mfaSecret, mfaMandatory: false, memberships, csrfToken: csrfFor(this.settings.key, ctx.token) };
   }
   async assertSession(tx: Tx, ctx: AuthContext) {
     const user = await this.lockUser(tx, ctx.user.id);
@@ -175,7 +178,6 @@ export class AuthService {
     if (!await passwordMatches(ctx.user.passwordHash, password)) throw fail();
     return this.transaction(async tx => {
       const { user, session } = await this.assertSession(tx, ctx);
-      if (user.platformRole === 'SUPER_ADMIN') throw new ApiError(403, 'MFA_MANDATORY', 'MFA is required for platform administrators');
       if (!session.mfaVerified || !user.mfaSecret || user.passwordHash !== ctx.user.passwordHash) throw fail();
       const step = this.settings.mockOtp ? (code === '123456' ? 0 : null) : totpStep(decrypt(this.settings.key, user.mfaSecret, `mfa:${user.id}`), user.email, code);
       if (step === null || (!this.settings.mockOtp && step <= user.mfaLastStep)) throw fail();

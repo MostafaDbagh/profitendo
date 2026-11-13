@@ -561,3 +561,12 @@ Verification details are recorded in the final release-check entry below.
   limited instead of weakening production retry or transaction safeguards.
 - Final catalogue/import checks were rerun after adding reference validation to
   import preview. Commercial rollout remains blocked by the external gates above.
+
+
+## Owner onboarding and provider preparation — 13 November 2026
+
+Latest user requirement overrides earlier mandatory-owner-MFA notes: authenticator MFA is optional for business owners, including billing, and is also optional for platform admins. Owners must verify email and a Syrian mobile before using the business workspace. New real-service settings enforce both gates in production; `.env.services` enables them locally with mock codes disabled. Explicit loopback staging uses the same screens with mock code 123456 until credentials arrive.
+
+Implemented encrypted/keyed five-minute email and phone verification challenges, five-attempt limits, resend invalidation, per-IP/account/number quotas, one verified phone per account, MsgPlus SMS outbox/worker, and a one-time bilingual welcome email after owner verification (or staff invitation acceptance). No Jawlaha credentials copied. SMTP is shared by verification, welcome, auth links/invitations and closing reports. Real SMTP/MsgPlus keys, approved sender/template and actual delivery remain external setup gates. See `backend-node/SERVICES_SETUP.md` for exact environment fields and startup/check commands. Migration 20261113110000_owner_verification applied to test and local staging. 38 unit/HTTP tests, 244 integration tests and generated-code browser onboarding passed.
+
+Latest correction, 13 November 2026: MFA enrollment is optional for EVERY role, including SUPER_ADMIN. Enrolled accounts still complete MFA at login; all roles can disable it with password and a valid authenticator code. Earlier mandatory-platform-MFA notes are superseded. Email/phone verification rules are unchanged.

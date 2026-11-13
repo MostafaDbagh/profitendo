@@ -37,6 +37,11 @@ model AuthUser {
   name            String
   passwordHash    String @map("password_hash")
   platformRole    PlatformRole @default(USER) @map("platform_role")
+  phone String? @unique
+  phoneVerifiedAt DateTime? @map("phone_verified_at") @db.Timestamptz(3)
+  welcomeQueuedAt DateTime? @map("welcome_queued_at") @db.Timestamptz(3)
+  language String @default("en")
+  verificationChallenges VerificationChallenge[]
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
   disabledAt      DateTime? @map("disabled_at") @db.Timestamptz(3)
   securityVersion Int @default(0) @map("security_version")
@@ -970,4 +975,32 @@ model ReportDelivery {
  @@index([availableAt])
  @@map("report_deliveries")
 
+}
+
+model VerificationChallenge {
+ id String @id @default(uuid()) @db.Uuid
+ tokenHash String @unique @map("token_hash")
+ userId String @map("user_id") @db.Uuid
+ channel String
+ destination String
+ codeHash String @map("code_hash")
+ attempts Int @default(0)
+ expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+ usedAt DateTime? @map("used_at") @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+ sms SmsOutbox?
+ @@index([userId,channel])
+ @@map("verification_challenges")
+}
+model SmsOutbox {
+ id String @id @default(uuid()) @db.Uuid
+ challengeId String @unique @map("challenge_id") @db.Uuid
+ payload String
+ attempts Int @default(0)
+ availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+ deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(3)
+ challenge VerificationChallenge @relation(fields:[challengeId],references:[id],onDelete:Cascade)
+ @@index([availableAt])
+ @@map("sms_outbox")
 }

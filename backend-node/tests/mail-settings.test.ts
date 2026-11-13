@@ -1,0 +1,16 @@
+import {describe,it,expect,vi} from 'vitest';
+const {createTransport}=vi.hoisted(()=>({createTransport:vi.fn(()=>({verify:vi.fn(),close:vi.fn()}))}));
+vi.mock('nodemailer',()=>({default:{createTransport}}));
+import {readMailSettings,emailConfigured,createMailTransport} from '../src/auth/mail-settings.js';
+import {readAuthSettings} from '../src/auth/settings.js';
+const smtp={SMTP_HOST:'smtp.example.test',SMTP_PORT:'587',SMTP_USER:'test-user',SMTP_PASSWORD:'private-test-value',MAIL_FROM:'reports@example.test'};
+const auth={AUTH_ENCRYPTION_KEY:'a'.repeat(64),APP_ORIGIN:'http://localhost:3200',NODE_ENV:'development',AUTH_OTP_PROVIDER:'authenticator',AUTH_MOCK_OTP:'false'};
+describe('email and OTP environment readiness',()=>{
+ it('leaves local outbox disabled without a configured provider, including template defaults',()=>{expect(readMailSettings({})).toBeNull();expect(readMailSettings({SMTP_PORT:'587',MAIL_FROM_NAME:'ProfitLens'})).toBeNull();expect(emailConfigured({})).toBe(false);});
+ it('requires complete email settings for production and explicit readiness checks',()=>{expect(()=>readMailSettings({NODE_ENV:'production'})).toThrow();expect(()=>readMailSettings({},true)).toThrow();expect(()=>readMailSettings({SMTP_HOST:'smtp.example.test'})).toThrow();});
+ it('validates sender, host and port and never discloses secret input',()=>{for(const invalid of [{SMTP_PORT:'NaN'},{SMTP_PORT:'0'},{SMTP_PORT:'65536'},{MAIL_FROM:'not-an-email'},{SMTP_HOST:'smtp://secret@example.test'},{MAIL_REPLY_TO:'bad-address'}]){const env={...smtp,...invalid};expect(emailConfigured(env)).toBe(false);try{readMailSettings(env);throw new Error('expected rejection');}catch(e){expect((e as Error).message).not.toContain(smtp.SMTP_PASSWORD);expect((e as Error).message).not.toContain('secret@example.test');}}});
+ it('supports defaults and optional display name/reply address',()=>{const result=readMailSettings({...smtp,SMTP_PORT:'',MAIL_REPLY_TO:''})!;expect(result.SMTP_PORT).toBe(587);expect(result.MAIL_FROM_NAME).toBe('ProfitLens');expect(result.MAIL_REPLY_TO).toBeUndefined();expect(emailConfigured(smtp)).toBe(true);expect(readMailSettings({...smtp,MAIL_REPLY_TO:'help@example.test',MAIL_FROM_NAME:'My business'})!.MAIL_REPLY_TO).toBe('help@example.test');});
+ it('requires verified TLS for both SMTP transport modes and disallows file/URL access',()=>{for(const port of ['587','465']){createMailTransport(readMailSettings({...smtp,SMTP_PORT:port})!);expect(createTransport).toHaveBeenLastCalledWith(expect.objectContaining({port:Number(port),secure:port==='465',requireTLS:true,tls:{minVersion:'TLSv1.2',rejectUnauthorized:true},disableFileAccess:true,disableUrlAccess:true}));}});
+ it('keeps real authenticator OTP enabled without provider credentials',()=>{expect(readAuthSettings(auth).mockOtp).toBe(false);expect(readAuthSettings({...auth,NODE_ENV:'production',APP_ORIGIN:'https://app.example.test'}).secure).toBe(true);});
+ it('rejects unsupported OTP providers and misspelled mock settings',()=>{expect(()=>readAuthSettings({...auth,AUTH_OTP_PROVIDER:'sms'})).toThrow();expect(()=>readAuthSettings({...auth,AUTH_MOCK_OTP:'FALSE'})).toThrow();expect(()=>readAuthSettings({...auth,AUTH_MOCK_OTP:'true',NODE_ENV:'production',APP_ORIGIN:'https://app.example.test'})).toThrow();});
+});

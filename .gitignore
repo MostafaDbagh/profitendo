@@ -99,6 +99,7 @@ frontend/node_modules/.cache/default-development/13.pack
 .env
 .env.*
 !.env.example
+!.env.services.example
 
 # Local authentication cookies and former hosted-workspace metadata
 /.a.txt

@@ -1,3 +1,4 @@
+import {emailConfigured} from '../auth/mail-settings.js';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
@@ -22,7 +23,7 @@ export class ReportDeliveryService{
  async settings(ctx:AuthContext,bid:string){return this.auth.transaction(async tx=>{
   const a=await requireBusiness(this.auth,tx,ctx,bid,'reports.deliver');if(!a.permissions['reports.view']||!a.permissions['locations.view'])fail('FORBIDDEN',403);
   const row=await tx.reportPreference.findUnique({where:{businessId_userId:{businessId:bid,userId:ctx.user.id}}}),allowed=allowedReportTypes(a.permissions);
-  return {emailDeliveryConfigured:['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASSWORD','MAIL_FROM'].every(key=>Boolean(process.env[key])),enabled:row?.enabled??false,revision:row?.revision??0,reportTypes:(row?.reportTypes??allowed).filter(t=>allowed.includes(t as typeof allowed[number])),language:row?.language??'en',allowedTypes:allowed,email:a.user.email};
+  return {emailDeliveryConfigured:emailConfigured(process.env),enabled:row?.enabled??false,revision:row?.revision??0,reportTypes:(row?.reportTypes??allowed).filter(t=>allowed.includes(t as typeof allowed[number])),language:row?.language??'en',allowedTypes:allowed,email:a.user.email};
  });}
  async save(ctx:AuthContext,bid:string,input:z.infer<typeof preferenceSchema>){try{return await this.auth.transaction(async tx=>{
   const a=await requireBusiness(this.auth,tx,ctx,bid,'reports.deliver');if(!a.permissions['reports.view']||!a.permissions['locations.view'])fail('FORBIDDEN',403);

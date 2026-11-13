@@ -11,8 +11,8 @@
     "build": "tsc && cp src/catalogue/xlsx-worker.cjs dist/catalogue/xlsx-worker.cjs",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run tests/security-boundary.test.ts tests/app.test.ts tests/paypal-client.test.ts tests/migration-review.test.ts tests/staging-guard.test.ts",
-    "test:integration": "vitest run --maxWorkers=2 tests/database.test.ts tests/auth.test.ts tests/auth-mock.test.ts tests/businesses.test.ts tests/platform.test.ts tests/admin-services.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts tests/tax.test.ts tests/operations-audit.test.ts tests/report-delivery.test.ts tests/payment-reversals.test.ts",
+    "test": "vitest run tests/security-boundary.test.ts tests/app.test.ts tests/paypal-client.test.ts tests/migration-review.test.ts tests/staging-guard.test.ts tests/mail-settings.test.ts tests/sms-settings.test.ts",
+    "test:integration": "vitest run --maxWorkers=2 tests/database.test.ts tests/auth.test.ts tests/auth-mock.test.ts tests/businesses.test.ts tests/platform.test.ts tests/admin-services.test.ts tests/billing.test.ts tests/paypal.test.ts tests/locations.test.ts tests/catalogue.test.ts tests/product-import.test.ts tests/operations.test.ts tests/transfers.test.ts tests/sales.test.ts tests/completion.test.ts tests/tax.test.ts tests/operations-audit.test.ts tests/report-delivery.test.ts tests/payment-reversals.test.ts tests/contact-verification.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:status": "prisma migrate status",
@@ -52,7 +52,13 @@
     "test:browser:recovery": "tsx scripts/recovery-browser.ts",
     "reports:prepare-once": "tsx src/reports/worker.ts",
     "test:browser:closing-reports": "tsx scripts/closing-reports-browser.ts",
-    "test:browser:payment-reversals": "tsx scripts/payment-reversals-browser.ts"
+    "test:browser:payment-reversals": "tsx scripts/payment-reversals-browser.ts",
+    "services:check": "tsx scripts/services-check.ts",
+    "services:check:local": "node --env-file=.env.staging --env-file=.env.services --import tsx scripts/services-check.ts",
+    "dev:services": "node --env-file=.env.staging --env-file=.env.services --import tsx src/server.ts",
+    "jobs:services": "node --env-file=.env.staging --env-file=.env.services dist/jobs.js",
+    "sms:send-once": "tsx src/auth/sms-worker.ts",
+    "test:browser:contact-onboarding": "tsx scripts/contact-onboarding-browser.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

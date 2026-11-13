@@ -33,7 +33,7 @@ afterAll(async () => {
   await db.authAudit.deleteMany({ where: { OR: [{ userId: { in: ids } }, { businessId: { in: bids } }] } });
   await db.business.deleteMany({ where: { id: { in: bids } } }); await db.authUser.deleteMany({ where: { id: { in: ids } } }); await db.$disconnect();
 });
-it('requires a live platform administrator and completed MFA on every endpoint', async () => {
+it('requires a live platform administrator and challenges only enrolled MFA', async () => {
   const pending = await actor(true, false);
   for (const path of ['/overview','/businesses','/users','/audit']) {
     expect((await get(path, owner)).status).toBe(403);
@@ -110,4 +110,18 @@ it('exposes paginated platform history with actor and target names', async () =>
   const history = await get('/audit?pageSize=1', admin);
   expect(history.body.items).toHaveLength(1); expect(history.body.items[0]).toMatchObject({ actorId: admin.id, beforeActive: true, afterActive: false });
   expect(history.body.items[0].actorName).toBeTruthy(); expect(history.body.items[0].targetName).toBeTruthy();
+});
+
+it('allows platform admins to opt out and to disable previously enabled MFA securely',async()=>{
+ const a=await actor(true,false);await db.authUser.update({where:{id:a.id},data:{mfaSecret:null}});
+ for(const path of ['/overview','/businesses','/users','/audit'])expect((await get(path,a)).status).toBe(200);
+ const user=await db.authUser.findUniqueOrThrow({where:{id:a.id}}),ctx=await auth.login(user.email,'Platform testing password 151!');
+ expect((await auth.sessionResult(ctx))).toMatchObject({stage:'authenticated',mfaMandatory:false,mfaEnabled:false});
+ const mockAuth=new AuthService(db,{...settings,mockOtp:true});
+ await db.authUser.update({where:{id:a.id},data:{mfaSecret:encrypt(settings.key,'JBSWY3DPEHPK3PXP',`mfa:${a.id}`)}});
+ const pending=await auth.login(user.email,'Platform testing password 151!');expect(auth.stage(pending)).toBe('mfa_required');
+ const verified=await mockAuth.verifyMfa(pending,'123456');
+ await expect(mockAuth.disableMfa(verified,'wrong password','123456')).rejects.toThrow();
+ const disabled=await mockAuth.disableMfa(verified,'Platform testing password 151!','123456');expect(auth.stage(disabled)).toBe('authenticated');expect(disabled.user.mfaSecret).toBeNull();
+ await expect(auth.authenticate(verified.token)).rejects.toThrow();
 });

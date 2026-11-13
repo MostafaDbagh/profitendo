@@ -111,9 +111,9 @@ it('reports concurrent duplicate plan codes as a conflict without duplicating te
 });
 
 
-it('distinguishes missing MFA setup from a session challenge for subscription navigation',async()=>{
+it('allows business-owner billing without optional authenticator enrollment',async()=>{
  const user=await db.authUser.findUniqueOrThrow({where:{id:owner.id}});
  await db.authUser.update({where:{id:owner.id},data:{mfaSecret:null}});
- try {const response=await get(`/billing/businesses/${business}`,owner);expect(response.status).toBe(403);expect(response.body.error.code).toBe('BILLING_MFA_SETUP_REQUIRED');}
+ try {const response=await get(`/billing/businesses/${business}`,owner);expect(response.status,response.text).toBe(200);}
  finally{await db.authUser.update({where:{id:owner.id},data:{mfaSecret:user.mfaSecret}});}
 });

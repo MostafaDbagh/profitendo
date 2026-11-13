@@ -1,4 +1,11 @@
+import {readSmsSettings} from './auth/sms-settings.js';
 import 'dotenv/config';
+import {readMailSettings} from './auth/mail-settings.js';
+import {readConfig} from './config.js';
+import {readAuthSettings} from './auth/settings.js';
+readConfig(process.env);readAuthSettings(process.env);
+const mail=readMailSettings(process.env),sms=readSmsSettings(process.env);
+if(!mail)console.log('Email delivery is not configured; mail remains queued.');
 import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 // Each bounded job owns its database connections; no overlapping runs in this process.
@@ -11,7 +18,7 @@ async function run(path:string){return new Promise<boolean>(resolve=>{
  child.once('exit',code=>{clearTimeout(timer);child=null;resolve(code===0);});
 });}
 while(!stopping){
- const jobs=['./reports/worker.js','./auth/mail-worker.js','./catalogue/purge-imports.js'];
+ const jobs=[...(sms?['./auth/sms-worker.js']:[]),'./reports/worker.js',...(mail?['./auth/mail-worker.js']:[]),'./catalogue/purge-imports.js'];
  if(process.env.B2B_PAYPAL_CLIENT_ID)jobs.push('./billing/paypal/worker.js');
  let healthy=true;
  for(const job of jobs){if(stopping)break;if(!await run(job))healthy=false;}

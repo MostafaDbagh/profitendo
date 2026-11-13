@@ -1,3 +1,4 @@
+import {queueWelcome} from './welcome.js';
 import { effectivePermissions, permissionKeys } from '../businesses/permissions.js';
 import { customRole, roleGrants } from '../businesses/custom-roles.js';
 import type { MembershipRole } from '../generated/prisma/client.js';
@@ -67,6 +68,7 @@ export async function acceptInvitation(auth: AuthService, input: { token: string
     if (existing) throw new ApiError(409, 'MEMBER_EXISTS', 'Membership already exists');
     await requireMemberCapacity(tx, invitation.businessId, { invitationId: invitation.id });
     await tx.membership.create({ data: { businessId: invitation.businessId, userId: user.id, role: invitation.role, customRoleId: selected?.id, ...(selected ? { permissionOverrides: roleGrants(selected.permissions) } : {}) } });
+    if(auth.settings.emailOtp)await queueWelcome(auth,tx,user.id);
     await auth.audit(tx, 'invitation.accepted', user.id, invitation.businessId);
   });
 }

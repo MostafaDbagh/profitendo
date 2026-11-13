@@ -5,9 +5,9 @@ import { ApiError } from '../errors.js';
 // operational-access bypass and must never authorize checkout or reactivation.
 export async function requireBillingOwner(auth: AuthService, tx: Tx, ctx: AuthContext, businessId: string) {
   const { user, session } = await auth.assertSession(tx, ctx);
-  if (!user.mfaSecret) throw new ApiError(403, 'BILLING_MFA_SETUP_REQUIRED', 'Set up MFA in Account security before accessing billing');
-  if (!session.mfaVerified) throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
+  if (await auth.requiresMfa(tx,user)&&!session.mfaVerified) throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
   const membership = await tx.membership.findUnique({ where: { businessId_userId: { businessId, userId: user.id } } });
   if (!membership || membership.disabledAt || membership.role !== 'OWNER') throw new ApiError(403, 'FORBIDDEN', 'Business billing access is not available');
+  if(auth.settings.ownerPhoneRequired&&!user.phoneVerifiedAt)throw new ApiError(403,'PHONE_UNVERIFIED','Verify your phone first');
   return membership;
 }

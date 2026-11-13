@@ -82,3 +82,8 @@ use the shared database limiter at 30 requests/minute/authenticated user.
 Responses include Retry-After. These are application safeguards, not volumetric
 DDoS protection; validate limits under realistic shared-store/NAT traffic before
 launch. Liveness is exempt; readiness remains limited.
+
+
+## Email and OTP configuration
+
+See [the service setup guide](../backend-node/SERVICES_SETUP.md) for SMTP fields, the no-send connection check, and local/production commands. Authenticator-app OTP is built in; set `AUTH_OTP_PROVIDER=authenticator` and `AUTH_MOCK_OTP=false`. The API and worker validate the same email settings; production fails startup if they are missing or invalid. The jobs service prepares closing reports before delivering mail. Restart/recreate both API and worker after environment changes.
