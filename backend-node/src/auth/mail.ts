@@ -1,9 +1,10 @@
+import {onboardingPolicy} from './policy.js';
 import {reportRecipient} from '../reports/delivery-access.js';
 import {billingState} from '../billing/entitlements.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { AuthSettings } from './settings.js';
 import { decrypt } from './crypto.js';
-export type MailPayload = { to: string; subject: string; text: string; verificationId?:string };
+export type MailPayload = { to: string; subject: string; text: string; verificationId?:string; kind?:string };
 export async function deliverMailBatch(db: PrismaClient, settings: AuthSettings, send: (payload: MailPayload) => Promise<void>, limit = 20) {
   let delivered = 0, failed = 0;
   for (let i = 0; i < limit; i++) {
@@ -15,6 +16,9 @@ export async function deliverMailBatch(db: PrismaClient, settings: AuthSettings,
     if (!row) break;
     try {
       const payload = JSON.parse(decrypt(settings.key, row.payload, `mail:${row.id}`)) as MailPayload;
+      const policy=await onboardingPolicy(db,settings);
+      const welcome=payload.kind==='WELCOME'||['Welcome to ProfitLens','أهلاً بك في ProfitLens'].includes(payload.subject);
+      if((welcome&&!policy.welcomeEnabled)||(!policy.emailRequired&&(payload.verificationId||payload.subject==='Verify your ProfitLens email'))){await db.authMail.update({where:{id:row.id},data:{payload:'',attempts:8}});continue;}
       if(payload.verificationId){
         const verification=await db.verificationChallenge.findUnique({where:{id:payload.verificationId},include:{user:true}});
         if(!verification||verification.usedAt||verification.expiresAt<=new Date()||verification.user.disabledAt||verification.user.emailVerifiedAt){await db.authMail.update({where:{id:row.id},data:{payload:'',attempts:8}});continue;}

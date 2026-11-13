@@ -46,9 +46,9 @@ it('creates unpublished immutable plan terms and validates money/limits', async 
   expect((await write('/billing/plans',{...terms(),code:created.code},admin)).status).toBe(409);
   expect((await get(`/billing/businesses/${business}`)).body.plans.some((p:{id:string}) => p.id === plan)).toBe(false);
 });
-it('does not allow paid drafts to be published or grant paid access', async () => {
+it('allows publishing manual paid plans without granting free trial access', async () => {
   const paid = await createPlan({...terms(),priceMinor:2900});
-  const result = await write(`/billing/plans/${paid.id}`,{revision:0,published:true},admin,'patch'); expect(result.body.error.code).toBe('PAID_CHECKOUT_UNAVAILABLE');
+  const result = await write(`/billing/plans/${paid.id}`,{revision:0,published:true},admin,'patch'); expect(result.status).toBe(200);
   expect((await write(`/billing/businesses/${business}/trial`,{planId:paid.id})).status).toBe(409);
 });
 it('requires CSRF and publishes trial terms with revision protection', async () => {

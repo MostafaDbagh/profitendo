@@ -695,3 +695,51 @@ Evidence: tmp/seo-content, tmp/seo, frontend/scripts/check-metadata.mjs. Metadat
 and JSON-LD describe current functionality; no invented reviews or rich-result
 eligibility claims. Public rendering and crawl controls are separate from private
 business screens and do not grant access to any customer data.
+
+### International phone entry — 13 November 2026
+
+User superseded the country-selector request with free-form international entry.
+Shared registration/verification PhoneInput now accepts the complete number starting
+with + and a country code; removed the fixed +963 badge and Syrian-only labels.
+Retains current field styling and LTR number direction within Arabic/English forms.
+Spaces/separators, Arabic/Persian digits and 00 prefixes normalize consistently.
+Server registration, OTP queue and verification preserve the international number;
+legacy Syrian local API formats remain compatible. Database migration
+20261113170000_international_phone widens the verified-number constraint and was
+applied to test and local staging. Format checks do not guarantee country/provider
+reachability; actual SMS coverage requires provider configuration.
+12 SMS/contact tests, full captured-code onboarding, AR/EN320/390/1440 input checks,
+typechecks and frontend production build passed. Captures: tmp/international-phone.
+
+### Onboarding controls (2026-11-13)
+Email verification, owner phone verification and welcome emails default off.
+Super Admin → Registration settings has three independent persisted switches,
+using existing white/slate panels, emerald actions and accessible Switch controls.
+Registration goes directly to the workspace when verification is off; no verified
+timestamps are fabricated. Disabled welcome messages are blocked at queue and
+delivery, including legacy queued payloads. MFA remains optional for all roles.
+AR/EN mobile/desktop screenshots and UI checks: `tmp/onboarding-policy/`.
+
+### Super Admin signups and payment activation (2026-11-13)
+The Signups & subscriptions screen lists businesses immediately after registration,
+including owner names, emails, full phone numbers (with verification state), signup
+date, subscription/payment status and server-calculated remaining trial days.
+Search covers business name, owner name and email, including disabled owners.
+All paid access requires Super Admin confirmation. External payments are recorded
+in a separate immutable manual-payment ledger; confirmed PayPal receipts require
+per-transaction activation. Retries do not duplicate payment or extend access twice.
+Existing PayPal periods without an activation confirmation await admin action;
+future receipts also require confirmation. Trials are otherwise unchanged.
+AR/EN desktop/mobile and both activation dialogs: `tmp/subscriber-signups/`.
+
+### Subscriber dashboard charts (2026-11-13)
+Business dashboard adds a monthly comparison bar chart and a cost-breakdown
+donut below the existing KPI cards. Reuses Recharts, existing report-summary
+response, currency formatting and white/slate/emerald styling. No extra API or
+financial aggregation is introduced. Missing permission fields stay hidden;
+negative profit remains negative. Donut percentages are suppressed for negative
+costs or unvalued transfer losses, with explicit text and available values.
+Zero activity has a neutral empty state. Text legends expose exact values.
+Validated real local summary rendering and display-only edge fixtures, AR/EN
+at 320/768/1024/1440, keyboard access, no page errors, production build.
+Screenshots: `tmp/dashboard-charts/`; baseline: `tmp/login-check/dashboard-before-charts.png`.

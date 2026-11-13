@@ -1,11 +1,11 @@
-import PhoneInput,{localPhone} from './PhoneInput';
+import PhoneInput,{internationalPhone} from './PhoneInput';
 import {useEffect,useState} from 'react';
 import {Submit,linkClass} from './Fields';
 import OtpField from './OtpField';
 export default function PhoneVerification({call,c,mockOtp,done,logout,initialPhone=''}){
- const [phone,setPhone]=useState(()=>localPhone(initialPhone)),[challenge,setChallenge]=useState(null),[code,setCode]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[resendAt,setResendAt]=useState(0),[now,setNow]=useState(Date.now());
+ const [phone,setPhone]=useState(()=>internationalPhone(initialPhone)),[challenge,setChallenge]=useState(null),[code,setCode]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[resendAt,setResendAt]=useState(0),[now,setNow]=useState(Date.now());
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
- async function request(){const result=await call('/phone-code/request',{phone:'+963'+phone});setChallenge(result.challenge);setCode('');setResendAt(Date.now()+60000);setNow(Date.now());}
+ async function request(){const result=await call('/phone-code/request',{phone});setChallenge(result.challenge);setCode('');setResendAt(Date.now()+60000);setNow(Date.now());}
  async function run(work){setBusy(true);setError('');try{await work();}catch(e){setError(e.message);}finally{setBusy(false);}}
  return <div className="space-y-4 mt-5"><p className="text-sm text-slate-600">{c('phoneVerificationHint')}</p>{mockOtp&&<p className="text-sm text-amber-900">{c('mockNotice')}</p>}{error&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{c(error)}</p>}
  <form className="space-y-4" onSubmit={e=>{e.preventDefault();run(async()=>{if(challenge)done(await call('/phone-code/confirm',{challenge,code}));else await request();});}}>

@@ -10,7 +10,7 @@ import { readAuthSettings } from '../src/auth/settings.js';
 import { decrypt, totp } from '../src/auth/crypto.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
-const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3200'}),db=createDatabase(url),auth=new AuthService(db,settings);
+const settings=readAuthSettings({AUTH_EMAIL_REQUIRED:'true', AUTH_WELCOME_EMAIL_ENABLED:'true', AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:'http://localhost:3200'}),db=createDatabase(url),auth=new AuthService(db,settings);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
 const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4301,'localhost',()=>resolve(s));s.on('error',reject);});
 const browser=await chromium.launch({channel:'chrome',headless:true}),ids:string[]=[],bids:string[]=[],errors:string[]=[],artifacts='../tmp/full-business-journey';await mkdir(artifacts,{recursive:true});
@@ -45,7 +45,7 @@ try{
  const page=await newPage();primaryPage=page;
  await page.goto(settings.appOrigin+'/auth-v2');
  await page.getByRole('button',{name:'Create a business account',exact:true}).click();
- for(const [id,value] of Object.entries({name:'Journey Owner',businessName:'Journey Grocery','register-phone':'944123456',email,password:pass,confirmPassword:pass}))await page.locator(`#v2-${id}`).fill(value);
+ for(const [id,value] of Object.entries({name:'Journey Owner',businessName:'Journey Grocery','register-phone':'+963944123456',email,password:pass,confirmPassword:pass}))await page.locator(`#v2-${id}`).fill(value);
  await page.getByRole('button',{name:'Create business account',exact:true}).click();await page.getByRole('status').filter({hasText:'If eligible'}).waitFor();
  const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
  const membership=await db.membership.findFirstOrThrow({where:{userId:user.id}});bids.push(membership.businessId);const business=await db.business.findUniqueOrThrow({where:{id:membership.businessId}});

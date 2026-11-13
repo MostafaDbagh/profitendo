@@ -1,10 +1,18 @@
+## Current onboarding policy (13 November 2026)
+
+Email verification, owner phone verification, and welcome emails are **off by default**. Super Admin → Registration settings controls each independently; changes persist in `system_metadata` and take effect without a restart. Changes are audited, CSRF-protected and revision-checked. Existing unverified accounts become subject to verification when it is enabled. Disabling checks never marks an email or phone verified. Authenticator MFA remains optional for every role; enrolled MFA is still enforced.
+
+Environment fallback defaults: `AUTH_EMAIL_REQUIRED=false`, `AUTH_OWNER_PHONE_REQUIRED=false`, `AUTH_WELCOME_EMAIL_ENABLED=false`. The saved Super Admin policy takes precedence. Configure SMTP/SMS before enabling the corresponding feature. Welcome delivery requires a verified email and any required phone verification. Disabled welcome emails are neither queued nor delivered; already queued welcome messages are cancelled by the mail worker, including older untyped messages. Password resets, invitations and closing reports retain their existing behavior and email-service requirements.
+
+The verification-on details below document the optional flow, not the current default.
+
 # Email and authenticator OTP setup
 
-Authenticator-app OTP is already implemented. It uses six-digit TOTP codes from an authenticator app and requires no external OTP provider, API key or SMS service for MFA. Syrian phone verification is a separate required onboarding step using MsgPlus. Keep `AUTH_OTP_PROVIDER=authenticator` and use `AUTH_MOCK_OTP=false` for real authentication. Users enroll through Account security; MFA is optional for every role, including business owners and platform admins. Keep the server clock synchronized. Existing mock/demo accounts are not a substitute for real enrollment.
+Authenticator-app OTP is already implemented. It uses six-digit TOTP codes from an authenticator app and requires no external OTP provider, API key or SMS service for MFA. International phone verification is an optional onboarding requirement using MsgPlus, controlled by Super Admin. Keep `AUTH_OTP_PROVIDER=authenticator` and use `AUTH_MOCK_OTP=false` for real authentication. Users enroll through Account security; MFA is optional for every role, including business owners and platform admins. Keep the server clock synchronized. Existing mock/demo accounts are not a substitute for real enrollment.
 
 ## Local staging: fill credentials, validate, restart
 
-Local staging now exposes the new onboarding flow in explicit loopback mock mode. The displayed test code `123456` works for email/phone verification and mock MFA. No email or SMS is sent for mock verification requests. Existing owners with verified email but no verified phone will see the phone step next time they sign in; no owner phone was prefilled or marked verified during rollout. The real-services overlay below disables mock mode.
+Local staging now exposes the new onboarding flow in explicit loopback mock mode. The displayed test code `123456` works for email/phone verification and mock MFA. No email or SMS is sent for mock verification requests. When phone verification is enabled, existing owners with verified email but no verified phone will see the phone step next time they sign in; no owner phone was prefilled or marked verified during rollout. The real-services overlay below disables mock mode.
 
 A private `backend-node/.env.services` overlay is prepared from `.env.services.example`. On a fresh checkout, copy the example to `.env.services` first. Fill:
 
@@ -67,19 +75,43 @@ Put the same SMTP, MsgPlus and OTP settings in `deployment/.env`, alongside the 
 Verify the sender/domain with the mail provider and configure its required DNS records. Then validate a real new-account verification, password reset, team invitation, authenticator enrollment/login/recovery and closing-report email/in-app pair using controlled accounts. No real email delivery is claimed until those checks pass. Hosting, payment-provider activation and operational rollout checks remain separate from email/OTP setup.
 
 
-## Owner onboarding and Syrian SMS
+## Owner onboarding and SMS
 
-Owners must verify email with a six-digit emailed code, then sign in and verify a Syrian mobile number before business access. Accepts `09XXXXXXXX`, `+9639XXXXXXXX`, `009639XXXXXXXX`, spaces, and Arabic/Persian digits. Verified numbers are unique per account. MFA is optional for owners (including billing); once enabled, sign-in challenges remain enforced until the owner disables it. Platform admin MFA is optional too. Invited staff prove email ownership through their invitation and are not required to verify a phone.
+When both verification switches are enabled, owners must verify email with a six-digit emailed code, then sign in and verify a mobile number before business access. The UI accepts full international numbers starting with `+`, including country code (7–15 digits total). Spaces, separators, Arabic/Persian digits and `00` international prefixes are normalized. The API retains legacy Syrian local formats for existing clients. Format validation does not prove that a number exists; OTP verification is required. Verified numbers are unique per account. MFA is optional for owners (including billing); once enabled, sign-in challenges remain enforced until the owner disables it. Platform admin MFA is optional too. Invited staff prove email ownership through their invitation and are not required to verify a phone.
 
-Codes expire after five minutes, permit five incorrect attempts, are one-use and superseded on resend. Code hashes are keyed; destinations and outgoing payloads are encrypted. Email requests have per-IP/account limits. Phone requests additionally have five-per-day number/account quotas and a one-per-minute account cooldown. Missing providers return an explicit unavailable error, never a usable production mock code. Production refuses disabled owner-phone verification or legacy email-link mode. Development fixtures can explicitly retain legacy flows when testing older APIs; `.env.services` enables the new flow.
+Codes expire after five minutes, permit five incorrect attempts, are one-use and superseded on resend. Code hashes are keyed; destinations and outgoing payloads are encrypted. Email requests have per-IP/account limits. Phone requests additionally have five-per-day number/account quotas and a one-per-minute account cooldown. Missing providers return an explicit unavailable error, never a usable production mock code. Production permits disabled verification; HTTPS and real-code security requirements remain enforced. Development fixtures can explicitly retain legacy flows when testing older APIs; `.env.services` defaults verification and welcome emails to off.
 
-A welcome email is queued once after an owner's email and phone are verified; invited staff receive their own onboarding message after accepting. Owner copy introduces the trial/subscription, warehouse/shop setup, products and staff. Language is selected at signup. No trial starts automatically and no payment is taken by verification.
+When welcome emails are enabled, a welcome email is queued once after an owner's email and phone are verified; invited staff receive their own onboarding message after accepting. Owner copy introduces the trial/subscription, warehouse/shop setup, products and staff. Language is selected at signup. No trial starts automatically and no payment is taken by verification.
 
 MsgPlus must approve your sender and template for ProfitLens. Use `MSGPLUS_VARIABLE_STYLE=code` for the current documented `code` variable, or P1/P2/P3 if your approved template uses the corresponding Jawlaha-style slots. P2 adds the user's name; P3 adds name and app name. Do not assume Jawlaha's sender/template approvals apply to this app. No Jawlaha secrets were copied. Implementation follows the [official MsgPlus contract](https://sms.msgplus.tech/en/sms-api-syria), using `sender_name`, `template_id`, bearer auth and a timestamp. A successful response means accepted/queued, not delivered. SMS retries can repeat a message after an uncertain provider response, but the same expiring code cannot verify twice.
 
-The connection-check command does not send SMS or verify an approved template against the live provider. Real Syrian-number delivery, email inbox delivery and provider approvals still need validation once credentials are available. No real email or SMS was sent during development tests.
+The connection-check command does not send SMS or verify an approved template against the live provider. Delivery to each supported destination country, email inbox delivery and provider approvals still need validation once credentials are available. No real email or SMS was sent during development tests.
 
 
 ## Verification evidence — 13 November 2026
 
 38 unit/HTTP/configuration tests and 244 integration tests passed. The real browser flow used generated email/SMS codes captured locally (not production mock codes), enforced both verification gates, tested invalid numbers/codes, verified optional owner MFA and captured one welcome email. Arabic/English phone/code screens were checked at mobile, tablet and desktop widths; screenshots are in `tmp/contact-onboarding-ui/`. Backend typechecks/build and frontend build passed, with the existing frontend bundle-size advisory. The readiness checker currently fails only the unfilled SMTP/MsgPlus configuration checks. Provider delivery is not yet verified.
+
+International destinations must be enabled and supported by the configured SMS provider/account. Adding a country code to the app does not enable a provider route or guarantee SMS delivery.
+
+## Super Admin payment confirmation
+
+Use **Signups & subscriptions → Confirm payment & activate** after checking the
+received payment. For external Sham Cash/PayPal transfers, select the published
+paid plan, record the unique reference, and confirm the full plan amount was
+received. This records a payment; it does not charge the customer. One monthly or
+yearly period starts immediately, or extends the existing paid period for the
+same plan. No automatic renewal is created. Published paid plans can now be used
+for manual payments without PayPal configuration.
+
+For an existing PayPal checkout, a provider-verified receipt and recorded paid
+period must exist first. Super Admin then confirms the receipt in the same list.
+Approval before checkout is separate from activation after payment. Each new
+PayPal payment requires confirmation. Unconfirmed existing paid checkouts also
+wait for activation after this migration. Refund/payment holds still block access.
+Manual payments cannot overwrite an existing PayPal checkout. Reconcile the
+existing checkout first; no checkout history or provider binding is removed.
+
+Activation records include actor, reference, amount, currency and period. Replayed
+requests and duplicate external references do not create additional paid periods.
+Manual confirmed payments appear in platform revenue alongside provider receipts.

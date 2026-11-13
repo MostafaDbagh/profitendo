@@ -58,6 +58,7 @@ model AuthUser {
   @@map("auth_users")
 }
 model Business {
+  manualPayments ManualSubscriptionPayment[]
   id           String @id @default(uuid()) @db.Uuid
   name         String
   salesTaxRate Decimal @default(0) @map("sales_tax_rate") @db.Decimal(7,4)
@@ -241,6 +242,7 @@ model PlatformAudit {
 }
 
 model BillingPlan {
+  manualPayments ManualSubscriptionPayment[]
   id            String @id @default(uuid()) @db.Uuid
   code          String @unique
   name          String
@@ -289,6 +291,7 @@ model BillingAudit {
 
 // Not exposed as a customer checkout route until paid entitlement work is complete.
 model BillingCheckout {
+  activatedTransaction String? @map("activated_transaction")
   nextBillingAt DateTime? @map("next_billing_at") @db.Timestamptz(3)
   paidFrom DateTime? @map("paid_from") @db.Timestamptz(3)
   paidUntil DateTime? @map("paid_until") @db.Timestamptz(3)
@@ -1004,4 +1007,26 @@ model SmsOutbox {
  challenge VerificationChallenge @relation(fields:[challengeId],references:[id],onDelete:Cascade)
  @@index([availableAt])
  @@map("sms_outbox")
+}
+
+// Payments confirmed by the platform operator, separate from provider receipts.
+model ManualSubscriptionPayment {
+ id String @id @default(uuid()) @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ planId String @map("plan_id") @db.Uuid
+ actorId String @map("actor_id") @db.Uuid
+ requestKey String @unique @map("request_key") @db.Uuid
+ method String
+ reference String
+ amountMinor Int @map("amount_minor")
+ currency String
+ paidAt DateTime @map("paid_at") @db.Timestamptz(3)
+ startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+ endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ business Business @relation(fields:[businessId],references:[id],onDelete:Restrict)
+ plan BillingPlan @relation(fields:[planId],references:[id],onDelete:Restrict)
+ @@unique([method,reference])
+ @@index([businessId,endsAt])
+ @@map("manual_subscription_payments")
 }

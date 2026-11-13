@@ -17,11 +17,12 @@ export default function BillingSummary({ data, context, c, lang }) {
         <p className="text-xs font-semibold text-slate-500">{t('YOUR CURRENT PLAN','خطتك الحالية')}</p>
         <h3 className="text-2xl font-bold text-slate-900 break-words">{plan ? planName(plan,lang) : t('Choose your first plan','اختر خطتك الأولى')}</h3>
         <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${data.active?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-amber-200 bg-amber-50 text-amber-800'}`}><ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />{status}</span>
+        {data.status==='AWAITING_ACTIVATION'&&<p className="text-sm text-slate-500">{t('Your payment was received. Super Admin will confirm it and activate your subscription.','تم استلام دفعتك. ستؤكدها إدارة المنصة وتفعّل اشتراكك.')}</p>}
         {data.status==='EXPIRED' && <p className="text-sm text-slate-500 max-w-xl">{c('expiredHint')}</p>}
         {!plan && <p className="text-sm text-slate-500">{t('Start with a free trial, or explore a paid plan below.','ابدأ بتجربة مجانية، أو استعرض الخطط المدفوعة أدناه.')}</p>}
       </div>
       {plan && <div className="rounded-lg bg-slate-50 border border-slate-100 p-4 sm:min-w-56 space-y-2">
-        <p className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="w-4 h-4" aria-hidden="true" />{data.paidUntil?t('Access until','متاح حتى'):c('trialEnds')}</p>
+        <p className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="w-4 h-4" aria-hidden="true" />{data.paidUntil?t('Paid period ends','نهاية الفترة المدفوعة'):c('trialEnds')}</p>
         <p className="text-sm font-semibold text-slate-800">{new Date(data.paidUntil || data.subscription.trialEndsAt).toLocaleDateString(lang==='ar'?'ar':'en',{day:'numeric',month:'long',year:'numeric',timeZone:context.business.timezone})}</p>
         <p className="text-xs text-slate-500">{context.business.timezone}</p>
       </div>}

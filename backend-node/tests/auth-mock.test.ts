@@ -11,7 +11,7 @@ import { AuthService } from '../src/auth/service.js';
 import { readAuthSettings } from '../src/auth/settings.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
-const env={AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),NODE_ENV:'test',AUTH_MOCK_OTP:'true',APP_ORIGIN:'http://localhost:3100',DATABASE_URL:url};
+const env={AUTH_EMAIL_REQUIRED:'true', AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),NODE_ENV:'test',AUTH_MOCK_OTP:'true',APP_ORIGIN:'http://localhost:3100',DATABASE_URL:url};
 const settings=readAuthSettings(env),db=createDatabase(url),auth=new AuthService(db,settings);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},auth);
 app.set('trust proxy','loopback');

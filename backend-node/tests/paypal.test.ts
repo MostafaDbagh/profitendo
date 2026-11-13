@@ -1,3 +1,4 @@
+import {activateProviderPayment} from '../src/billing/manual.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import request from 'supertest';
@@ -273,6 +274,11 @@ it('grants only verified paid periods, never extends for the same payment, and h
  const reconciler:PayPalProvider={scope:provider.scope,getPlan:()=>provider.getPlan(),getSubscription:id=>provider.getSubscription(id),createSubscription:(...args)=>provider.createSubscription(args[0],args[1]),cancelSubscription:id=>provider.cancelSubscription(id),verifyWebhook:(...args)=>provider.verifyWebhook(...args),getTransactions:async()=>({transactions:[{id:'PAYMENT-NEW',status,time:paid,amount_with_breakdown:{gross_amount:{currency_code:'USD',value:'29.00'}}}],total_items:1,total_pages:1})};
  provider.snapshots.set(intent.snapshot.id,{...intent.snapshot,status:'ACTIVE',billing_info:{last_payment:{time:paid,amount:{value:'29.00',currency_code:'USD'}},next_billing_time:end,failed_payments_count:0,outstanding_balance:{value:'0.00',currency_code:'USD'}}});
  await reconcileCheckout(auth,reconciler,intent.intentId,now);
+ expect((await auth.transaction(tx=>billingState(tx,bid,now)))).toMatchObject({active:false,status:'AWAITING_ACTIVATION'});
+ const pending=await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}});
+ await expect(activateProviderPayment(auth,owner,bid,{revision:pending.revision,transactionId:pending.paidTransaction!,confirmed:true})).rejects.toMatchObject({code:'PLATFORM_FORBIDDEN'});
+ await activateProviderPayment(auth,admin,bid,{revision:pending.revision,transactionId:pending.paidTransaction!,confirmed:true});
+ await activateProviderPayment(auth,admin,bid,{revision:pending.revision,transactionId:pending.paidTransaction!,confirmed:true});
  expect((await auth.transaction(tx=>billingState(tx,bid,now))).active).toBe(true);
  await expect(auth.transaction(tx=>requireMemberCapacity(tx,bid))).resolves.toBeUndefined();
  expect((await db.billingCheckout.findUniqueOrThrow({where:{id:intent.intentId}})).nextBillingAt?.toISOString()).toBe(new Date(end).toISOString());

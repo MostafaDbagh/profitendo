@@ -60,7 +60,7 @@ export class BillingService {
       const before=await tx.billingPlan.findUnique({where:{id}});
       if(!before)throw new ApiError(404,'NOT_FOUND','Plan not found');
       if(before.revision!==revision)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
-      if(before.published||await tx.businessSubscription.count({where:{planId:id}})||await tx.billingCheckout.count({where:{planId:id}})||await tx.paidApproval.count({where:{planId:id}}))throw new ApiError(409,'PLAN_IN_USE','Create a new plan to change existing customer terms');
+      if(before.published||await tx.businessSubscription.count({where:{planId:id}})||await tx.billingCheckout.count({where:{planId:id}})||await tx.paidApproval.count({where:{planId:id}})||await tx.manualSubscriptionPayment.count({where:{planId:id}}))throw new ApiError(409,'PLAN_IN_USE','Create a new plan to change existing customer terms');
       const changed=await tx.billingPlan.updateMany({where:{id,revision,published:false},data:{...input,revision:{increment:1}}});
       if(!changed.count)throw new ApiError(409,'REVISION_CONFLICT','Reload before saving');
       const old=Object.fromEntries(Object.keys(input).map(k=>[k,before[k as keyof PlanInput]]));
@@ -74,8 +74,7 @@ export class BillingService {
       const plan = await tx.billingPlan.findUnique({ where: { id } });
       if (!plan) throw new ApiError(404, 'NOT_FOUND', 'Plan not found');
       if (plan.revision !== revision) throw new ApiError(409, 'REVISION_CONFLICT', 'Reload before saving');
-      // Paid offers remain drafts until provider integration and commercial terms are ready.
-      if (published && plan.priceMinor !== null && (!checkoutConfiguration().enabled||!checkoutConfiguration().bindings[plan.code])) throw new ApiError(409, 'PAID_CHECKOUT_UNAVAILABLE', 'Paid plans cannot be published before payment setup');
+      // Published paid plans support manually confirmed payments without a provider binding.
       if (published && plan.trialDays === 0 && plan.priceMinor === null) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'A trial offer needs a trial duration');
       if (plan.published === published) return plan;
       const updated = await tx.billingPlan.updateMany({ where: { id, revision }, data: { published, revision: { increment: 1 } } });

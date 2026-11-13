@@ -14,7 +14,7 @@ import { createApp } from './app.js';
 const config = readConfig(process.env);
 const authSettings = readAuthSettings(process.env);
 readMailSettings(process.env);
-readSmsSettings(process.env);
+readSmsSettings(process.env,false);
 const paypalSettings = readPayPalSettings(process.env);
 if(checkoutConfiguration().enabled&&!paypalSettings)throw new Error("Checkout requires provider configuration");
 if (!config.CORS_ORIGINS.includes(authSettings.appOrigin)) throw new Error('APP_ORIGIN must be included in CORS_ORIGINS');

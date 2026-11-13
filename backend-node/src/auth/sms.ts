@@ -1,3 +1,4 @@
+import {onboardingPolicy} from './policy.js';
 import type {PrismaClient} from '../generated/prisma/client.js';
 import type {AuthSettings} from './settings.js';
 import {decrypt} from './crypto.js';
@@ -10,7 +11,7 @@ export async function deliverSmsBatch(db:PrismaClient,settings:AuthSettings,send
    if(!rows[0])return null;return tx.smsOutbox.update({where:{id:rows[0].id},data:{attempts:{increment:1},availableAt:new Date(Date.now()+60000)},include:{challenge:{include:{user:true}}}});
   });if(!row)break;
   const c=row.challenge;
-  if(c.usedAt||c.expiresAt<=new Date()||c.user.disabledAt||c.user.phoneVerifiedAt){await db.smsOutbox.update({where:{id:row.id},data:{payload:'',attempts:3}});continue;}
+  if(!(await onboardingPolicy(db,settings)).ownerPhoneRequired||c.usedAt||c.expiresAt<=new Date()||c.user.disabledAt||c.user.phoneVerifiedAt){await db.smsOutbox.update({where:{id:row.id},data:{payload:'',attempts:3}});continue;}
   try{await send(JSON.parse(decrypt(settings.key,row.payload,`sms:${row.id}`)));await db.smsOutbox.update({where:{id:row.id},data:{deliveredAt:new Date(),payload:''}});accepted++;}
   catch{failed++;await db.smsOutbox.update({where:{id:row.id},data:{availableAt:new Date(Date.now()+30000)}});}
  }return {accepted,failed};

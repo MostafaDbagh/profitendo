@@ -12,7 +12,7 @@ import { deliverMailBatch } from '../src/auth/mail.js';
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.endsWith('_test')) throw new Error('Dedicated TEST_DATABASE_URL ending in _test required');
 const db = createDatabase(url);
-const settings = readAuthSettings({ AUTH_ENCRYPTION_KEY: randomBytes(32).toString('hex'), APP_ORIGIN: 'http://localhost:3000', NODE_ENV: 'test' });
+const settings = readAuthSettings({ AUTH_EMAIL_REQUIRED:'true', AUTH_ENCRYPTION_KEY: randomBytes(32).toString('hex'), APP_ORIGIN: 'http://localhost:3000', NODE_ENV: 'test' });
 const auth = new AuthService(db, settings);
 const app = createApp({ CORS_ORIGINS: [settings.appOrigin] }, pino({ level: 'silent' }), async () => {}, auth);
 // Unique test IP per request group, solely for exercising shared DB rate buckets.

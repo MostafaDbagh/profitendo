@@ -3,7 +3,7 @@ import type {AuthService,AuthContext} from './service.js';
 import {digest,encrypt,decrypt,randomToken,equal} from './crypto.js';
 import {ApiError} from '../errors.js';
 import {emailConfigured} from './mail-settings.js';
-import {normalizeSyrianMobile,smsConfigured} from './sms-settings.js';
+import {normalizePhone,smsConfigured} from './sms-settings.js';
 import {queueWelcome} from './welcome.js';
 const invalid=()=>new ApiError(400,'INVALID_OTP','The code is incorrect or expired');
 export class ContactVerification{
@@ -17,7 +17,7 @@ export class ContactVerification{
  }
  async requestPhone(ctx:AuthContext,raw:string){
   if(ctx.mfaRequired&&!ctx.session.mfaVerified)throw new ApiError(403,'MFA_REQUIRED','Complete MFA first');
-  const phone=normalizeSyrianMobile(raw);if(!phone)throw new ApiError(422,'INVALID_PHONE','Enter a Syrian mobile number');
+  const phone=normalizePhone(raw);if(!phone)throw new ApiError(422,'INVALID_PHONE','Enter an international phone number starting with +');
   if(!this.auth.settings.mockOtp&&!smsConfigured(process.env))throw new ApiError(503,'SMS_UNAVAILABLE','Phone verification is not configured');
   await this.auth.limit('phone-number-day',phone,5,86400);await this.auth.limit('phone-owner-day',ctx.user.id,5,86400);await this.auth.limit('phone-owner-minute',ctx.user.id,1,60);
   return this.issue(ctx.user.id,'PHONE',phone,ctx);

@@ -7,7 +7,7 @@ const checks:{name:string;ok:boolean}[]=[];
 function check(name:string,fn:()=>unknown){try{fn();checks.push({name,ok:true});}catch{checks.push({name,ok:false});}}
 check('API configuration and matching app origin',()=>{const c=readConfig(process.env),a=readAuthSettings(process.env);if(!c.CORS_ORIGINS.includes(a.appOrigin))throw new Error();});
 check('real authenticator OTP; mock codes disabled',()=>{if(readAuthSettings(process.env).mockOtp)throw new Error();});
-check('owner email and phone verification required',()=>{const settings=readAuthSettings(process.env);if(!settings.emailOtp||!settings.ownerPhoneRequired)throw new Error();});
+check('valid onboarding defaults (Super Admin can override)',()=>readAuthSettings(process.env));
 check('complete Syrian SMS configuration',()=>readSmsSettings(process.env,true));
 check('complete SMTP configuration',()=>readMailSettings(process.env,true));
 if(process.argv.includes('--connect')){

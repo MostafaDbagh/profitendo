@@ -1,4 +1,5 @@
-import {normalizeSyrianMobile} from './sms-settings.js';
+import {onboardingPolicy} from './policy.js';
+import {normalizePhone} from './sms-settings.js';
 import {queueWelcome} from './welcome.js';
 import { randomBytes, randomUUID, randomInt } from 'node:crypto';
 import type { Prisma, PrismaClient, AuthUser, AuthSession } from '../generated/prisma/client.js';
@@ -12,6 +13,7 @@ const invalidToken = () => new ApiError(400, 'INVALID_TOKEN', 'This link is inva
 const hour = 3600000;
 export const publicUser = (u: AuthUser) => ({ user_id: u.id, email: u.email, name: u.name, platformRole: u.platformRole });
 export class AuthService {
+  policy(db:Tx|PrismaClient=this.db){return onboardingPolicy(db,this.settings);}
   readonly dummyHash: Promise<string>;
   constructor(readonly db: PrismaClient, readonly settings: AuthSettings) {
     this.dummyHash = passwordHash(randomToken());
@@ -65,8 +67,8 @@ export class AuthService {
     if(!this.settings.mockOtp)await this.queueMail(tx, user.email, kind === 'VERIFY_EMAIL' ? 'Verify your ProfitLens email' : 'Reset your ProfitLens password', kind === 'VERIFY_EMAIL' ? 'verify' : 'reset', token);
   }
   async register(input: { email: string; password: string; name: string; businessName: string; language?:'en'|'ar'; phone?:string }) {
-    const phone=input.phone===undefined?null:normalizeSyrianMobile(input.phone);
-    if(input.phone!==undefined&&!phone)throw new ApiError(422,'INVALID_PHONE','Enter a Syrian mobile number');
+    const phone=input.phone===undefined?null:normalizePhone(input.phone);
+    if(input.phone!==undefined&&!phone)throw new ApiError(422,'INVALID_PHONE','Enter an international phone number starting with +');
     const hash = await passwordHash(input.password);
     try {
       await this.transaction(async tx => {
@@ -74,7 +76,7 @@ export class AuthService {
         const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash, language:input.language??'en', pendingPhone:phone?encrypt(this.settings.key,phone,'registration-phone'):null } });
         const business = await tx.business.create({ data: { name: input.businessName } });
         await tx.membership.create({ data: { userId: user.id, businessId: business.id, role: 'OWNER' } });
-        if(!this.settings.emailOtp)await this.issueToken(tx, user, 'VERIFY_EMAIL');
+        if((await this.policy(tx)).emailRequired&&!this.settings.emailOtp)await this.issueToken(tx, user, 'VERIFY_EMAIL');
         await this.audit(tx, 'account.registered', user.id, business.id);
       });
     } catch (e) { if ((e as { code?: string }).code !== 'P2002') throw e; }
@@ -105,7 +107,7 @@ export class AuthService {
       await this.audit(tx, kind === 'VERIFY_EMAIL' ? 'email.verified' : 'password.reset', row.userId);
     });
   }
-  async needsPhone(tx:Tx|PrismaClient,user:AuthUser){return this.settings.ownerPhoneRequired&&!user.phoneVerifiedAt&&!!await tx.membership.findFirst({where:{userId:user.id,role:'OWNER',disabledAt:null}});}
+  async needsPhone(tx:Tx|PrismaClient,user:AuthUser){return (await this.policy(tx)).ownerPhoneRequired&&!user.phoneVerifiedAt&&!!await tx.membership.findFirst({where:{userId:user.id,role:'OWNER',disabledAt:null}});}
   async requiresMfa(tx: Tx | PrismaClient, user: AuthUser) {
     return !!user.mfaSecret;
   }
@@ -119,10 +121,10 @@ export class AuthService {
     const snapshot = await this.db.authUser.findUnique({ where: { email } });
     const correct = await passwordMatches(snapshot?.passwordHash ?? await this.dummyHash, password);
     if (!snapshot || !correct || snapshot.disabledAt) throw fail();
-    if (!snapshot.emailVerifiedAt) throw new ApiError(403, 'EMAIL_UNVERIFIED', 'Verify your email before signing in');
     return this.transaction(async tx => {
       const user = await this.lockUser(tx, snapshot.id);
       if (user.passwordHash !== snapshot.passwordHash) throw fail();
+      if ((await this.policy(tx)).emailRequired&&!user.emailVerifiedAt) throw new ApiError(403,'EMAIL_UNVERIFIED','Verify your email before signing in');
       const session = await this.makeSession(tx, user);
       await this.audit(tx, 'session.created', user.id);
       return session;
@@ -130,7 +132,7 @@ export class AuthService {
   }
   async authenticate(token: string): Promise<AuthContext> {
     const session = await this.db.authSession.findUnique({ where: { tokenHash: digest(token) }, include: { user: true } });
-    if (!session || session.expiresAt <= new Date() || session.lastSeenAt.getTime() < Date.now() - 30 * 60000 || session.user.disabledAt || session.securityVersion !== session.user.securityVersion || !session.user.emailVerifiedAt) {
+    if (!session || session.expiresAt <= new Date() || session.lastSeenAt.getTime() < Date.now() - 30 * 60000 || session.user.disabledAt || session.securityVersion !== session.user.securityVersion || ((await this.policy()).emailRequired&&!session.user.emailVerifiedAt)) {
       throw new ApiError(401, 'SESSION_EXPIRED', 'Sign in again');
     }
     // Do not resurrect a session revoked concurrently.
@@ -149,7 +151,7 @@ export class AuthService {
   async assertSession(tx: Tx, ctx: AuthContext) {
     const user = await this.lockUser(tx, ctx.user.id);
     const session = await tx.authSession.findUnique({ where: { id: ctx.session.id } });
-    if (!session || session.expiresAt <= new Date() || session.lastSeenAt.getTime() < Date.now() - 30 * 60000 || session.securityVersion !== user.securityVersion || !user.emailVerifiedAt) throw fail();
+    if (!session || session.expiresAt <= new Date() || session.lastSeenAt.getTime() < Date.now() - 30 * 60000 || session.securityVersion !== user.securityVersion || ((await this.policy(tx)).emailRequired&&!user.emailVerifiedAt)) throw fail();
     return { user, session };
   }
   async beginMfa(ctx: AuthContext, password: string) {

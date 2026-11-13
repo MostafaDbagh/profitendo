@@ -1,5 +1,5 @@
 import {it,expect,vi} from 'vitest';
-import {normalizeSyrianMobile,readSmsSettings,sendSms} from '../src/auth/sms-settings.js';
+import {normalizeSyrianMobile,normalizePhone,readSmsSettings,sendSms} from '../src/auth/sms-settings.js';
 it('normalizes Syrian mobile formats and rejects other destinations',()=>{
  for(const phone of ['0941234567','+963941234567','00963941234567','963941234567','٩٤١٢٣٤٥٦٧','۰۹۴۱۲۳۴۵۶۷','(094) 123-4567'])expect(normalizeSyrianMobile(phone)).toBe('+963941234567');
  for(const phone of ['+971501234567','+963111234567','094123456','09412345678','abc0941234567',''])expect(normalizeSyrianMobile(phone)).toBeNull();
@@ -15,4 +15,13 @@ it('uses official MsgPlus HTTPS contract with timeout, template vars and no redi
 it('fails closed on provider failures or malformed acceptance',async()=>{
  const s=readSmsSettings({MSGPLUS_API_KEY:'test-secret',MSGPLUS_SENDER_NAME:'ProfitLens',MSGPLUS_TEMPLATE_ID:'1'})!;
  for(const response of [new Response('{}',{status:202}),new Response('{"success":false}',{status:202}),new Response('private provider error',{status:403})])await expect(sendSms(s,{phone:'0941234567',code:'123456',name:'Tester'},vi.fn().mockResolvedValue(response))).rejects.toThrow('SMS provider did not accept');
+});
+
+it('accepts international country codes without a fixed country allowlist',async()=>{
+ const phones=['+971501234567','+966501234567','+96892123456','+962791234567','+9613123456','+97455123456','+963941234567','+447700900123','+14155552671'];
+ const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({sms_log_id:14}),{status:202}));
+ const settings=readSmsSettings({MSGPLUS_API_KEY:'test',MSGPLUS_SENDER_NAME:'ProfitLens',MSGPLUS_TEMPLATE_ID:'1'})!;
+ for(const phone of phones){expect(normalizePhone(phone)).toBe(phone);await sendSms(settings,{phone,code:'123456',name:'Tester'},fetcher);expect(JSON.parse(fetcher.mock.calls.at(-1)![1].body).numbers).toEqual([phone.slice(1)]);}
+ expect(normalizePhone('+٩٧١ (٥٠) ١٢٣-٤٥٦٧')).toBe('+971501234567');expect(normalizePhone('00971501234567')).toBe('+971501234567');
+ for(const phone of ['+012345678','+123','+1234567890123456','+971abc123456','+971+501234567'])expect(normalizePhone(phone)).toBeNull();
 });

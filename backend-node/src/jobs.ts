@@ -4,7 +4,7 @@ import {readMailSettings} from './auth/mail-settings.js';
 import {readConfig} from './config.js';
 import {readAuthSettings} from './auth/settings.js';
 readConfig(process.env);readAuthSettings(process.env);
-const mail=readMailSettings(process.env),sms=readSmsSettings(process.env);
+const mail=readMailSettings(process.env),sms=readSmsSettings(process.env,false);
 if(!mail)console.log('Email delivery is not configured; mail remains queued.');
 import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';

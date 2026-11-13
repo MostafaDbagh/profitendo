@@ -28,7 +28,7 @@ export function authRouter(auth: AuthService) {
     await auth.limit('http', req.ip ?? 'unknown', 120, 60);
     next();
   });
-  router.get('/config',(_req,res)=>res.json({mockOtp:auth.settings.mockOtp,emailOtp:auth.settings.emailOtp,ownerPhoneRequired:auth.settings.ownerPhoneRequired}));
+  router.get('/config',async(_req,res)=>{const policy=await auth.policy();res.json({mockOtp:auth.settings.mockOtp,emailOtp:auth.settings.emailOtp,emailRequired:policy.emailRequired,ownerPhoneRequired:policy.ownerPhoneRequired});});
   const verification=new ContactVerification(auth);
   router.post('/email-code/request',validateBody(z.object({email}).strict()),async(req,res)=>{
     await auth.limit('email-code-ip',req.ip??'',10,900);await auth.limit('email-code-account',req.body.email,3,900);
@@ -37,7 +37,7 @@ export function authRouter(auth: AuthService) {
   router.post('/email-code/confirm',validateBody(z.object({challenge:token,code:otpCode}).strict()),async(req,res)=>{
     await auth.limit('email-code-confirm',req.ip??'',30,900);res.json(await verification.confirm(req.body.challenge,req.body.code,'EMAIL'));
   });
-  router.post('/phone-code/request',attach,csrf,validateBody(z.object({phone:z.string().min(9).max(40)}).strict()),async(req,res)=>{
+  router.post('/phone-code/request',attach,csrf,validateBody(z.object({phone:z.string().min(8).max(40)}).strict()),async(req,res)=>{
     await auth.limit('phone-code-ip',req.ip??'',10,3600);res.status(202).json(await verification.requestPhone(ctx(res),req.body.phone));
   });
   router.post('/phone-code/confirm',attach,csrf,validateBody(z.object({challenge:token,code:otpCode}).strict()),async(req,res)=>{
@@ -52,10 +52,10 @@ export function authRouter(auth: AuthService) {
     await auth.limit('mock-confirm-ip',req.ip??'',30);await auth.limit('mock-confirm',req.body.challenge,5);
     res.json(await mock.confirm(req.body.challenge,req.body.purpose,req.body.code));
   });
-  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),phone:z.string().min(9).max(40).optional(),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
+  router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),phone:z.string().min(8).max(40).optional(),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
     await auth.limit('register-ip', req.ip ?? '', 5);
     await auth.limit('register-email', req.body.email, 3);
-    await auth.register(req.body); res.status(202).json(genericMessage);
+    await auth.register(req.body); res.status(202).json({...genericMessage,emailRequired:(await auth.policy()).emailRequired});
   });
   router.post('/login', validateBody(z.object({ email, password: z.string().min(1).max(128) }).strict()), async (req, res) => {
     await auth.limit('login-ip', req.ip ?? '', 30);

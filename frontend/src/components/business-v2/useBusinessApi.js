@@ -13,7 +13,7 @@ export function useBusinessApi() {
       throw new Error(timeout.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR');
     }
     const data = await response.json().catch(() => { throw new Error('INVALID_SERVER_RESPONSE'); });
-    if (response.status === 401 || data.error?.code === 'MFA_REQUIRED') navigate('/auth-v2', { replace: true });
+    if (response.status === 401 || ['MFA_REQUIRED','PHONE_UNVERIFIED'].includes(data.error?.code)) navigate('/auth-v2', { replace: true });
     if (!response.ok) throw new Error(data.error?.code || 'failed');
     if (data.csrfToken) csrf.current = data.csrfToken;
     return data;

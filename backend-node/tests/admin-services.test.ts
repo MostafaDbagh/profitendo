@@ -20,7 +20,7 @@ function get(path:string,c=admin){return request(app).get('/api'+path).set('Cook
 function write(path:string,body:object,c=admin,method:'post'|'patch'|'put'='post'){return request(app)[method]('/api'+path).set('Cookie',cookie(c)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,c.token)).send(body);}
 async function actor(role:'SUPER_ADMIN'|'USER'='USER'){const id=randomUUID();ids.push(id);const u=await db.authUser.create({data:{id,name:'Test Subscriber',email:`${id}@example.test`,passwordHash:hash,emailVerifiedAt:new Date(),platformRole:role,mfaSecret:encrypt(settings.key,'JBSWY3DPEHPK3PXP',`mfa:${id}`)}});return auth.transaction(tx=>auth.makeSession(tx,u,true));}
 beforeAll(async()=>{hash=await passwordHash('Admin test passphrase 123!');admin=await actor('SUPER_ADMIN');owner=await actor();other=await actor();const b=await db.business.create({data:{name:'Subscriber test '+scope}});bid=b.id;bids.push(bid);await db.membership.create({data:{businessId:bid,userId:owner.user.id,role:'OWNER'}});const plan=await db.billingPlan.create({data:{code:'test-'+scope,name:'Monthly',nameAr:'شهري',priceMinor:1900,currency:'USD',interval:'MONTH',trialDays:0,maxMembers:5,maxWarehouses:2,maxShops:3,published:true}});planId=plan.id;pids.push(planId);});
-afterAll(async()=>{await db.supportTicket.deleteMany({where:{id:{in:tickets}}});await db.billingReceipt.deleteMany({where:{checkout:{businessId:{in:bids}}}});await db.billingCheckout.deleteMany({where:{businessId:{in:bids}}});await db.billingAudit.deleteMany({where:{actorId:{in:ids}}});await db.authAudit.deleteMany({where:{userId:{in:ids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.billingPlan.deleteMany({where:{id:{in:pids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.$disconnect();});
+afterAll(async()=>{await db.manualSubscriptionPayment.deleteMany({where:{businessId:{in:bids}}});await db.supportTicket.deleteMany({where:{id:{in:tickets}}});await db.billingReceipt.deleteMany({where:{checkout:{businessId:{in:bids}}}});await db.billingCheckout.deleteMany({where:{businessId:{in:bids}}});await db.billingAudit.deleteMany({where:{actorId:{in:ids}}});await db.authAudit.deleteMany({where:{userId:{in:ids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.billingPlan.deleteMany({where:{id:{in:pids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.$disconnect();});
 it('allows trial immediately and denies unapproved paid checkout before any provider call',async()=>{
  const trial=await db.billingPlan.create({data:{code:'trial-'+scope,name:'Trial',nameAr:'تجربة',priceMinor:null,trialDays:7,maxMembers:5,maxWarehouses:1,maxShops:1,published:true}});pids.push(trial.id);
  expect((await write(`/billing/businesses/${bid}/trial`,{planId:trial.id},owner)).status).toBe(201);
@@ -51,7 +51,7 @@ it('reports verified receipts only for the current provider and month, separatin
  const result=await get('/platform/revenue?month=2026-11');expect(result.status).toBe(200);expect(result.body.total).toBe(2);expect(result.body.totals).toEqual(expect.arrayContaining([expect.objectContaining({currency:'USD',amountMinor:1900}),expect.objectContaining({currency:'EUR',amountMinor:2500})]));
  for(const path of ['/platform/revenue','/platform/subscribers'])expect((await get(path,owner)).status).toBe(403);
  expect((await get('/platform/revenue?month=bad')).status).toBe(422);
- await db.billingCheckout.update({where:{id:c.id},data:{paidFrom:new Date(Date.now()-10000),paidUntil:new Date(Date.now()+86400000),providerStatus:'ACTIVE'}});
+ await db.billingCheckout.update({where:{id:c.id},data:{paidFrom:new Date(Date.now()-10000),paidUntil:new Date(Date.now()+86400000),providerStatus:'ACTIVE',paidTransaction:'fixture-paid',activatedTransaction:'fixture-paid'}});
  expect((await auth.transaction(tx=>billingState(tx,bid))).status).toBe('ACTIVE');
  await db.paidApproval.updateMany({where:{businessId:bid},data:{status:'REJECTED'}});
  expect((await auth.transaction(tx=>billingState(tx,bid))).status).toBe('TRIAL');
@@ -103,4 +103,59 @@ it('reports payment and renewal separately, and hides renewal after cancellation
  list=await get('/platform/subscribers?q='+encodeURIComponent('Subscriber test '+scope));expect(list.body.items[0].renewalAt).toBeNull();
  await db.billingCheckout.update({where:{businessId:bid},data:{accessHold:true}});
  list=await get('/platform/subscribers?q='+encodeURIComponent('Subscriber test '+scope));expect(list.body.items[0].paymentStatus).toBe('PAYMENT_REVIEW');
+});
+it('lists new signups, contacts, remaining trial days and disabled owners',async()=>{
+ const email=`new-signup-${randomUUID()}@example.test`;
+ await auth.register({email,password:'Registration audit password 512!',name:'New Signup Owner',businessName:'New Signup '+scope,phone:'+971501234567'});
+ const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
+ const member=await db.membership.findFirstOrThrow({where:{userId:user.id}});bids.push(member.businessId);
+ let list=await get('/platform/subscribers?q='+encodeURIComponent(email));expect(list.status).toBe(200);expect(list.body.total).toBe(1);
+ const row=list.body.items[0];expect(row).toMatchObject({id:member.businessId,status:'NOT_STARTED',paymentStatus:'NO_PAYMENTS',trialDaysRemaining:null,owners:[{name:'New Signup Owner',email,phone:'+971501234567',phoneVerified:false}]});
+ expect(row.owners[0]).not.toHaveProperty('pendingPhone');expect(row.owners[0]).not.toHaveProperty('passwordHash');expect(row.createdAt).toBeTruthy();
+ const plan=await db.billingPlan.findFirstOrThrow({where:{code:'trial-'+scope}});
+ await db.businessSubscription.create({data:{businessId:member.businessId,planId:plan.id,trialStartedAt:new Date(Date.now()-86400000),trialEndsAt:new Date(Date.now()+2.5*86400000)}});
+ list=await get('/platform/subscribers?q='+encodeURIComponent(email));expect(list.body.items[0]).toMatchObject({status:'TRIAL',trialDaysRemaining:3,paymentStatus:'NO_PAYMENTS'});
+ await db.businessSubscription.update({where:{businessId:member.businessId},data:{trialEndsAt:new Date(Date.now()-1000)}});
+ list=await get('/platform/subscribers?q='+encodeURIComponent(email));expect(list.body.items[0]).toMatchObject({status:'EXPIRED',trialDaysRemaining:null});
+ await db.membership.update({where:{id:member.id},data:{disabledAt:new Date()}});
+ list=await get('/platform/subscribers?q='+encodeURIComponent('New Signup Owner'));expect(list.body.items.some((r:any)=>r.id===member.businessId&&r.owners[0].disabled)).toBe(true);
+ expect((await get('/platform/subscribers?q='+encodeURIComponent(email),owner)).status).toBe(403);
+});
+it('confirms external payments with audit, entitlements, revenue and retry protection',async()=>{
+ const b=await db.business.create({data:{name:'Manual payment '+scope}});bids.push(b.id);
+ await db.membership.create({data:{businessId:b.id,userId:other.user.id,role:'OWNER'}});
+ const path=`/platform/subscribers/${b.id}/payments`,input={requestKey:randomUUID(),planId,method:'SHAM_CASH',reference:'cash-'+scope,confirmed:true};
+ expect((await write(path,input,other)).status).toBe(403);
+ expect((await request(app).post('/api'+path).set('Cookie',cookie(admin)).set('Origin',settings.appOrigin).send(input)).status).toBe(403);
+ expect((await write(path,{...input,confirmed:false})).status).toBe(422);
+ const first=await write(path,input);expect(first.status).toBe(201);
+ const retry=await write(path,input);expect(retry.status).toBe(201);expect(retry.body.id).toBe(first.body.id);
+ expect((await write(path,{...input,requestKey:randomUUID()})).status).toBe(409);
+ expect(await db.manualSubscriptionPayment.count({where:{businessId:b.id}})).toBe(1);
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({status:'ACTIVE',active:true});
+ expect((await get('/platform/subscribers?q='+encodeURIComponent('Manual payment '+scope))).body.items[0]).toMatchObject({status:'ACTIVE',paymentStatus:'PAYMENT_RECEIVED',trialDaysRemaining:null,lastPayment:{amountMinor:1900,currency:'USD'}});
+ const audit=await db.billingAudit.findFirstOrThrow({where:{businessId:b.id,action:'subscription.manually_activated'}});expect(audit.actorId).toBe(admin.user.id);
+ const revenue=await get('/platform/revenue?month='+new Date().toISOString().slice(0,7));expect(revenue.body.items.some((r:any)=>r.reference===input.reference)).toBe(true);
+ const second=await write(path,{...input,requestKey:randomUUID(),reference:input.reference+'-renewal'});expect(second.status).toBe(201);expect(second.body.startsAt).toBe(first.body.endsAt);
+ expect((await write(`/platform/subscribers/${bid}/payments`,{...input,requestKey:randomUUID(),reference:'blocked-'+scope})).status).toBe(409);
+ await db.manualSubscriptionPayment.updateMany({where:{businessId:b.id},data:{startsAt:new Date(Date.now()-86400000*40),endsAt:new Date(Date.now()-1000)}});
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({status:'EXPIRED',active:false});
+});
+it('requires Super Admin confirmation for each verified PayPal payment',async()=>{
+ const b=await db.business.create({data:{name:'Provider activation '+scope}});bids.push(b.id);
+ await db.paidApproval.create({data:{businessId:b.id,planId,requestedBy:owner.user.id,status:'APPROVED'}});
+ const txid='provider-'+randomUUID(),until=new Date(Date.now()+86400000*30);
+ const checkout=await db.billingCheckout.create({data:{businessId:b.id,planId,scope,providerPlanId:'P-TEST',providerStatus:'ACTIVE',paidFrom:new Date(Date.now()-1000),paidUntil:until,paidTransaction:txid}});
+ await db.billingReceipt.create({data:{checkoutId:checkout.id,scope,transactionId:txid,eventId:randomUUID(),amountMinor:1900,currency:'USD',paidAt:new Date()}});
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({active:false,status:'AWAITING_ACTIVATION'});
+ const path=`/platform/subscribers/${b.id}/activate`,input={revision:0,transactionId:txid,confirmed:true};
+ expect((await write(path,input,owner)).status).toBe(403);
+ expect((await request(app).post('/api'+path).set('Cookie',cookie(admin)).set('Origin',settings.appOrigin).send(input)).status).toBe(403);
+ expect((await write(path,{...input,revision:99})).status).toBe(409);
+ expect((await write(path,input)).status).toBe(200);expect((await write(path,input)).status).toBe(200);
+ expect(await db.billingAudit.count({where:{businessId:b.id,action:'subscription.payment_activated'}})).toBe(1);
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({active:true,status:'ACTIVE'});
+ await db.billingCheckout.update({where:{id:checkout.id},data:{paidTransaction:txid+'-next',revision:{increment:1}}});
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({active:false,status:'AWAITING_ACTIVATION'});
+ expect((await write(path,{...input,revision:2,transactionId:txid+'-next'})).status).toBe(409);
 });

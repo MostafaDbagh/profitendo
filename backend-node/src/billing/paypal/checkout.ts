@@ -14,6 +14,7 @@ export class CheckoutService {
     const local = await this.auth.transaction(async tx => {
       await requireBusiness(this.auth,tx,ctx,businessId,'billing.manage');
       await requirePaidApproval(tx,businessId,planId);
+      if(await tx.manualSubscriptionPayment.findFirst({where:{businessId,endsAt:{gt:new Date()}}}))throw new ApiError(409,'CHECKOUT_EXISTS','A manually activated paid period is already running');
       const plan = await tx.billingPlan.findUnique({where:{id:planId}});
       if (!plan?.priceMinor) throw new ApiError(409,'PLAN_UNAVAILABLE','A priced plan is required');
       return plan;
@@ -22,6 +23,7 @@ export class CheckoutService {
     const intent = await this.auth.transaction(async tx => {
       await requireBusiness(this.auth,tx,ctx,businessId,'billing.manage');
       await requirePaidApproval(tx,businessId,planId);
+      if(await tx.manualSubscriptionPayment.findFirst({where:{businessId,endsAt:{gt:new Date()}}}))throw new ApiError(409,'CHECKOUT_EXISTS','A manually activated paid period is already running');
       const existing = await tx.billingCheckout.findUnique({where:{businessId}});
       if (existing) {
         if (existing.scope !== this.provider.scope || existing.planId !== planId || existing.providerPlanId !== providerPlanId) throw new ApiError(409,'CHECKOUT_EXISTS','Reconcile the existing checkout before replacing it');

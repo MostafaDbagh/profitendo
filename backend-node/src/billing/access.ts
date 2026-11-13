@@ -8,6 +8,6 @@ export async function requireBillingOwner(auth: AuthService, tx: Tx, ctx: AuthCo
   if (await auth.requiresMfa(tx,user)&&!session.mfaVerified) throw new ApiError(403, 'MFA_REQUIRED', 'Complete MFA first');
   const membership = await tx.membership.findUnique({ where: { businessId_userId: { businessId, userId: user.id } } });
   if (!membership || membership.disabledAt || membership.role !== 'OWNER') throw new ApiError(403, 'FORBIDDEN', 'Business billing access is not available');
-  if(auth.settings.ownerPhoneRequired&&!user.phoneVerifiedAt)throw new ApiError(403,'PHONE_UNVERIFIED','Verify your phone first');
+  if((await auth.policy(tx)).ownerPhoneRequired&&!user.phoneVerifiedAt)throw new ApiError(403,'PHONE_UNVERIFIED','Verify your phone first');
   return membership;
 }

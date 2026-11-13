@@ -1,7 +1,7 @@
 import { businessCopy } from '../business-v2/copy';
 export const platformCopy = {
-  en: { ...businessCopy.en, approvals:'Paid subscription approvals', revenue:'Subscription revenue', subscribers:'Subscriber billing list', support:'Contact Us inbox',
-    plans: 'Subscription plans', billingAudit: 'Billing activity',
+  en: { ...businessCopy.en, approvals:'Paid subscription approvals', revenue:'Subscription revenue', subscribers:'Signups & subscriptions', support:'Contact Us inbox',
+    onboarding:'Registration settings', 'onboarding.emailRequired':'Email verification setting changed', 'onboarding.ownerPhoneRequired':'Phone verification setting changed', 'onboarding.welcomeEnabled':'Welcome email setting changed', plans: 'Subscription plans', billingAudit: 'Billing activity',
     platform: 'Platform administration', platformHint: 'Manage customer access and review platform actions.', overview: 'Overview', businesses: 'Customer businesses', users: 'User accounts', audit: 'Platform activity',
     all: 'All statuses', search: 'Search', businessSearch: 'Search by business name', userSearch: 'Search by name or email', members: 'Members', verified: 'Email verified',
     suspend: 'Suspend business', reactivate: 'Reactivate', disable: 'Disable account', suspended: 'Suspended', disabled: 'Disabled', protected: 'Protected administrator', SUPER_ADMIN: 'Super Admin', USER: 'Customer',
@@ -13,7 +13,7 @@ export const platformCopy = {
     PLATFORM_FORBIDDEN: 'This area is available only to platform administrators.', ADMIN_PROTECTED: 'Platform administrator accounts cannot be changed here.',
     'business.suspended': 'Business suspended', 'business.reactivated': 'Business reactivated', 'user.disabled': 'Account disabled', 'user.reactivated': 'Account reactivated',
   },
-  ar: { ...businessCopy.ar, approvals:'طلبات الاشتراك المدفوع', revenue:'إيرادات الاشتراكات', subscribers:'قائمة فوترة المشتركين', support:'صندوق تواصل معنا',
+  ar: { ...businessCopy.ar, onboarding:'إعدادات التسجيل', 'onboarding.emailRequired':'تغيير إعداد التحقق من البريد', 'onboarding.ownerPhoneRequired':'تغيير إعداد التحقق من الهاتف', 'onboarding.welcomeEnabled':'تغيير إعداد رسالة الترحيب', approvals:'طلبات الاشتراك المدفوع', revenue:'إيرادات الاشتراكات', subscribers:'التسجيلات والاشتراكات', support:'صندوق تواصل معنا',
     plans: 'خطط الاشتراك', billingAudit: 'سجل الاشتراكات',
     platform: 'إدارة المنصة', platformHint: 'إدارة وصول العملاء ومراجعة إجراءات المنصة.', overview: 'نظرة عامة', businesses: 'أنشطة العملاء', users: 'حسابات المستخدمين', audit: 'سجل المنصة',
     all: 'جميع الحالات', search: 'بحث', businessSearch: 'ابحث باسم النشاط التجاري', userSearch: 'ابحث بالاسم أو البريد الإلكتروني', members: 'الأعضاء', verified: 'البريد مؤكّد',
