@@ -37,7 +37,7 @@ export function businessRouter(auth: AuthService) {
   router.get('/:businessId/members', async (req, res) => { res.json(await service.members(ctx(res), String(req.params.businessId), paging(req.query))); });
   router.patch('/:businessId/members/:memberId', validateBody(memberPatch), async (req, res) => { res.json(await service.updateMember(ctx(res), String(req.params.businessId), String(req.params.memberId), req.body)); });
   router.get('/:businessId/invitations', async (req, res) => { res.json(await service.invitations(ctx(res), String(req.params.businessId), paging(req.query))); });
-  router.post('/:businessId/invitations', validateBody(z.object({ password: z.string().min(12).max(128).optional(), name: z.string().trim().min(2).max(100).optional(), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().optional() }).strict().refine(v => Boolean(v.role) !== Boolean(v.customRoleId))), async (req, res) => {
+  router.post('/:businessId/invitations', validateBody(z.object({ password: z.string().min(8).max(128).optional(), name: z.string().trim().min(2).max(100).optional(), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().optional() }).strict().refine(v => Boolean(v.role) !== Boolean(v.customRoleId))), async (req, res) => {
     await auth.limit('invitations', ctx(res).user.id, 20);
     await invite(auth, ctx(res), { ...req.body, businessId: String(req.params.businessId) }); res.status(202).json({ detail: 'Invitation queued.' });
   });

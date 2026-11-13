@@ -9,7 +9,7 @@ import { authHttp } from './http.js';
 import { AuthService, type AuthContext } from './service.js';
 import { invite, acceptInvitation, revokeInvitation, disableMember } from './invitations.js';
 const email = z.string().trim().email().max(254).transform(v => v.toLowerCase());
-const password = z.string().min(12).max(128);
+const password = z.string().min(8).max(128);
 const token = z.string().length(43).regex(/^[A-Za-z0-9_-]{43}$/);
 const code = z.union([otpCode,z.string().length(24).regex(/^[a-f0-9]{24}$/)]);
 const genericMessage = { detail: 'If eligible, an email will be sent with the next steps.' };
@@ -35,7 +35,7 @@ export function authRouter(auth: AuthService) {
     res.status(202).json(await verification.requestEmail(req.body.email));
   });
   router.post('/email-code/confirm',validateBody(z.object({challenge:token,code:otpCode}).strict()),async(req,res)=>{
-    await auth.limit('email-code-confirm',req.ip??'',30,900);res.json(await verification.confirm(req.body.challenge,req.body.code,'EMAIL'));
+    await auth.limit('email-code-confirm',req.ip??'',30,900);const result=await verification.confirm(req.body.challenge,req.body.code,'EMAIL');await sendSession(res,result.session!,{verified:true});
   });
   router.post('/phone-code/request',attach,csrf,validateBody(z.object({phone:z.string().min(8).max(40)}).strict()),async(req,res)=>{
     await auth.limit('phone-code-ip',req.ip??'',10,3600);res.status(202).json(await verification.requestPhone(ctx(res),req.body.phone));
@@ -50,7 +50,8 @@ export function authRouter(auth: AuthService) {
   });
   router.post('/mock-code/confirm',(_req,_res,next)=>{mock.enabled();next();},validateBody(z.object({challenge:token,purpose:otpPurpose,code:otpCode}).strict()),async(req,res)=>{
     await auth.limit('mock-confirm-ip',req.ip??'',30);await auth.limit('mock-confirm',req.body.challenge,5);
-    res.json(await mock.confirm(req.body.challenge,req.body.purpose,req.body.code));
+    const result=await mock.confirm(req.body.challenge,req.body.purpose,req.body.code);
+    if(result.session)await sendSession(res,result.session,{verified:true});else res.json({resetToken:result.resetToken});
   });
   router.post('/register' , validateBody(z.object({ email, password, name: z.string().trim().min(2).max(100), businessName: z.string().trim().min(2).max(120),phone:z.string().min(8).max(40).optional(),language:z.enum(['en','ar']).optional() }).strict()), async (req, res) => {
     await auth.limit('register-ip', req.ip ?? '', 5);

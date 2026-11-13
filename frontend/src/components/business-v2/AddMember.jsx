@@ -23,7 +23,7 @@ export default function AddMember({ context, roles, api, c, lang, close, done, r
       <fieldset disabled={busy} className="space-y-4">
         <Field id="add-member-name" label={c('memberName')} placeholder={c('teamMemberNamePlaceholder')} autoComplete="name" minLength={2} maxLength={100} required value={name} onChange={event => setName(event.target.value)} />
         <Field id="add-member-email" label={c('inviteEmail')} placeholder={c('inviteEmailPlaceholder')} type="email" dir="ltr" autoComplete="email" maxLength={254} required value={email} onChange={event => setEmail(event.target.value)} />
-        <Field id="add-member-password" label={c('invitePassword')} hint={c('invitePasswordHint')} placeholder={c('invitePasswordPlaceholder')} type="password" autoComplete="new-password" dir="ltr" minLength={12} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} />
+        <Field id="add-member-password" label={c('invitePassword')} hint={c('invitePasswordHint')} placeholder={c('invitePasswordPlaceholder')} type="password" autoComplete="new-password" dir="ltr" minLength={8} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} />
         <Select id="add-member-role" label={c('role')} required value={role} onChange={event => setRole(event.target.value)}>
           {!available.length && <option value="">{c('noAssignableRole')}</option>}
           {available.map(item => <option key={item.role} value={item.role}>{item.name || c(item.role)}</option>)}

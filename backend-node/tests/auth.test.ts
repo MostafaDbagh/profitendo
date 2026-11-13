@@ -230,3 +230,16 @@ describe('authentication with real PostgreSQL', () => {
     expect((await db.authMail.findUniqueOrThrow({ where: { id } })).payload).toBe('');
   });
 });
+
+it('accepts eight-character passwords while rejecting shorter and oversized new passwords',async()=>{
+ const email=`${run}-eight@example.test`,input={email,password:'A7!bcD9x',name:'Eight Character Owner',businessName:'Password Test'};
+ for(const password of ['A7!bcD9','x'.repeat(129)])expect((await post('/register',{...input,password})).status).toBe(422);
+ expect((await post('/register',input)).status).toBe(202);
+ const user=await db.authUser.findUniqueOrThrow({where:{email}});userIds.push(user.id);const member=await db.membership.findFirstOrThrow({where:{userId:user.id}});businessIds.push(member.businessId);
+ expect((await post('/verification/confirm',{token:await findMail(email,'verify')})).status).toBe(200);
+ const login=await post('/login',{email,password:input.password});expect(login.status).toBe(200);
+ const session={cookie:cookie(login),csrf:login.body.csrfToken};
+ expect((await post('/password',{currentPassword:input.password,password:'N3!abcd'},session)).status).toBe(422);
+ expect((await post('/password',{currentPassword:input.password,password:'N3!abcdX'},session)).status).toBe(200);
+ expect((await post('/login',{email,password:'N3!abcdX'})).status).toBe(200);
+});

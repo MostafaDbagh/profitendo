@@ -743,3 +743,21 @@ Zero activity has a neutral empty state. Text legends expose exact values.
 Validated real local summary rendering and display-only edge fixtures, AR/EN
 at 320/768/1024/1440, keyboard access, no page errors, production build.
 Screenshots: `tmp/dashboard-charts/`; baseline: `tmp/login-check/dashboard-before-charts.png`.
+
+### Password guidance (2026-11-13)
+New passwords use an 8-character minimum and retain the 128-character maximum
+across registration, reset, security and staff setup. Shared new-password fields
+show a live estimated strength meter and AR/EN checklist. Eight characters is
+required; 12+, letters/numbers and symbols are suggestions. Common/simple patterns
+are rated weak. Login and confirmation fields do not duplicate the meter.
+Validated 38 auth/business API tests, AR/EN UI at 320/768/1440, visibility toggles,
+production build and typecheck. Screenshots: `tmp/password-strength/`.
+
+### Automatic sign-in after email OTP (2026-11-13)
+Email-code confirmation now atomically consumes the code, verifies the email,
+and creates an HttpOnly session. The frontend immediately uses that session
+and opens the business dashboard. No password is retained or resubmitted.
+Phone verification, when enabled, and already enrolled MFA remain enforced
+before dashboard access. Password-reset codes still use the reset flow.
+Real and local-mock OTP endpoints share this behavior. Email/phone verification
+remain disabled by default; this applies when Super Admin enables them.

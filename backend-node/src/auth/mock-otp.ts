@@ -34,8 +34,9 @@ export class MockEmailOtp {
    const used=await tx.authToken.updateMany({where:{id:row.id,usedAt:null,expiresAt:{gt:new Date()}},data:{usedAt:new Date()}});
    if(!used.count)throw invalid();
    if(purpose==='VERIFY_EMAIL'){
-    await tx.authUser.update({where:{id:row.userId},data:{emailVerifiedAt:new Date()}});
-    await this.auth.audit(tx,'mock_email_otp.verified',row.userId);return {verified:true};
+    const verifiedUser=await tx.authUser.update({where:{id:row.userId},data:{emailVerifiedAt:new Date()}});
+    await this.auth.audit(tx,'mock_email_otp.verified',row.userId);
+    const session=await this.auth.makeSession(tx,verifiedUser);await this.auth.audit(tx,'session.created',row.userId);return {verified:true,session};
    }
    const resetToken=randomToken();
    await tx.authToken.create({data:{userId:row.userId,kind:'PASSWORD_RESET',tokenHash:digest(resetToken),expiresAt:new Date(Date.now()+10*60000)}});

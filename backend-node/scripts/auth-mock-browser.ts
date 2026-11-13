@@ -9,7 +9,7 @@ import { AuthService } from '../src/auth/service.js';
 import { readAuthSettings } from '../src/auth/settings.js';
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!new URL(url).pathname.endsWith('_test'))throw new Error('Dedicated TEST_DATABASE_URL required');
-const settings=readAuthSettings({AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:process.env.BROWSER_APP_ORIGIN||'http://localhost:3100',NODE_ENV:'test',AUTH_MOCK_OTP:'true',DATABASE_URL:url}),db=createDatabase(url);
+const settings=readAuthSettings({AUTH_EMAIL_REQUIRED:'true',AUTH_ENCRYPTION_KEY:randomBytes(32).toString('hex'),APP_ORIGIN:process.env.BROWSER_APP_ORIGIN||'http://localhost:3100',NODE_ENV:'test',AUTH_MOCK_OTP:'true',DATABASE_URL:url}),db=createDatabase(url);
 const app=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},new AuthService(db,settings));
 app.set('trust proxy','loopback');
 const server=await new Promise<ReturnType<typeof app.listen>>((resolve,reject)=>{const s=app.listen(4100,'localhost',()=>resolve(s));s.on('error',reject);});
@@ -26,9 +26,9 @@ try{
  await page.locator('#v2-name').fill('Local Mock Owner');await page.locator('#v2-businessName').fill('Local Mock Shop');await page.locator('#v2-email').fill(email);await page.locator('#v2-password').fill(pass);await page.locator('#v2-confirmPassword').fill(pass+' mismatch');await button('Create business account').click();await page.getByRole('alert').filter({hasText:'passwords do not match'}).waitFor();
  await page.locator('#v2-confirmPassword').fill(pass);await button('Create business account').click();await page.locator('#v2-code').waitFor();
  async function checkOtp(selector='#v2-code'){const input=page.locator(selector);assert.equal(await input.evaluate((el:HTMLInputElement)=>el.type),'text');assert.equal(await input.getAttribute('inputmode'),'numeric');assert.equal(await input.getAttribute('minlength'),'6');assert.equal(await input.getAttribute('maxlength'),'6');assert.equal(await input.getAttribute('pattern'),'[0-9]{6}');await input.fill('letters');assert.equal(await input.inputValue(),'');await input.fill('١٢٣٤٥٦');assert.equal(await input.inputValue(),'');await input.fill('12345');assert.equal(await input.evaluate((el:HTMLInputElement)=>el.checkValidity()),false);await input.fill('001234');assert.equal(await input.inputValue(),'001234');await input.fill('123456');assert.equal(await input.evaluate((el:HTMLInputElement)=>el.checkValidity()),true);}
- await checkOtp();await page.locator('#v2-code').fill('654321');await button('Verify code').click();await page.getByRole('alert').waitFor();await page.locator('#v2-code').fill('123456');await shot('en-email-code');await button('Verify code').click();await page.getByRole('status').filter({hasText:'Email verified'}).waitFor();
+ await checkOtp();await page.locator('#v2-code').fill('654321');await button('Verify code').click();await page.getByRole('alert').waitFor();await page.locator('#v2-code').fill('123456');await shot('en-email-code');await button('Verify code').click();await page.getByTestId('business-dashboard').waitFor();
  async function login(password:string){await page.locator('#v2-email').fill(email);await page.locator('#v2-password').fill(password);await button('Sign in').click();}
- await login(pass);await page.getByTestId('business-dashboard').waitFor();
+ await page.getByTestId('business-dashboard').waitFor();
  await page.getByRole('navigation').getByRole('button',{name:'Subscription',exact:true}).click();await page.getByRole('alert').filter({hasText:'Set up two-factor authentication'}).waitFor();
  await page.getByRole('navigation').getByRole('button',{name:'Account security',exact:true}).click();
  const mfa=page.getByTestId('mfa-settings');await mfa.getByRole('button',{name:'Enable MFA',exact:true}).click();

@@ -82,3 +82,22 @@ it('preserves an international registration number through OTP verification',asy
  const user=await db.authUser.findUniqueOrThrow({where:{email}});expect(user.phone).toBe(phone);expect(user.phoneVerifiedAt).not.toBeNull();expect(user.pendingPhone).toBeNull();
  expect(auth.stage(await auth.login(email,password))).toBe('authenticated');
 });
+it('creates a protected session atomically when email OTP succeeds',async()=>{
+ const email=await register(),challenge=await emailCode(email);
+ const before=await db.authSession.count({where:{user:{email}}});
+ const bad=await post('/email-code/confirm',{challenge:challenge.challenge,code:challenge.code==='000000'?'000001':'000000'});expect(bad.status).toBe(400);expect(bad.headers['set-cookie']).toBeUndefined();
+ const verified=await post('/email-code/confirm',codeBody(challenge));expect(verified.status).toBe(200);expect(verified.body).toMatchObject({verified:true,stage:'phone_verification_required',user:{email}});expect(verified.body.csrfToken).toBeTruthy();expect(verified.body).not.toHaveProperty('session');expect(verified.body).not.toHaveProperty('token');
+ const cookie=verified.headers['set-cookie']![0]!;expect(cookie).toContain('HttpOnly');expect(cookie).toContain('SameSite=Lax');
+ const me=await request(app).get('/api/auth/me').set('Cookie',cookie.split(';')[0]!);expect(me.status).toBe(200);expect(me.body.stage).toBe('phone_verification_required');
+ const replay=await post('/email-code/confirm',codeBody(challenge));expect(replay.status).toBe(400);expect(replay.headers['set-cookie']).toBeUndefined();expect(await db.authSession.count({where:{user:{email}}})).toBe(before+1);
+});
+it('does not bypass enrolled MFA after email verification',async()=>{
+ const email=await register(),user=await db.authUser.findUniqueOrThrow({where:{email}});
+ await db.authUser.update({where:{id:user.id},data:{mfaSecret:encrypt(settings.key,'JBSWY3DPEHPK3PXP',`mfa:${user.id}`)}});
+ const challenge=await emailCode(email),result=await post('/email-code/confirm',codeBody(challenge));expect(result.status).toBe(200);expect(result.body.stage).toBe('mfa_required');expect(result.body.memberships).toEqual([]);
+});
+it('signs in immediately without phone verification and consumes concurrent OTP submissions once',async()=>{
+ const email=await register(),challenge=await emailCode(email),directAuth=new AuthService(db,{...settings,ownerPhoneRequired:false}),directApp=createApp({CORS_ORIGINS:[settings.appOrigin]},pino({level:'silent'}),async()=>{},directAuth);
+ const confirm=()=>request(directApp).post('/api/auth/email-code/confirm').set('Origin',settings.appOrigin).send(codeBody(challenge));
+ const results=await Promise.all([confirm(),confirm()]);expect(results.map(r=>r.status).sort()).toEqual([200,400]);const success=results.find(r=>r.status===200)!;expect(success.body.stage).toBe('authenticated');expect(success.body.memberships).toHaveLength(1);expect(await db.authSession.count({where:{user:{email}}})).toBe(1);
+});

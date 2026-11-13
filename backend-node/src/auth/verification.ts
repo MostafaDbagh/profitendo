@@ -42,7 +42,7 @@ export class ContactVerification{
  }
  async confirm(token:string,code:string,channel:'EMAIL'|'PHONE',ctx?:AuthContext){
   if(channel==='PHONE'&&(!ctx||(ctx.mfaRequired&&!ctx.session.mfaVerified)))throw invalid();
-  const outcome=await this.auth.transaction(async tx=>{
+  const outcome=await this.auth.transaction<false|{verified:true;session?:AuthContext}>(async tx=>{
    const found=await tx.verificationChallenge.findUnique({where:{tokenHash:digest(token)}});
    if(!found||found.channel!==channel||(ctx&&found.userId!==ctx.user.id))return false;
    const user=ctx?(await this.auth.assertSession(tx,ctx)).user:await this.auth.lockUser(tx,found.userId);
@@ -56,10 +56,13 @@ export class ContactVerification{
     const taken=await tx.authUser.findUnique({where:{phone:destination}});if(taken&&taken.id!==user.id)return false;
    }
    await tx.verificationChallenge.update({where:{id:row.id},data:{usedAt:new Date()}});
-   await tx.authUser.update({where:{id:user.id},data:channel==='EMAIL'?{emailVerifiedAt:new Date()}:{phone:destination,phoneVerifiedAt:new Date(),pendingPhone:null}});
+   const verifiedUser=await tx.authUser.update({where:{id:user.id},data:channel==='EMAIL'?{emailVerifiedAt:new Date()}:{phone:destination,phoneVerifiedAt:new Date(),pendingPhone:null}});
    if(channel==='EMAIL')await tx.authToken.updateMany({where:{userId:user.id,kind:'VERIFY_EMAIL',usedAt:null},data:{usedAt:new Date()}});
-   await queueWelcome(this.auth,tx,user.id);await this.auth.audit(tx,`${channel.toLowerCase()}.verified`,user.id);return true;
-  }).catch(e=>{if(e.code==='P2002')return false;throw e;});
-  if(!outcome)throw invalid();return {verified:true};
+   await queueWelcome(this.auth,tx,user.id);await this.auth.audit(tx,`${channel.toLowerCase()}.verified`,user.id);
+   const session=channel==='EMAIL'?await this.auth.makeSession(tx,verifiedUser):undefined;
+   if(session)await this.auth.audit(tx,'session.created',user.id);
+   return {verified:true,session};
+  }).catch(e=>{if(e.code==='P2002')return false as const;throw e;});
+  if(!outcome)throw invalid();return outcome;
  }
 }

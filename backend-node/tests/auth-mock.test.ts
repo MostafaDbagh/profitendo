@@ -39,7 +39,7 @@ it('validates signup and six ASCII digits, purpose, expiry, resend and single us
  const fresh=await code(u.email);expect((await post('/mock-code/confirm',otp)).status).toBe(400);
  await db.authToken.updateMany({where:{userId:u.id,usedAt:null},data:{expiresAt:new Date(0)}});
  expect((await post('/mock-code/confirm',fresh)).status).toBe(400);
- const final=await code(u.email);expect((await post('/mock-code/confirm',final)).status).toBe(200);expect((await post('/mock-code/confirm',final)).status).toBe(400);
+ const final=await code(u.email);const confirmation=await post('/mock-code/confirm',final);expect(confirmation.status).toBe(200);expect(confirmation.body.stage).toBe('authenticated');expect(confirmation.headers['set-cookie']![0]).toContain('HttpOnly');expect(confirmation.body).not.toHaveProperty('token');expect((await post('/mock-code/confirm',final)).status).toBe(400);
  const unknown=await code(`missing-${randomUUID()}@example.test`);expect(Object.keys(unknown)).toEqual(Object.keys(final));expect((await post('/mock-code/confirm',unknown)).status).toBe(400);
 });
 it('limits incorrect email code attempts',async()=>{const otp=await code(`missing-${randomUUID()}@example.test`);for(let i=0;i<5;i++)expect((await post('/mock-code/confirm',{...otp,code:'654321'})).status).toBe(400);expect((await post('/mock-code/confirm',otp)).status).toBe(429);});
