@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, ShieldCheck, Lock, Users, BookOpenCheck, CreditCard, MessageCircle, Mail } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
@@ -17,6 +16,7 @@ function SectionTitle({ title, sub, testid, headingLevel: Heading = "h2" }) {
 
 export function Pricing({ headingLevel = "h2" }) {
   const { t } = useLanguage();
+  const PlanHeading = headingLevel === "h1" ? "h2" : "h3";
   const plans = [
     {
       key: "free", testid: "lp-plan-free", name: t("lpPlanFree"), price: t("lpPlanFreePrice"), period: t("lpTrialPeriod"),
@@ -50,7 +50,7 @@ export function Pricing({ headingLevel = "h2" }) {
                   {p.badge}
                 </span>
               )}
-              <h3 className="font-extrabold text-lg text-slate-100 mb-4">{p.name}</h3>
+              <PlanHeading className="font-extrabold text-lg text-slate-100 mb-4">{p.name}</PlanHeading>
               <p className="mb-1">
                 <span className="text-4xl font-extrabold text-white tabular" dir="ltr">{p.price}</span>
                 {p.period && <span className="text-sm text-slate-400 ms-1">{p.period}</span>}
@@ -105,24 +105,20 @@ export function Security() {
 
 export function Faq() {
   const { t } = useLanguage();
-  const [open, setOpen] = useState(null);
   return (
     <section id="faq" className="border-y border-slate-800/60 bg-slate-900/40" data-testid="lp-faq">
       <div className={`${sectionCls} max-w-3xl`}>
         <SectionTitle title={t("lpFaqTitle")} testid="lp-faq-title" />
         <div className="space-y-3">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} data-testid={`lp-faq-item-${n}`} className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
-              <button onClick={() => setOpen(open === n ? null : n)} data-testid={`lp-faq-q-${n}`}
-                aria-expanded={open === n} aria-controls={`faq-answer-${n}`}
-                className="w-full flex items-center justify-between gap-4 px-6 py-4 text-start font-bold text-slate-100 hover:bg-slate-800/40 transition-colors">
+            <details key={n} name="profitlens-faq" data-testid={`lp-faq-item-${n}`} className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
+              <summary data-testid={`lp-faq-q-${n}`}
+                className="w-full flex items-center justify-between gap-4 px-6 py-4 text-start font-bold text-slate-100 hover:bg-slate-800/40 transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600">
                 {t(`lpFaq${n}Q`)}
-                <ChevronDown className={`w-5 h-5 text-emerald-400 shrink-0 transition-transform duration-200 ${open === n ? "rotate-180" : ""}`} />
-              </button>
-              {open === n && (
+                <ChevronDown aria-hidden="true" className="w-5 h-5 text-emerald-400 shrink-0 transition-transform duration-200" />
+              </summary>
                 <p id={`faq-answer-${n}`} className="px-6 pb-5 text-sm text-slate-400 leading-relaxed" data-testid={`lp-faq-a-${n}`}>{t(`lpFaq${n}A`)}</p>
-              )}
-            </div>
+            </details>
           ))}
         </div>
       </div>

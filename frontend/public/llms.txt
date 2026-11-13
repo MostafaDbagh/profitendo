@@ -1,0 +1,26 @@
+# ProfitLens
+
+> ProfitLens is an Arabic/English web application for shops, warehouses, and small and medium-sized businesses to manage daily operations and understand their recorded sales, costs, expenses, and estimated profit.
+
+ProfitLens supports products, purchasing, stock transfers, fully paid sales, returns, expenses, supplier balances, role-based staff access, customizable dashboard tabs, and daily closing reports. Reports are based on recorded transactions. They are not a substitute for an accountant's review or a complete general ledger.
+
+The free trial lasts 14 days and requires no bank card. After it ends, users can still sign in, access their dashboard, and view existing records; paid operations require an active subscription. Plan limits and current commercial terms are available on the pricing page and in Subscription & Billing. The AI financial assistant is planned and is not currently included in any subscription.
+
+ProfitLens تطبيق ويب بالعربية والإنجليزية لإدارة المتاجر والمستودعات والمشاريع الصغيرة والمتوسطة. يتيح متابعة المبيعات والمشتريات والمخزون والمصروفات والأرباح التقديرية، مع تخصيص تبويبات لوحة التحكم وتقارير الإغلاق. التجربة مجانية لمدة 14 يومًا، وتبقى لوحة التحكم والسجلات الحالية متاحة بعد انتهائها. المساعد المالي بالذكاء الاصطناعي غير متاح حاليًا.
+
+## Product information
+
+- [Product overview — English and Arabic](https://profitendo.com/product-overview.md): A concise text summary of supported features, reports, trial access, and current limitations.
+- [Home — Arabic](https://profitendo.com/): Product introduction and frequently asked questions.
+- [Home — English](https://profitendo.com/en): English product introduction and frequently asked questions.
+- [Features — Arabic](https://profitendo.com/features): Products, purchasing, sales, inventory, expenses, reporting, and dashboard customization.
+- [Pricing — Arabic](https://profitendo.com/pricing): The 14-day trial and published subscription information.
+- [About ProfitLens — Arabic](https://profitendo.com/about): The product's purpose and background.
+
+- [Features — English](https://profitendo.com/en/features): Supported operational features.
+- [Pricing — English](https://profitendo.com/en/pricing): Trial and subscription information.
+- [About ProfitLens — English](https://profitendo.com/en/about): Product background.
+
+## Optional
+
+- [Contact](https://profitendo.com/contact): Public support contact options.

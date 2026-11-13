@@ -53,6 +53,7 @@ export function Hero() {
 
 export function Modules({ headingLevel = "h2" }) {
   const { t } = useLanguage();
+  const ModuleHeading = headingLevel === "h1" ? "h2" : "h3";
   const mods = [
     ["sales", ShoppingCart, "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"],
     ["purchases", ShoppingBag, "text-sky-400 bg-sky-500/10 border-sky-500/30"],
@@ -67,7 +68,7 @@ export function Modules({ headingLevel = "h2" }) {
       <div className="grid md:grid-cols-2 gap-8 md:gap-12 border-y border-emerald-200 py-8 mb-8" data-testid="lp-feature-highlights">
         {[["dashboard", PanelsTopLeft], ["closing", FileCheck2]].map(([key, Icon]) => <article key={key} className="text-start">
           <Icon className="w-7 h-7 text-emerald-700 mb-4" aria-hidden="true" />
-          <h3 className="text-xl font-bold text-slate-900 mb-3">{t(`lpHighlight_${key}`)}</h3>
+          <ModuleHeading className="text-xl font-bold text-slate-900 mb-3">{t(`lpHighlight_${key}`)}</ModuleHeading>
           <p className="text-sm leading-loose text-slate-600">{t(`lpHighlight_${key}_d`)}</p>
           <p className="text-sm font-semibold text-emerald-800 mt-4">{t(`lpHighlight_${key}_note`)}</p>
         </article>)}
@@ -79,7 +80,7 @@ export function Modules({ headingLevel = "h2" }) {
             <span className={`w-12 h-12 rounded-xl border flex items-center justify-center mb-4 ${tone}`}>
               <Icon className="w-6 h-6" />
             </span>
-            <h3 className="font-bold text-lg text-slate-100 mb-2">{t(`lpMod_${key}`)}</h3>
+            <ModuleHeading className="font-bold text-lg text-slate-100 mb-2">{t(`lpMod_${key}`)}</ModuleHeading>
             <p className="text-sm text-slate-400 leading-relaxed">{t(`lpMod_${key}_d`)}</p>
           </div>
         ))}

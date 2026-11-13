@@ -1,5 +1,6 @@
+import { publicPagePath } from "../../lib/siteMetadata";
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { TrendingUp, Languages, MessageCircle, Mail, Menu, X } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -7,12 +8,13 @@ export const REGISTER_URL = "/auth?mode=register";
 export const LOGIN_URL = "/auth";
 
 export function LandingNav({ light = false }) {
-  const { t, lang, setLang } = useLanguage();
+  const { t, lang } = useLanguage();
+  const {pathname} = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/60" data-testid="lp-nav">
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 px-5 h-16">
-        <Link to="/" className="flex items-center gap-2.5" data-testid="lp-nav-brand">
+        <Link to={publicPagePath("/",lang)} className="flex items-center gap-2.5" data-testid="lp-nav-brand">
           <span className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
             <TrendingUp className="w-5 h-5 text-white" />
           </span>
@@ -20,15 +22,15 @@ export function LandingNav({ light = false }) {
         </Link>
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-1 me-2">
-            <NavLink to="/features" data-testid="lp-nav-features" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavFeatures")}</NavLink>
-            <NavLink to="/pricing" data-testid="lp-nav-pricing" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavPricing")}</NavLink>
-            <NavLink to="/about" data-testid="lp-nav-about" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavAbout")}</NavLink>
+            <NavLink to={publicPagePath("/features",lang)} data-testid="lp-nav-features" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavFeatures")}</NavLink>
+            <NavLink to={publicPagePath("/pricing",lang)} data-testid="lp-nav-pricing" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavPricing")}</NavLink>
+            <NavLink to={publicPagePath("/about",lang)} data-testid="lp-nav-about" className="px-3 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">{t("lpNavAbout")}</NavLink>
           </div>
-          <button onClick={() => setLang(lang === "ar" ? "en" : "ar")} data-testid="lp-lang-toggle"
+          <Link to={publicPagePath(pathname, lang === "ar" ? "en" : "ar")} hrefLang={lang === "ar" ? "en" : "ar"} data-testid="lp-lang-toggle"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
             <Languages className="w-4 h-4" />
             {lang === "ar" ? "EN" : "عربي"}
-          </button>
+          </Link>
           <Link to={LOGIN_URL} data-testid="lp-nav-login"
             className="hidden sm:inline-flex px-4 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white transition-colors">
             {t("lpLogin")}
@@ -41,7 +43,7 @@ export function LandingNav({ light = false }) {
           {light && <button className="home-menu-toggle" aria-label={lang === 'ar' ? 'القائمة' : 'Menu'} aria-expanded={menuOpen} aria-controls="home-mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={21}/> : <Menu size={21}/>}</button>}
       </div>
       {light && menuOpen && <nav id="home-mobile-nav" className="home-mobile-nav" aria-label={lang === 'ar' ? 'التنقل' : 'Navigation'}>
-        {[["/features", "lpNavFeatures"], ["/pricing", "lpNavPricing"], ["/about", "lpNavAbout"], [LOGIN_URL, "lpLogin"]].map(([href, key]) => <NavLink key={key} to={href} onClick={() => setMenuOpen(false)}>{t(key)}</NavLink>)}
+        {[["/features", "lpNavFeatures"], ["/pricing", "lpNavPricing"], ["/about", "lpNavAbout"], [LOGIN_URL, "lpLogin"]].map(([href, key]) => <NavLink key={key} to={publicPagePath(href,lang)} onClick={() => setMenuOpen(false)}>{t(key)}</NavLink>)}
       </nav>}
     </header>
   );

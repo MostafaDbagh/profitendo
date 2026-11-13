@@ -51,7 +51,7 @@
 .home-page [data-testid^="lp-module-"]{background:none;border:0;border-radius:0;padding:28px 32px;position:relative;display:grid;grid-template-columns:40px 1fr;gap:0 16px}
 .home-page [data-testid^="lp-module-"]:hover{transform:none}
 .home-page [data-testid^="lp-module-"]>span{grid-row:1/3;width:40px;height:40px;background:#edf9f2;color:#047857;border:0;margin:0;border-radius:10px}
-.home-page [data-testid^="lp-module-"] h3{margin:2px 0 8px}
+.home-page [data-testid^="lp-module-"] :is(h2,h3){margin:2px 0 8px}
 .home-page [data-testid^="lp-module-"] p{grid-column:2;line-height:1.85}
 .home-page [data-testid^="lp-module-"]:nth-child(n+4){border-top:1px solid #e0e8e6}
 .home-page [data-testid^="lp-module-"]:not(:nth-child(3n))::after{content:"";position:absolute;inset-inline-end:0;top:28px;bottom:28px;width:1px;background:#e0e8e6}
@@ -101,7 +101,7 @@
 
 .home-page [data-testid="lp-plan-annual"] [data-testid="lp-plan-annual-badge"],
 .home-page [data-testid="lp-plan-annual"] [data-testid="lp-cta-annual"] { color:white; }
-.home-page [data-testid^="lp-module-"] h3 { font-size:20px; }
+.home-page [data-testid^="lp-module-"] :is(h2,h3) { font-size:20px; }
 .home-page [data-testid^="lp-module-"] p { font-size:15px; }
 @media(min-width:1024px){.home-page [data-testid="lp-nav"] a { font-size:16px; }}
 
@@ -223,3 +223,8 @@
 .marketing-page [data-testid="lp-ai"]>div>div.relative { display:block; max-width:780px; padding-inline-start:24px; border-inline-start:3px solid #b5dec9; }
 .marketing-page [data-testid="lp-ai"] { padding-block:48px; }
 .marketing-page [data-testid="lp-ai-title"] { font-size:28px; }
+
+/* Native FAQ keeps answers readable without JavaScript. */
+[data-testid^="lp-faq-q-"] { list-style:none; }
+[data-testid^="lp-faq-q-"]::-webkit-details-marker { display:none; }
+[data-testid^="lp-faq-item-"][open] > summary svg { transform:rotate(180deg); }

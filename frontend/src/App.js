@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { OfflineBanner, InstallPrompt, UpdateBanner } from "@/components/PwaManager";
 import { registerServiceWorker } from "@/lib/pwa";
-import { LanguageProvider } from "@/context/LanguageContext";
+import { LanguageProvider, useLanguage } from "@/context/LanguageContext";
 import Layout from "@/components/Layout";
 import Auth from "@/pages/Auth";import ForgotPassword from "@/pages/ForgotPassword";import ResetPassword from "@/pages/ResetPassword";
 import AuthV2 from "@/pages/AuthV2";
@@ -60,14 +60,21 @@ function ScrollToTop() {
 
 function AppRouter() {
   const location = useLocation();
+  const {setLang} = useLanguage();
+  useEffect(() => {
+    const path = location.pathname.replace(/\/$/, "") || "/";
+    if (["/en", "/en/features", "/en/pricing", "/en/about"].includes(path)) setLang("en", false);
+    else if (["/", "/features", "/pricing", "/about"].includes(path)) setLang("ar", false);
+  }, [location.pathname, setLang]);
   if(process.env.REACT_APP_B2B_PRIMARY==='true')return <><ScrollToTop/><Routes>
     <Route path="/" element={<Landing/>}/>
+    <Route path="/en" element={<Landing/>}/><Route path="/en/features" element={<FeaturesPage/>}/><Route path="/en/pricing" element={<PricingPage/>}/><Route path="/en/about" element={<AboutPage/>}/>
     <Route path="/features" element={<FeaturesPage/>}/><Route path="/pricing" element={<PricingPage/>}/><Route path="/about" element={<AboutPage/>}/>
     <Route path="/auth" element={<AuthV2/>}/><Route path="/auth-v2" element={<AuthV2/>}/>
     <Route path="/business" element={<BusinessV2/>}/><Route path="/business-v2" element={<BusinessV2/>}/>
     <Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>
     <Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2/>}/>
-    <Route path="*" element={<Navigate to="/business" replace/>}/>
+    <Route path="*" element={<NotFound/>}/>
   </Routes></>;
   // session_id may arrive in the URL fragment OR the query string depending on
   // browser/provider redirect handling — accept both.
@@ -85,6 +92,7 @@ function AppRouter() {
       <Route path="/setup" element={<Setup />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/" element={<Landing />} />
+      <Route path="/en" element={<Landing/>}/><Route path="/en/features" element={<FeaturesPage/>}/><Route path="/en/pricing" element={<PricingPage/>}/><Route path="/en/about" element={<AboutPage/>}/>
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/about" element={<AboutPage />} />

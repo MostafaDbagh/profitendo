@@ -679,3 +679,19 @@ net profit as estimated, and qualifies email delivery by service activation. Bot
 features also appear in the pricing lists. Existing marketing typography, emerald
 accents and responsive layout retained; before/after captures at 390/1440 in both
 languages: tmp/feature-highlights. Browser layout checks and production build passed.
+
+### Public SEO and share previews — 13 November 2026
+
+Public marketing keeps its existing design. Arabic remains on /, /features,
+/pricing and /about; English has stable /en equivalents. Marketing navigation
+and language links preserve the page and locale. Operational language preferences
+remain local to the existing app. Native FAQ details/summary keeps exactly six
+answers available without JavaScript, retaining current spacing and colors.
+Standalone feature/pricing card headings follow their page H1 correctly.
+
+The branded 1200×630 Open Graph PNG uses the existing emerald mark, Cairo/Outfit,
+white/mint surfaces and truthful 14-day trial copy: public/social/profitlens-og.png.
+Evidence: tmp/seo-content, tmp/seo, frontend/scripts/check-metadata.mjs. Metadata
+and JSON-LD describe current functionality; no invented reviews or rich-result
+eligibility claims. Public rendering and crawl controls are separate from private
+business screens and do not grant access to any customer data.

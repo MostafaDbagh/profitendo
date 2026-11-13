@@ -5,7 +5,12 @@ import api from "../lib/api";
 const LanguageContext = createContext(null);
 
 export function LanguageProvider({ children }) {
-  const [lang, setLangState] = useState(() => localStorage.getItem("profitlens_lang") || "ar");
+  const [lang, setLangState] = useState(() => {
+    const path = window.location.pathname.replace(/\/$/, "") || "/";
+    if (["/en", "/en/features", "/en/pricing", "/en/about"].includes(path)) return "en";
+    if (["/", "/features", "/pricing", "/about"].includes(path)) return "ar";
+    return localStorage.getItem("profitlens_lang") === "en" ? "en" : "ar";
+  });
   const dir = lang === "ar" ? "rtl" : "ltr";
 
   useEffect(() => {

@@ -2,4 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
+# Account pages return noindex in their HTML and HTTP headers.
+# Allow crawling so search engines can observe those directives.
 Sitemap: https://profitendo.com/sitemap.xml

@@ -610,3 +610,39 @@ not duplicate financial transactions. A broad purchasing UI pass timed out durin
 final navigation; fresh supported quick UI pass succeeded. Existing pg concurrent-
 query deprecation warnings remain. Do not describe this audit as proving flawless
 software or production payment readiness.
+
+## Five-specialist SEO implementation — 13 November 2026
+
+Five AI reviewers covered metadata/Open Graph, structured data, LLM discovery,
+technical rendering/crawling, and content semantics. Public Arabic routes remain
+unprefixed; English now uses /en, /en/features, /en/pricing and /en/about, with
+reciprocal ar/en/x-default alternatives and consistent canonical links.
+
+- Page-specific title/description/OG/Twitter metadata, a real 1200x630 branded PNG,
+  and safe truthful Organization/WebSite/WebPage/AboutPage/WebApplication JSON-LD.
+  No fake rating, review, price or rich-result eligibility claim was introduced.
+- llms.txt and bilingual product-overview.md describe supported features and limits.
+  llms.txt is experimental and does not guarantee AI visibility; existing general
+  crawler policy was retained, with API crawling disallowed.
+- CRA build now renders the actual public React components into eight HTML pages,
+  using webpack/Babel already present in the locked dependencies. No browser,
+  API, customer state or new external dependency is required for production builds.
+- Nginx serves stable public routes, generic noindex account shells and real404s;
+  missing assets no longer receive a successful SPA document. Sitemap covers both
+  languages, without arbitrary lastmod timestamps.
+- SW v5 keeps locale-specific public caches separate, excludes API/private/token
+  response caching, and uses only a generic app shell for private offline fallback.
+- Native FAQ preserves six answers in initial HTML and works without JavaScript;
+  localized metadata and standalone heading hierarchy corrected.
+
+Checks: 5 JSON-LD unit tests; all8localized routes through metadata browserchecks;
+raw HTML/schema/sitemap/cache-isolation checks; no-JavaScript Chrome rendering and
+FAQ interaction; private/unknown noindex response fixtures; live locale switching.
+Evidence: tmp/seo-content, tmp/seo-static, frontend/scripts/check-metadata.mjs,
+verify-seo-build.cjs and verify-seo-browser.cjs. See deployment/README.md.
+
+Production domain remains the existing https://profitendo.com. Nginx/Docker binaries
+are not installed locally: source/fixture tests do not prove deployed HTTP behavior.
+Deploy, verify real headers/share previews, and submit sitemap via verified Google/
+Bing webmaster accounts before claiming indexing; no rankings or AI citations are
+promised. This work did not deploy or push changes.

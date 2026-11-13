@@ -87,3 +87,49 @@ launch. Liveness is exempt; readiness remains limited.
 ## Email and OTP configuration
 
 See [the service setup guide](../backend-node/SERVICES_SETUP.md) for SMTP fields, the no-send connection check, and local/production commands. Authenticator-app OTP is built in; set `AUTH_OTP_PROVIDER=authenticator` and `AUTH_MOCK_OTP=false`. The API and worker validate the same email settings; production fails startup if they are missing or invalid. The jobs service prepares closing reports before delivering mail. Restart/recreate both API and worker after environment changes.
+
+## Public SEO build and crawler responses
+
+`frontend`'s normal `npm run build` / `yarn build` now runs a build-time renderer
+using the existing webpack/Babel/React dependencies. Docker's existing `yarn build`
+step includes it automatically; no headless browser, API credentials or customer data
+are required to build. The renderer uses the actual public page components and
+translations, rather than maintaining a separate crawler-only version.
+
+Eight public HTML pages are generated: Arabic `/`, `/features`, `/pricing`, `/about`
+and English `/en`, `/en/features`, `/en/pricing`, `/en/about`. Initial HTML includes
+page text, language/direction, canonical and reciprocal language links, Open Graph,
+Twitter cards and JSON-LD. `sitemap.xml` is generated from the same route list;
+no artificial last-modified dates are emitted. `llms.txt` and `product-overview.md`
+are public text resources, not access controls or indexing guarantees.
+
+The established canonical origin is `https://profitendo.com` in
+`frontend/src/lib/siteMetadata.js`, `robots.txt` and LLM documentation. If the public
+domain changes, update these together before release. Do not ship an alternate
+production host while leaving canonical URLs pointing at a different domain.
+
+The nginx configuration serves slashless public paths directly, redirects their
+trailing-slash/index.html variants, serves a generic noindex `app.html` for account
+and operational routes, and returns real 404 responses for unknown pages and assets.
+Private APIs still enforce authentication/tenant boundaries; robots/noindex are not
+security controls. Service-worker v5 caches public HTML by exact language/path,
+never API/account responses or token-bearing query URLs; only a generic private
+shell is retained for offline navigation.
+
+Validation from `frontend/`:
+
+```sh
+npm run build
+npm run test:seo:build
+npm run test:seo:browser
+```
+
+The browser check requires this repository's `backend-node` Playwright dependency
+and local Chrome; it uses an isolated temporary static server. It verifies all eight
+raw HTML pages, content/FAQ without JavaScript, private/404 fixture directives and
+client-side language navigation. Source checks cover JSON-LD, sitemap and negative
+service-worker caching cases. These local checks do not execute nginx or Docker.
+Before deployment, run the actual image's `nginx -t` and check HTTP 200/308/404,
+`Content-Type`, `X-Robots-Tag`, canonical and social-preview URLs on the deployed host.
+Submit the production sitemap in verified search-engine webmaster accounts only
+once the public deployment is ready; no such submission has been performed here.
