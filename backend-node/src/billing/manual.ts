@@ -2,8 +2,8 @@ import {z} from 'zod';
 import type {AuthContext,AuthService} from '../auth/service.js';
 import {requirePlatform} from '../platform/service.js';
 import {ApiError} from '../errors.js';
-import {lockCapacity} from './entitlements.js';
-export const manualPaymentSchema=z.object({requestKey:z.uuid(),planId:z.uuid(),method:z.enum(['SHAM_CASH','PAYPAL']),reference:z.string().trim().min(3).max(120),confirmed:z.literal(true)}).strict();
+import {lockCapacity,memberUsage} from './entitlements.js';
+export const manualPaymentSchema=z.object({requestKey:z.uuid(),planId:z.uuid(),method:z.enum(['SHAM_CASH','PAYPAL']),reference:z.string().trim().min(3).max(120),confirmed:z.literal(true),expectedPaymentId:z.uuid().nullable().optional(),replaceActivePlan:z.boolean().optional()}).strict();
 export async function activateManualPayment(auth:AuthService,ctx:AuthContext,businessId:string,input:z.infer<typeof manualPaymentSchema>){
  try{return await auth.transaction(async tx=>{
   const {user}=await requirePlatform(auth,tx,ctx);await lockCapacity(tx,businessId);
@@ -15,13 +15,21 @@ export async function activateManualPayment(auth:AuthService,ctx:AuthContext,bus
   if(!plan?.published||!plan.priceMinor||!['MONTH','YEAR'].includes(plan.interval))throw new ApiError(409,'PLAN_UNAVAILABLE','Choose a published paid plan');
   const checkout=await tx.billingCheckout.findUnique({where:{businessId}});
   if(checkout)throw new ApiError(409,'PROVIDER_CHECKOUT_EXISTS','Reconcile the existing PayPal checkout before recording an external payment');
-  const now=new Date(),latest=await tx.manualSubscriptionPayment.findFirst({where:{businessId},orderBy:{endsAt:'desc'}});
-  if(latest&&latest.endsAt>now&&latest.planId!==plan.id)throw new ApiError(409,'PAYMENT_CONFLICT','An active paid period uses another plan');
-  const startsAt=latest&&latest.endsAt>now?latest.endsAt:now,endsAt=new Date(startsAt),day=startsAt.getUTCDate();
+  const now=new Date(),latest=await tx.manualSubscriptionPayment.findFirst({where:{businessId,supersededAt:null},orderBy:{endsAt:'desc'}});
+  const switching=!!latest&&latest.endsAt>now&&latest.planId!==plan.id;
+  if(input.expectedPaymentId!==undefined&&input.expectedPaymentId!==(latest?.id??null))throw new ApiError(409,'REVISION_CONFLICT','Payment changed; reload');
+  if(switching&&(!input.replaceActivePlan||input.expectedPaymentId!==latest.id))throw new ApiError(409,'PLAN_CHANGE_CONFIRMATION_REQUIRED','Confirm replacing the current paid term');
+  const usage=await memberUsage(tx,businessId);
+  const shops=await tx.location.count({where:{businessId,kind:'SHOP',archivedAt:null}});
+  const warehouses=await tx.location.count({where:{businessId,kind:'WAREHOUSE',archivedAt:null}});
+  if(usage.reservedMembers>plan.maxMembers||shops>plan.maxShops||warehouses>plan.maxWarehouses)throw new ApiError(409,'PLAN_CAPACITY_EXCEEDED','Selected plan cannot accommodate current stores, warehouses, members and pending invitations');
+  const replaced=switching?await tx.manualSubscriptionPayment.findMany({where:{businessId,supersededAt:null,endsAt:{gt:now}},select:{id:true,planId:true}}):[];
+  if(switching)await tx.manualSubscriptionPayment.updateMany({where:{id:{in:replaced.map(p=>p.id)}},data:{supersededAt:now}});
+  const startsAt=!switching&&latest&&latest.endsAt>now?latest.endsAt:now,endsAt=new Date(startsAt),day=startsAt.getUTCDate();
   endsAt.setUTCDate(1);endsAt.setUTCMonth(endsAt.getUTCMonth()+(plan.interval==='YEAR'?12:1));
   const last=new Date(Date.UTC(endsAt.getUTCFullYear(),endsAt.getUTCMonth()+1,0)).getUTCDate();endsAt.setUTCDate(Math.min(day,last));
   const row=await tx.manualSubscriptionPayment.create({data:{businessId,planId:plan.id,actorId:user.id,requestKey:input.requestKey,method:input.method,reference:input.reference,amountMinor:plan.priceMinor,currency:plan.currency,paidAt:now,startsAt,endsAt}});
-  await tx.billingAudit.create({data:{actorId:user.id,businessId,planId:plan.id,action:'subscription.manually_activated',changes:{paymentId:row.id,method:row.method,reference:row.reference,amountMinor:row.amountMinor,currency:row.currency,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString()}}});
+  await tx.billingAudit.create({data:{actorId:user.id,businessId,planId:plan.id,action:switching?'subscription.plan_changed':'subscription.manually_activated',changes:{replacedPayments:replaced,creditMinor:0,paymentId:row.id,method:row.method,reference:row.reference,amountMinor:row.amountMinor,currency:row.currency,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString()}}});
   return row;
  });}catch(error){if((error as {code?:string}).code==='P2002')throw new ApiError(409,'PAYMENT_CONFLICT','This payment reference has already been recorded');throw error;}
 }

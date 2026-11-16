@@ -2,7 +2,7 @@ import type { Tx } from '../auth/service.js';
 import { ApiError } from '../errors.js';
 // Call from the same serializable transaction as the protected creation or change.
 export async function billingState(tx: Tx, businessId: string, now = new Date()) {
-  const manual=await tx.manualSubscriptionPayment.findFirst({where:{businessId,startsAt:{lte:now}},orderBy:{endsAt:'desc'},include:{plan:true}});
+  const manual=await tx.manualSubscriptionPayment.findFirst({where:{businessId,supersededAt:null,startsAt:{lte:now}},orderBy:{endsAt:'desc'},include:{plan:true}});
   if(manual&&manual.endsAt>now)return {subscription:{id:manual.id,businessId,planId:manual.planId,status:'ACTIVE',trialStartedAt:manual.startsAt,trialEndsAt:manual.endsAt,createdAt:manual.createdAt,plan:manual.plan},active:true,status:'ACTIVE',paidUntil:manual.endsAt};
   let subscription = await tx.businessSubscription.findUnique({ where: { businessId }, include: { plan: true } });
   const paid=await tx.billingCheckout.findUnique({where:{businessId},include:{plan:true}});

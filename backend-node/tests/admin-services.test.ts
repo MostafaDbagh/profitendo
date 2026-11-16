@@ -159,3 +159,43 @@ it('requires Super Admin confirmation for each verified PayPal payment',async()=
  expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({active:false,status:'AWAITING_ACTIVATION'});
  expect((await write(path,{...input,revision:2,transactionId:txid+'-next'})).status).toBe(409);
 });
+it('replaces active and prepaid periods immediately without losing history or reviving old access',async()=>{
+ const b=await db.business.create({data:{name:'Switch '+scope}});bids.push(b.id);
+ const annual=await db.billingPlan.create({data:{code:'annual-'+scope,name:'Annual',nameAr:'سنوية',priceMinor:20000,currency:'USD',interval:'YEAR',trialDays:0,maxMembers:10,maxWarehouses:5,maxShops:10,published:true}});pids.push(annual.id);
+ const path=`/platform/subscribers/${b.id}/payments`;
+ const pay=(plan:string,extra:object={})=>({method:'SHAM_CASH',confirmed:true,planId:plan,requestKey:randomUUID(),reference:randomUUID(),...extra});
+ const first=await write(path,pay(annual.id));expect(first.status).toBe(201);
+ const renewal=await write(path,pay(annual.id,{expectedPaymentId:first.body.id}));expect(renewal.status).toBe(201);
+ const input=pay(planId,{expectedPaymentId:renewal.body.id,replaceActivePlan:true});
+ expect((await write(path,{...input,replaceActivePlan:false})).status).toBe(409);
+ expect((await write(path,input,owner)).status).toBe(403);
+ const before=Date.now(),changed=await write(path,input);expect(changed.status).toBe(201);
+ expect(new Date(changed.body.startsAt).getTime()).toBeGreaterThanOrEqual(before);
+ const duration=new Date(changed.body.endsAt).getTime()-new Date(changed.body.startsAt).getTime();expect(duration).toBeGreaterThanOrEqual(28*86400000);expect(duration).toBeLessThanOrEqual(31*86400000);
+ expect(changed.body.amountMinor).toBe(1900);expect((await write(path,input)).body.id).toBe(changed.body.id);
+ expect((await write(path,pay(annual.id,{expectedPaymentId:renewal.body.id,replaceActivePlan:true}))).status).toBe(409);
+ const old=await db.manualSubscriptionPayment.findUniqueOrThrow({where:{id:first.body.id}});expect(old.endsAt.toISOString()).toBe(first.body.endsAt);expect(old.amountMinor).toBe(20000);expect(old.supersededAt).not.toBeNull();
+ expect(await db.manualSubscriptionPayment.count({where:{businessId:b.id,supersededAt:{not:null}}})).toBe(2);
+ expect(await auth.transaction(tx=>billingState(tx,b.id))).toMatchObject({active:true,subscription:{planId}});
+ expect(await auth.transaction(tx=>billingState(tx,b.id,new Date(new Date(changed.body.endsAt).getTime()+1)))).toMatchObject({active:false});
+ const audit=await db.billingAudit.findFirstOrThrow({where:{businessId:b.id,action:'subscription.plan_changed'}});expect(audit.actorId).toBe(admin.user.id);expect(audit.changes).toMatchObject({creditMinor:0,paymentId:changed.body.id});
+ expect((await write(path,pay(annual.id,{reference:input.reference,expectedPaymentId:changed.body.id,replaceActivePlan:true}))).status).toBe(409);
+ expect((await db.manualSubscriptionPayment.findUniqueOrThrow({where:{id:changed.body.id}})).supersededAt).toBeNull();
+ const competing=await Promise.all([write(path,pay(annual.id,{expectedPaymentId:changed.body.id,replaceActivePlan:true})),write(path,pay(annual.id,{expectedPaymentId:changed.body.id,replaceActivePlan:true}))]);expect(competing.map(r=>r.status).sort()).toEqual([201,409]);
+ expect(await db.manualSubscriptionPayment.count({where:{businessId:b.id}})).toBe(4);
+ const winner=competing.find(r=>r.status===201)!;const yearDays=(new Date(winner.body.endsAt).getTime()-new Date(winner.body.startsAt).getTime())/86400000;expect(yearDays).toBeGreaterThanOrEqual(365);expect(yearDays).toBeLessThanOrEqual(366);
+ const revenue=await get('/platform/revenue?month='+new Date().toISOString().slice(0,7));expect(revenue.body.items.filter((r:any)=>[first.body.reference,renewal.body.reference,input.reference,winner.body.reference].includes(r.reference))).toHaveLength(4);
+});
+it('rejects a downgrade below people, pending invitations, stores or warehouses',async()=>{
+ const b=await db.business.create({data:{name:'Capacity '+scope}});bids.push(b.id);
+ const small=await db.billingPlan.create({data:{code:'small-'+scope,name:'Small',nameAr:'صغيرة',priceMinor:100,currency:'USD',interval:'MONTH',trialDays:0,maxMembers:1,maxWarehouses:0,maxShops:0,published:true}});pids.push(small.id);
+ await db.membership.create({data:{businessId:b.id,userId:owner.user.id,role:'OWNER'}});
+ const path=`/platform/subscribers/${b.id}/payments`,initial=await write(path,{requestKey:randomUUID(),reference:randomUUID(),planId,method:'SHAM_CASH',confirmed:true});expect(initial.status).toBe(201);
+ const input={requestKey:randomUUID(),reference:randomUUID(),planId:small.id,method:'SHAM_CASH',confirmed:true,expectedPaymentId:initial.body.id,replaceActivePlan:true};
+ const member=await db.membership.create({data:{businessId:b.id,userId:other.user.id,role:'VIEWER'}});
+ expect((await write(path,input)).body.error.code).toBe('PLAN_CAPACITY_EXCEEDED');await db.membership.delete({where:{id:member.id}});
+ const invitation=await db.invitation.create({data:{businessId:b.id,email:'reserved@example.test',tokenHash:randomUUID(),role:'VIEWER',invitedBy:owner.user.id,expiresAt:new Date(Date.now()+86400000)}});
+ expect((await write(path,input)).body.error.code).toBe('PLAN_CAPACITY_EXCEEDED');await db.invitation.delete({where:{id:invitation.id}});
+ for(const kind of ['SHOP','WAREHOUSE'] as const){const location=await db.location.create({data:{businessId:b.id,name:kind,code:kind,kind}});expect((await write(path,input)).body.error.code).toBe('PLAN_CAPACITY_EXCEEDED');await db.location.delete({where:{id:location.id}});}
+ expect(await db.manualSubscriptionPayment.count({where:{businessId:b.id}})).toBe(1);expect((await write(path,input)).status).toBe(201);
+});
