@@ -151,3 +151,53 @@ it('allows activation retries and status review after an activated business grow
  await db.fifoLayer.createMany({data:products.map(p=>({businessId:other,locationId:foreignLocation,productId:p.id,quantity:'1',remaining:'1',unitCost:'1',totalCost:'1',remainingCost:'1',acquiredAt:new Date(),originId:p.id}))});
  expect((await activate(input)).status).toBe(200);expect((await review()).status).toBe(200);expect(await db.fifoLayer.count({where:{businessId:other}})).toBe(1001);
 });
+
+async function supplierVarianceFixture(openingCost:string,receiptCost:string,quantity='3'){
+ const p=await db.product.create({data:{businessId:business,sku:`VAR-${randomUUID().slice(0,8).toUpperCase()}`,name:'Supplier return variance',unit:'PIECE',purchasePrice:'99',sellingPrice:'100'}});
+ await auth.transaction(tx=>postStock(tx,{businessId:business,locationId:source,productId:p.id,delta:quantity,unitCost:openingCost,type:'TEST_RECEIPT',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'Older cost layer',actorId:owner.user.id,notes:''}));
+ const supplier=await apiPost('/operations/suppliers',{code:`VAR-${randomUUID().slice(0,8).toUpperCase()}`,name:'Variance supplier'});expect(supplier.status,supplier.text).toBe(201);
+ let receipt=await apiPost('/operations/purchases',{clientKey:randomUUID(),kind:'RECEIPT',locationId:source,supplierId:supplier.body.id,documentDate:new Date().toISOString().slice(0,10),lines:[{productId:p.id,quantity,unitCost:receiptCost}]});expect(receipt.status,receipt.text).toBe(201);
+ for(const action of ['submit','confirm']){receipt=await apiPost(`/operations/purchases/${receipt.body.id}/status`,{revision:receipt.body.revision,action,confirm:true});expect(receipt.status,receipt.text).toBe(200);}
+ return {p,receipt:receipt.body};
+}
+async function supplierVarianceReturn(fixture:Awaited<ReturnType<typeof supplierVarianceFixture>>,quantity:string){
+ const {p,receipt}=fixture;
+ const made=await apiPost('/workflows/adjustments',{clientKey:randomUUID(),kind:'SUPPLIER_RETURN',locationId:source,sourceId:receipt.id,reason:'Return against confirmed supplier receipt',lines:[{productId:p.id,sourceLineId:receipt.lines[0].id,quantity}]});expect(made.status,made.text).toBe(201);
+ const done=await apiPost(`/workflows/adjustments/${made.body.id}/status`,{revision:0,action:'confirm',confirm:true});expect(done.status,done.text).toBe(200);return done.body;
+}
+const summaryToday=(suffix='',who=owner)=>{const day=new Date().toISOString().slice(0,10);return apiGet(`/workflows/reports?view=summary&from=${day}&to=${day}${suffix}`,who);};
+it('reconciles positive and negative supplier return FIFO variances into net profit without changing gross profit',async()=>{
+ for(const [openingCost,receiptCost,expected] of [['2','10',8],['10','2',-8]] as const){
+  const fixture=await supplierVarianceFixture(openingCost,receiptCost),before=await summaryToday();expect(before.status).toBe(200);
+  const done=await supplierVarianceReturn(fixture,'1');expect(done.lines[0].costAmount).toBe(openingCost);expect(done.total).toBe(receiptCost);
+  const after=await summaryToday();expect(after.status).toBe(200);
+  expect(Number(after.body.supplierReturnAdjustment)-Number(before.body.supplierReturnAdjustment)).toBeCloseTo(expected,4);
+  expect(Number(after.body.estimatedProfit)-Number(before.body.estimatedProfit)).toBeCloseTo(expected,4);expect(after.body.grossProfit).toBe(before.body.grossProfit);expect(after.body.estimatedCost).toBe(before.body.estimatedCost);
+  const inventory=await db.fifoLayer.aggregate({where:{businessId:business,productId:fixture.p.id},_sum:{remainingCost:true}});expect(Number(inventory._sum.remainingCost)).toBe(Number(openingCost)*2+Number(receiptCost)*3);
+  expect((await apiPost(`/workflows/adjustments/${done.id}/status`,{revision:0,action:'confirm',confirm:true})).status).toBe(200);expect((await summaryToday()).body.supplierReturnAdjustment).toBe(after.body.supplierReturnAdjustment);
+ }
+});
+it('conserves supplier-return cents across partial returns and scopes the variance by date, location and cost permission',async()=>{
+ const fixture=await supplierVarianceFixture('0.3333','1'),before=await summaryToday(),destinationBefore=await summaryToday(`&locationId=${destination}`),costs=[];
+ for(let i=0;i<3;i++)costs.push((await supplierVarianceReturn(fixture,'1')).lines[0].costAmount);
+ expect(costs).toEqual(['0.33','0.34','0.33']);
+ const after=await summaryToday(),sourceReport=await summaryToday(`&locationId=${source}`),destinationAfter=await summaryToday(`&locationId=${destination}`);
+ expect(Number(after.body.supplierReturnAdjustment)-Number(before.body.supplierReturnAdjustment)).toBeCloseTo(2,4);expect(Number(after.body.estimatedProfit)-Number(before.body.estimatedProfit)).toBeCloseTo(2,4);
+ expect(sourceReport.body.supplierReturnAdjustment).toBe(after.body.supplierReturnAdjustment);expect(destinationAfter.body.supplierReturnAdjustment).toBe(destinationBefore.body.supplierReturnAdjustment);
+ const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10),future=await apiGet(`/workflows/reports?view=summary&from=${tomorrow}&to=${tomorrow}`);expect(future.status).toBe(200);expect(future.body.supplierReturnAdjustment).toBe('0.0000');
+ expect((await summaryToday('',foreign)).status).toBe(403);expect((await summaryToday('',admin)).status).toBe(403);
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:cashier.user.id}}});
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'reports.view':true,'payments.view':true}}});
+ try{const hidden=await summaryToday('',cashier);expect(hidden.status,hidden.text).toBe(200);expect(hidden.body).not.toHaveProperty('supplierReturnAdjustment');expect(hidden.body).not.toHaveProperty('estimatedProfit');}finally{await db.membership.update({where:{id:member.id},data:{permissionOverrides:{}}});}
+});
+it('preserves historical non-FIFO supplier returns without inventing a valuation adjustment',async()=>{
+ const b=(await db.business.create({data:{name:'Legacy supplier return audit'}})).id;bids.push(b);await db.businessSubscription.create({data:{businessId:b,planId,trialStartedAt:new Date(),trialEndsAt:new Date(Date.now()+86400000)}});
+ const loc=(await db.location.create({data:{businessId:b,code:'LEGACY',name:'Legacy shop',kind:'SHOP'}})).id,who=await actor('OWNER',b),p=await db.product.create({data:{businessId:b,sku:'LEGACY',name:'Legacy item',unit:'PIECE',purchasePrice:'2',sellingPrice:'12'}});
+ const req=(path:string,input?:object)=>input===undefined?request(app).get(`/api/businesses/${b}${path}`).set('Cookie',cookie(who)):request(app).post(`/api/businesses/${b}${path}`).set('Cookie',cookie(who)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,who.token)).send(input);
+ const supplier=await req('/operations/suppliers',{code:'LEGACY',name:'Legacy supplier'});expect(supplier.status).toBe(201);
+ let receipt=await req('/operations/purchases',{clientKey:randomUUID(),kind:'RECEIPT',locationId:loc,supplierId:supplier.body.id,documentDate:new Date().toISOString().slice(0,10),lines:[{productId:p.id,quantity:'3',unitCost:'10'}]});expect(receipt.status).toBe(201);
+ for(const action of ['submit','confirm']){receipt=await req(`/operations/purchases/${receipt.body.id}/status`,{revision:receipt.body.revision,action,confirm:true});expect(receipt.status).toBe(200);}
+ const made=await req('/workflows/adjustments',{clientKey:randomUUID(),kind:'SUPPLIER_RETURN',locationId:loc,sourceId:receipt.body.id,reason:'Historical supplier return',lines:[{productId:p.id,sourceLineId:receipt.body.lines[0].id,quantity:'1'}]});expect(made.status).toBe(201);
+ const done=await req(`/workflows/adjustments/${made.body.id}/status`,{revision:0,action:'confirm',confirm:true});expect(done.status).toBe(200);expect(done.body.lines[0].costAmount).toBeNull();
+ const day=new Date().toISOString().slice(0,10),report=await req(`/workflows/reports?view=summary&from=${day}&to=${day}`);expect(report.status).toBe(200);expect(report.body.supplierReturnAdjustment).toBe('0.0000');expect(report.body.estimatedProfit).toBe('0.0000');
+});

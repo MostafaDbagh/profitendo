@@ -21,8 +21,8 @@ export class ReportService{
   const limit=10000;
   if(q.view==='summary'){
    const totals=await summaryTotals(tx,bid,range,{...(q.locationId?{locationId:q.locationId}:{}),...(where.location?{location:where.location}:{})},digits);
-   const {expenses,estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,countAdjustmentValue,...publicTotals}=totals;
-   return {...base,...publicTotals,...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,countAdjustmentValue}:{})};
+   const {expenses,estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue,...publicTotals}=totals;
+   return {...base,...publicTotals,...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue}:{})};
   }
   if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];
@@ -85,6 +85,9 @@ export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},sc
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
    const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled((l.costAmount?.toFixed(4)??lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits))),0n),0n),recoveredCost=await recoveredReturnCost(tx,bid,returns.filter(d=>d.kind==='CUSTOMER_RETURN').flatMap(d=>d.lines),digits),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.costAmount?.toFixed(4)??lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
+   // FIFO returns credit the source receipt but remove the oldest carrying cost.
+   // Historical returns have no stored FIFO cost; preserve their existing treatment.
+   const supplierReturnAdjustment=returns.filter(d=>d.kind==='SUPPLIER_RETURN').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>value+(l.costAmount===null?0n:scaled(l.amount.toFixed(4))-scaled(l.costAmount.toFixed(4))),0n),0n);
    const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
     const delta=scaled(l.delta.toFixed(4));
     const amount=scaled(l.costAmount?.toFixed(4)??lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
@@ -93,7 +96,7 @@ export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},sc
    const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null&&line.costAmount===null).length;
    const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.costAmount!==null?scaled(line.costAmount.toFixed(4)):line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
    const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
- return {saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),netTax:fixed(collectedTax-returnedTax),expenses:fixed(expenses),zeroStockProducts:low,grossProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost),estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)};
+ return {saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),netTax:fixed(collectedTax-returnedTax),expenses:fixed(expenses),zeroStockProducts:low,grossProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost),estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue+supplierReturnAdjustment),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),supplierReturnAdjustment:fixed(supplierReturnAdjustment),countAdjustmentValue:fixed(countAdjustmentValue)};
 }
 
 

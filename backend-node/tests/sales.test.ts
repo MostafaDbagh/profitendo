@@ -205,3 +205,22 @@ it('uses business-local day boundaries and drops revoked location access from pe
   const revoked=await get('/my-day',who);expect(revoked.status).toBe(200);expect(revoked.body.payments).toEqual([]);expect(revoked.body.draftCount).toBe(0);
  }finally{await db.business.update({where:{id:business},data:{timezone:original.timezone}});}
 });
+
+it('refreshes editable draft pack choices without leaking costs or changing receipt snapshots',async()=>{
+ const p=await funded('100'),six=await db.productPack.create({data:{businessId:business,productId:p,name:'Six bottles',baseQuantity:'6'}}),dozen=await db.productPack.create({data:{businessId:business,productId:p,name:'Dozen bottles',baseQuantity:'12'}});
+ const retired=await db.productPack.create({data:{businessId:business,productId:p,name:'Old carton',baseQuantity:'24',retiredAt:new Date()}});
+ const packIds=(line:any)=>line.availablePacks.map((pack:any)=>pack.id).sort();
+ const d=await draft({lines:[{productId:p,quantity:'1'}]},cashier);
+ expect(packIds(d.lines[0])).toEqual([six.id,dozen.id].sort());expect(packIds(d.lines[0])).not.toContain(retired.id);
+ for(const response of [await get(`/${d.id}`,cashier)]){expect(response.status).toBe(200);expect(packIds(response.body.lines[0])).toEqual([six.id,dozen.id].sort());expect(response.text).not.toMatch(/purchasePrice|unitCost|costAmount|9\.8765/);expect(response.body.lines[0]).not.toHaveProperty('product');}
+ // A colleague may read the draft but must not receive edit-only catalogue metadata.
+ const colleague=await get(`/${d.id}`,secondCashier);expect(colleague.status).toBe(200);expect(colleague.body.capabilities.edit).toBe(false);expect(colleague.body.lines[0]).not.toHaveProperty('availablePacks');
+ const changed=await write(`/${d.id}`,{revision:d.revision,lines:[{productId:p,packId:six.id,quantity:'2'}]},cashier,'patch');expect(changed.status,changed.text).toBe(200);expect(changed.body.total).toBe('144');expect(packIds(changed.body.lines[0])).toEqual([six.id,dozen.id].sort());
+ await db.productPack.update({where:{id:six.id},data:{retiredAt:new Date()}});
+ const refreshed=await get(`/${d.id}`,cashier);expect(refreshed.status).toBe(200);expect(packIds(refreshed.body.lines[0])).toEqual([dozen.id]);expect(refreshed.body.lines[0].packId).toBe(six.id);expect(refreshed.body.lines[0].packName).toBe('Six bottles');
+ expect((await write(`/${d.id}`,{revision:refreshed.body.revision,lines:[{productId:p,packId:six.id,quantity:'2'}]},cashier,'patch')).body.error.code).toBe('PACK_NOT_FOUND');
+ const recovered=await write(`/${d.id}`,{revision:refreshed.body.revision,lines:[{productId:p,packId:dozen.id,quantity:'1'}]},cashier,'patch');expect(recovered.status,recovered.text).toBe(200);expect(recovered.body.total).toBe('144');
+ const completed=await checkout(recovered.body,checkoutBody(recovered.body),cashier);expect(completed.status,completed.text).toBe(200);expect(completed.body.lines[0]).not.toHaveProperty('availablePacks');expect(completed.body.lines[0]).not.toHaveProperty('product');
+ await db.productPack.update({where:{id:dozen.id},data:{name:'Renamed dozen',retiredAt:new Date()}});
+ const receipt=await get(`/${d.id}`,cashier);expect(receipt.body.lines[0].packName).toBe('Dozen bottles');expect(receipt.body.lines[0]).not.toHaveProperty('availablePacks');expect(receipt.text).not.toMatch(/purchasePrice|unitCost|costAmount|9\.8765/);
+});

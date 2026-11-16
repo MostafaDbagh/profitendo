@@ -14,13 +14,13 @@ import { checked, exactMoney, lineGross, currencyDigits } from './money.js';
 import type { SaleInput, SalePatch, Checkout } from './contracts.js';
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function fail(code:string,status=409):never{throw new ApiError(status,code,code);}
-const include={lines:true,payment:true} as const;
+const include={lines:{include:{product:{select:{active:true,packs:{where:{retiredAt:null},select:{id:true,name:true,baseQuantity:true}}}}}},payment:true} as const;
 type Sale=Prisma.SaleGetPayload<{include:typeof include}>;
 type Access=Awaited<ReturnType<typeof requireLocation>>;
 function present(doc:Sale,access:Access){
  const {requestHash,clientKey,checkoutKey,checkoutHash,...data}=doc;
  const edit=doc.status==='DRAFT'&&access.permissions['sales.create']&&(doc.actorId===access.user.id||access.permissions['sales.manage']);
- return {...data,lines:doc.lines.map(({unitCost,costAmount,...line})=>line),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
+ return {...data,lines:doc.lines.map(({unitCost,costAmount,product,...line})=>({...line,...(edit?{availablePacks:product.active?product.packs:[]}:{})})),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
 }
 async function entitled(tx:Tx,bid:string){if(!(await billingState(tx,bid)).active)fail('SUBSCRIPTION_REQUIRED',402);}
 export class SalesService{

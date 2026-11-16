@@ -104,7 +104,7 @@ it('manual reporting works with automatic reports off and reconciles sales, tax-
  const input={clientKey:randomUUID(),from:today,to:today,locationId:source};const responses=await Promise.all([write('/report-delivery/send',input),write('/report-delivery/send',input)]);expect(responses.map(r=>r.status)).toEqual([202,202]);expect(responses[0]!.body.id).toBe(responses[1]!.body.id);manualId=responses[0]!.body.id;expect((await write('/report-delivery/send',{...input,locationId:destination})).body.error.code).toBe('IDEMPOTENCY_CONFLICT');
  expect((await prepareReportBatch(db,settings)).prepared).toBe(1);
  const view=await get(`/report-delivery/${manualId}`);expect(view.status,view.text).toBe(200);
- const metrics=Object.fromEntries(view.body.sections.flatMap((s:any)=>s.metrics.map((m:any)=>[m.key,m.value])));expect(metrics).toMatchObject({sales:'$20.00',customerReturns:'$10.00',grossProfit:'$6.00',estimatedProfit:'$4.00',expected:'$108.00',counted:'$108.00',variance:'$0.00'});
+ const metrics=Object.fromEntries(view.body.sections.flatMap((s:any)=>s.metrics.map((m:any)=>[m.key,m.value])));expect(metrics).toMatchObject({sales:'$20.00',customerReturns:'$10.00',grossProfit:'$6.00',estimatedProfit:'$4.00',supplierReturnAdjustment:'$0.00',expected:'$108.00',counted:'$108.00',variance:'$0.00'});
  expect((await db.reportDelivery.findUniqueOrThrow({where:{id:manualId}})).snapshot).not.toContain('$108.00');
  expect((await get(`/report-delivery/${manualId}`,foreign,other)).status).toBe(404);
  const anotherOwner=await actor('OWNER');expect((await get(`/report-delivery/${manualId}`,anotherOwner)).status).toBe(404);
@@ -130,7 +130,7 @@ it('honors selected reports and locale, and excludes activity posted after the r
  const response=await put({revision,enabled:false,reportTypes:['SALES','NET_PROFIT'],language:'ar'});expect(response.status).toBe(200);revision=response.body.revision;
  const queued=await send();expect(queued.status,queued.text).toBe(202);
  await new Promise(resolve=>setTimeout(resolve,5));await pay('EXPENSE','1',{method:'CARD'});
- await prepareReportBatch(db,settings);const report=await get(`/report-delivery/${queued.body.id}`);expect(report.body.language).toBe('ar');expect(report.body.sections.map((s:any)=>s.type)).toEqual(['SALES','NET_PROFIT']);expect(report.body.sections[1].metrics.find((m:any)=>m.key==='estimatedProfit').value).toBe(new Intl.NumberFormat('ar',{style:'currency',currency:'USD'}).format(4));expect(JSON.stringify(report.body)).not.toContain('grossProfit');
+ await prepareReportBatch(db,settings);const report=await get(`/report-delivery/${queued.body.id}`);expect(report.body.language).toBe('ar');expect(report.body.sections.map((s:any)=>s.type)).toEqual(['SALES','NET_PROFIT']);expect(report.body.sections[1].metrics.find((m:any)=>m.key==='estimatedProfit').value).toBe(new Intl.NumberFormat('ar',{style:'currency',currency:'USD'}).format(4));expect(report.body.sections[1].metrics.find((m:any)=>m.key==='supplierReturnAdjustment')).toMatchObject({label:'فرق تقييم مرتجعات الموردين',value:new Intl.NumberFormat('ar',{style:'currency',currency:'USD'}).format(0)});expect(JSON.stringify(report.body)).not.toContain('grossProfit');
 });
 
 it('prepares automatic location-specific reports and cancels queued email when switched off',async()=>{

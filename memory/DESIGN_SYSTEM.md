@@ -772,3 +772,14 @@ Cashiers without reports.view see a personal daily sales summary, open drafts an
 return credits; this is explicitly not a profit report or drawer reconciliation.
 Cash closing previews shortage/surplus/balance and requires a variance explanation.
 AR/EN mobile/desktop evidence: tmp/fifo-ui and tmp/daily-workflow.
+
+### QA fixes — 16 November 2026
+Supplier-return FIFO credit/carrying-value differences now appear as a separate
+bilingual report metric and enter estimated net profit (not gross profit).
+The existing metric cards and delivered-report layout are reused. Historical
+returns without recorded FIFO cost retain their existing reporting treatment.
+Saved editable sales drafts now expose current active pack choices; the editor
+retains the selected historical pack for display, while repricing validates it.
+AR/EN evidence: tmp/accountant-round/supplier-adjustment-* and
+ tmp/cashier-round/screenshots/draft-pack-fixed-*.png. Full317-test backend suite,
+application/test typechecks and frontend production build passed.
