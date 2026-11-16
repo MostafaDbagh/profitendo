@@ -1,5 +1,6 @@
 export const completionCopy={
   "en": {
+    "FIFO_REVIEW_REQUIRED": "Stock quantities and FIFO cost layers need review. Ask the business owner to review inventory costing.",
     "returns": "Customer & supplier returns",
     "counts": "Counts & damage",
     "payments": "Payments & daily cash",
@@ -190,6 +191,7 @@ export const completionCopy={
     "report.exported": "Report exported"
   },
   "ar": {
+    "FIFO_REVIEW_REQUIRED": "تحتاج كميات المخزون وطبقات تكلفة FIFO إلى مراجعة. اطلب من مالك النشاط مراجعة تكلفة المخزون.",
     "returns": "مرتجعات العملاء والموردين",
     "counts": "الجرد والتلف",
     "payments": "الدفعات والصندوق اليومي",

@@ -1,3 +1,5 @@
+import {addLayers,takeLayers,costOf,type CostSlice} from './fifo.js';
+import {currencyDigits} from '../sales/money.js';
 import { randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService, Tx } from '../auth/service.js';
 import { requireLocation } from '../locations/access.js';
@@ -5,9 +7,10 @@ import { ApiError } from '../errors.js';
 import { fixed, quantity, scaled } from './decimal.js';
 // Internal posting primitive: callers must authorize every location inside the same
 // serializable transaction. No public endpoint accepts arbitrary stock mutations.
-export async function postStock(tx:Tx,input:{businessId:string;locationId:string;productId:string;delta:string;type:string;sourceId:string;sourceLineId:string;reference:string;actorId:string;notes:string}){
+export async function postStock(tx:Tx,input:{businessId:string;locationId:string;productId:string;delta:string;type:string;sourceId:string;sourceLineId:string;reference:string;actorId:string;notes:string;unitCost?:string;layers?:CostSlice[]}){
  if(!/^-?(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(input.delta)||scaled(input.delta)===0n)throw new ApiError(422,'INVALID_QUANTITY','Invalid stock quantity');
- const {delta,...data}=input;
+ const {delta,unitCost,layers:providedLayers,...data}=input;
+ await tx.$queryRaw`SELECT id FROM businesses WHERE id=${input.businessId}::uuid FOR UPDATE`;
  const prior=await tx.stockMovement.findUnique({where:{businessId_type_sourceLineId:{businessId:input.businessId,type:input.type,sourceLineId:input.sourceLineId}}});
  if(prior){
   if(prior.locationId!==input.locationId||prior.productId!==input.productId||prior.sourceId!==input.sourceId||scaled(prior.quantity.toFixed(4))!==scaled(delta))throw new ApiError(409,'IDEMPOTENCY_CONFLICT','Posting key was used for different stock');
@@ -21,8 +24,20 @@ export async function postStock(tx:Tx,input:{businessId:string;locationId:string
  const balance=await tx.stockBalance.findUniqueOrThrow({where:{businessId_locationId_productId:key}});
  const next=scaled(balance.onHand.toFixed(4))+scaled(delta);
  if(next<scaled(balance.reserved.toFixed(4)))throw new ApiError(409,'INSUFFICIENT_STOCK','Insufficient available stock');
+ const business=await tx.business.findUniqueOrThrow({where:{id:input.businessId}});
+ let costLayers:CostSlice[]|undefined,costAmount:string|undefined;
+ if(business.fifoStartedAt){
+  if(scaled(delta)<0n)costLayers=await takeLayers(tx,key,-scaled(delta),currencyDigits(business.baseCurrency));
+  else{
+   if(!providedLayers&&unitCost===undefined)throw new ApiError(409,'FIFO_REVIEW_REQUIRED','A receipt cost is required');
+   costLayers=providedLayers??[{quantity:delta,unitCost:unitCost!,acquiredAt:new Date().toISOString(),originId:input.sourceLineId}];
+   if(costLayers.reduce((sum,l)=>sum+scaled(l.quantity),0n)!==scaled(delta))throw new ApiError(409,'FIFO_REVIEW_REQUIRED','Cost layers do not match stock quantity');
+   await addLayers(tx,key,costLayers,currencyDigits(business.baseCurrency));
+  }
+  costAmount=costOf(costLayers,currencyDigits(business.baseCurrency));
+ }
  await tx.stockBalance.update({where:{id:balance.id},data:{onHand:quantity(next)}});
- return tx.stockMovement.create({data:{...data,quantity:delta}});
+ return tx.stockMovement.create({data:{...data,quantity:delta,...(costLayers?{costLayers,costAmount}:{})}});
 }
 export class InventoryService{
  constructor(readonly auth:AuthService){}
@@ -31,7 +46,7 @@ export class InventoryService{
    await requireLocation(this.auth,tx,ctx,businessId,locationId,'inventory.view',false);
    const where={businessId,locationId,...(search?{product:{OR:[{name:{contains:search,mode:'insensitive' as const}},{sku:{contains:search,mode:'insensitive' as const}},{barcodes:{some:{value:search}}}]}}:{})};
    if(movements){const rows=await tx.stockMovement.findMany({where,include:{product:{select:{name:true,sku:true,unit:true}}},skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}]});
-    return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(r=>({...r,quantity:r.quantity.toFixed(4)}))};}
+    return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(({costAmount,costLayers,...r})=>({...r,quantity:r.quantity.toFixed(4)}))};}
    const rows=await tx.stockBalance.findMany({where,include:{product:{select:{name:true,sku:true,unit:true,minimumStock:true}}},skip:(page-1)*25,take:25,orderBy:[{product:{name:'asc'}},{productId:'asc'},{locationId:'asc'}]});
    return {page,pageSize:25,total:await tx.stockBalance.count({where}),items:rows.map(r=>({...r,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),lowStock:r.onHand.minus(r.reserved).lte(r.product.minimumStock),product:{...r.product,minimumStock:r.product.minimumStock.toFixed(4)}}))};
   });

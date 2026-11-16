@@ -1,3 +1,5 @@
+import {originalLayers,sliceCosts,sliceCostAmount} from '../operations/fifo.js';
+import {currencyDigits} from '../sales/money.js';
 import { requireBusiness } from '../businesses/access.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService, Tx } from '../auth/service.js';
@@ -47,7 +49,7 @@ export class TransferService{
    await this.document(tx,ctx,businessId,id);
    const where={businessId,transferId:id};
    const rows=await tx.transferEvent.findMany({where,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{lines:{include:{line:{select:{name:true,sku:true,unit:true}}}}}});
-   return {page,pageSize:25,total:await tx.transferEvent.count({where}),items:rows.map(({requestHash,clientKey,...row})=>({...row,lines:row.lines.map(({unitCost,...l})=>({...l,quantity:l.quantity.toFixed(4)}))}))};
+   return {page,pageSize:25,total:await tx.transferEvent.count({where}),items:rows.map(({requestHash,clientKey,...row})=>({...row,lines:row.lines.map(({unitCost,costAmount,...l})=>({...l,quantity:l.quantity.toFixed(4)}))}))};
   });
  }
  async create(ctx:AuthContext,businessId:string,input:TransferInput,retry=true):Promise<ReturnType<typeof present>>{
@@ -123,9 +125,13 @@ export class TransferService{
     const line=doc.lines.find(l=>l.id===entry.lineId)!,eventLineId=randomUUID();
     // Match recorded damage valuation: freeze catalogue cost when the loss is
     // recognized, without posting a second stock deduction for dispatched goods.
+    const sourceCosts=await originalLayers(tx,businessId,'TRANSFER_OUT',line.id);
+    const offset=scaled(line.received.toFixed(4))+scaled(line.returned.toFixed(4))+scaled(line.lost.toFixed(4));
+    const layers=sourceCosts?sliceCosts(sourceCosts,offset,scaled(entry.quantity),currencyDigits(access.business.baseCurrency)):undefined;
+    const costAmount=sourceCosts?sliceCostAmount(sourceCosts,offset,scaled(entry.quantity),currencyDigits(access.business.baseCurrency)):undefined;
     const unitCost=input.kind==='LOSS'?(await tx.product.findFirstOrThrow({where:{businessId,id:line.productId}})).purchasePrice:null;
-    await tx.transferEventLine.create({data:{id:eventLineId,businessId,transferId:id,eventId,transferLineId:line.id,quantity:entry.quantity,unitCost}});
-    if(input.kind!=='LOSS')await postStock(tx,{businessId,locationId:affected,productId:line.productId,delta:entry.quantity,type:input.kind==='RECEIVE'?'TRANSFER_IN':'TRANSFER_RETURN',sourceId:id,sourceLineId:eventLineId,reference:doc.reference,actorId:ctx.user.id,notes:input.reason});
+    await tx.transferEventLine.create({data:{id:eventLineId,businessId,transferId:id,eventId,transferLineId:line.id,quantity:entry.quantity,unitCost,costAmount}});
+    if(input.kind!=='LOSS')await postStock(tx,{businessId,locationId:affected,productId:line.productId,delta:entry.quantity,layers,type:input.kind==='RECEIVE'?'TRANSFER_IN':'TRANSFER_RETURN',sourceId:id,sourceLineId:eventLineId,reference:doc.reference,actorId:ctx.user.id,notes:input.reason});
     await tx.transferLine.update({where:{id:line.id},data:{[input.kind==='RECEIVE'?'received':input.kind==='RETURN'?'returned':'lost']:{increment:entry.quantity}}});
    }
    const lines=await tx.transferLine.findMany({where:{businessId,transferId:id}}),completed=lines.every(l=>remaining(l)===0n);

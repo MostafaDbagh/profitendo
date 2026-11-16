@@ -1,8 +1,9 @@
+import FifoSettings from './FifoSettings';
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { Feedback, Select, panelClass, primaryClass } from './UI';
 const currencies = ['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY'];
-export default function Settings({ context, api, c, reload, onName }) {
+export default function Settings({ context, api, c, reload, onName, lang }) {
   const { business, permissions } = context;
   const [form, setForm] = useState(business), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const editable = permissions['business.edit'];
@@ -15,7 +16,7 @@ export default function Settings({ context, api, c, reload, onName }) {
       setForm(updated); onName(updated.name); setNotice('saved');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
-  return <form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
+  return <div className="space-y-5"><FifoSettings {...{context,api,c,lang}}/><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
     <h2 className="text-lg font-bold text-slate-900">{c('settings')}</h2>
     {!editable && <p className="text-sm text-slate-500">{c('readOnly')}</p>}
     <Feedback error={error} notice={notice} c={c} retry={reload} />
@@ -28,5 +29,5 @@ export default function Settings({ context, api, c, reload, onName }) {
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT'}>{c(busy ? 'saving' : 'save')}</button>}
-  </form>;
+  </form></div>;
 }

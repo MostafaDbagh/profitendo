@@ -1,3 +1,4 @@
+import {reviewFifo,activateFifo,fifoActivation} from './fifo-review.js';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import type { AuthService } from '../auth/service.js';
@@ -17,6 +18,8 @@ export function operationsRouter(auth:AuthService){
  router.use((req,_res,next)=>{if(!z.uuid().safeParse(bid(req)).success)throw new ApiError(400,'INVALID_ID','Invalid business');next();});
  router.param('id',(_req,_res,next,value)=>{if(!z.uuid().safeParse(value).success)throw new ApiError(400,'INVALID_ID','Invalid identifier');next();});
  const page=z.coerce.number().int().min(1).max(10000).default(1),search=z.string().trim().max(160).default('');
+ router.get('/fifo-review',async(req,res)=>res.json(await reviewFifo(auth,ctx(res),bid(req))));
+ router.post('/fifo-activate',validateBody(fifoActivation),async(req,res)=>res.json(await activateFifo(auth,ctx(res),bid(req),req.body)));
  router.get('/suppliers',async(req,res)=>{
   const q=z.object({page,search,state:z.enum(['active','inactive','all']).default('active')}).strict().safeParse(req.query);
   if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');

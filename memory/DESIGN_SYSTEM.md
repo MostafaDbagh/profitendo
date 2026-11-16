@@ -761,3 +761,14 @@ Phone verification, when enabled, and already enrolled MFA remain enforced
 before dashboard access. Password-reset codes still use the reset flow.
 Real and local-mock OTP endpoints share this behavior. Email/phone verification
 remain disabled by default; this applies when Super Admin enables them.
+
+### Reviewed FIFO and daily cashier workflows — 16 November 2026
+Business settings now precede personal tab customization. Owner-only inventory
+costing review reuses the existing modal, fields, slate panels and emerald actions.
+It shows quantities per product/location and editable suggested opening unit costs,
+requires explicit confirmation, resets confirmation after edits, and blocks pending
+transfers. FIFO is never automatically enabled for existing businesses.
+Cashiers without reports.view see a personal daily sales summary, open drafts and
+return credits; this is explicitly not a profit report or drawer reconciliation.
+Cash closing previews shortage/surplus/balance and requires a variance explanation.
+AR/EN mobile/desktop evidence: tmp/fifo-ui and tmp/daily-workflow.

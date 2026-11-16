@@ -153,7 +153,7 @@ export class PurchasingService{
      const order=await this.order(tx,businessId,doc.orderId,doc.supplierId,doc.locationId,doc.lines.map(l=>({productId:l.productId,baseQuantity:l.baseQuantity.toFixed(4)})));
      // Consistent product ordering reduces lock contention between documents.
      for(const line of [...doc.lines].sort((a,b)=>a.productId.localeCompare(b.productId))){
-      await postStock(tx,{businessId,locationId:doc.locationId,productId:line.productId,delta:line.baseQuantity.toFixed(4),type:'PURCHASE_RECEIPT',sourceId:id,sourceLineId:line.id,reference:doc.reference,actorId:ctx.user.id,notes:doc.notes});
+      await postStock(tx,{businessId,locationId:doc.locationId,productId:line.productId,delta:line.baseQuantity.toFixed(4),unitCost:line.unitCost.toFixed(4),type:'PURCHASE_RECEIPT',sourceId:id,sourceLineId:line.id,reference:doc.reference,actorId:ctx.user.id,notes:doc.notes});
       if(order){const planned=order.lines.find(l=>l.productId===line.productId)!;await tx.purchaseLine.update({where:{id:planned.id},data:{receivedQuantity:{increment:line.baseQuantity}}});}
      }
      if(order){

@@ -178,3 +178,30 @@ it('configures tax per business, validates access and snapshots discounted tax o
   expect(Number((await get(`/${d.id}`)).body.tax)).toBe(1);
  }finally{await configure('0');}
 });
+
+it('summarizes only the signed-in cashier’s posted payments and open drafts without costs',async()=>{
+ const who=await actor('CASHIER',business,source),otherWho=await actor('CASHIER',business,source);
+ const mine=await draft({},who);expect((await checkout(mine,checkoutBody(mine,{payment:{method:'CASH',received:'30'}}),who)).status).toBe(200);
+ const theirs=await draft({},otherWho);expect((await checkout(theirs,checkoutBody(theirs),otherWho)).status).toBe(200);await draft({},who);
+ const r=await get('/my-day',who);expect(r.status,r.text).toBe(200);expect(r.body.payments).toEqual([{method:'CASH',count:1,amount:'24.0000',received:'30.0000',change:'6.0000'}]);expect(r.body.draftCount).toBe(1);expect(r.text).not.toMatch(/unitCost|purchasePrice|estimatedProfit|costAmount/);
+ expect((await get('/my-day?actorId='+otherWho.user.id,who)).status).toBe(422);
+ expect((await get('/my-day',foreign)).status).toBe(403);expect((await get('/my-day',admin)).status).toBe(403);expect((await get('/my-day',unassigned)).body.payments).toEqual([]);
+ const member=await db.membership.findFirstOrThrow({where:{businessId:business,userId:who.user.id}});await db.membership.update({where:{id:member.id},data:{disabledAt:new Date()}});expect((await get('/my-day',who)).status).toBe(403);
+});
+it('uses business-local day boundaries and drops revoked location access from personal totals',async()=>{
+ const who=await actor('CASHIER',business,source),original=await db.business.findUniqueOrThrow({where:{id:business}}),timezone='America/New_York';
+ try{
+  await db.business.update({where:{id:business},data:{timezone}});
+  const day=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const bounds=await db.$queryRaw<{start:Date;end:Date}[]>`SELECT (${day}::date)::timestamp AT TIME ZONE ${timezone} AS start,(${day}::date+1)::timestamp AT TIME ZONE ${timezone} AS end`;
+  const template=await draft({},who),raw=await db.sale.findUniqueOrThrow({where:{id:template.id}});
+  const instants=[new Date(bounds[0]!.start.getTime()-1),bounds[0]!.start,new Date(bounds[0]!.end.getTime()-1),bounds[0]!.end];
+  for(let i=0;i<instants.length;i++){
+   const id=randomUUID(),amount=String((i+1)*10);await db.sale.create({data:{...raw,id,clientKey:randomUUID(),reference:'DAY-'+id,status:'COMPLETED',checkoutKey:randomUUID(),checkoutHash:randomUUID(),completedBy:who.user.id,completedName:who.user.name,completedAt:instants[i],subtotal:amount,discount:'0',tax:'0',total:amount}});
+   await db.salePayment.create({data:{businessId:business,saleId:id,method:'CARD',amount,received:amount,change:'0',reference:'DAY-'+id,actorId:who.user.id,actorName:who.user.name,createdAt:instants[i]}});
+  }
+  const r=await get('/my-day',who);expect(r.status,r.text).toBe(200);expect(r.body.day).toBe(day);expect(r.body.timezone).toBe(timezone);expect(r.body.payments).toEqual([{method:'CARD',count:2,amount:'50.0000',received:'50.0000',change:'0.0000'}]);
+  const member=await db.membership.findFirstOrThrow({where:{businessId:business,userId:who.user.id}});await db.locationAssignment.deleteMany({where:{businessId:business,membershipId:member.id}});
+  const revoked=await get('/my-day',who);expect(revoked.status).toBe(200);expect(revoked.body.payments).toEqual([]);expect(revoked.body.draftCount).toBe(0);
+ }finally{await db.business.update({where:{id:business},data:{timezone:original.timezone}});}
+});

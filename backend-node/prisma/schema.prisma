@@ -58,6 +58,7 @@ model AuthUser {
   @@map("auth_users")
 }
 model Business {
+  fifoStartedAt DateTime? @map("fifo_started_at") @db.Timestamptz(3)
   manualPayments ManualSubscriptionPayment[]
   id           String @id @default(uuid()) @db.Uuid
   name         String
@@ -488,6 +489,8 @@ model StockBalance {
   @@map("stock_balances")
 }
 model StockMovement {
+  costLayers Json? @map("cost_layers")
+  costAmount Decimal? @map("cost_amount") @db.Decimal(18,4)
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   locationId String @map("location_id") @db.Uuid
@@ -636,6 +639,7 @@ model TransferEvent {
   @@map("transfer_events")
 }
 model TransferEventLine {
+  costAmount Decimal? @map("cost_amount") @db.Decimal(18,4)
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   transferId String @map("transfer_id") @db.Uuid
@@ -695,6 +699,7 @@ model Sale {
   @@map("sales")
 }
 model SaleLine {
+  costAmount Decimal? @map("cost_amount") @db.Decimal(18,4)
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   saleId String @map("sale_id") @db.Uuid
@@ -771,6 +776,7 @@ model Adjustment {
  @@map("adjustments")
 }
 model AdjustmentLine {
+  costAmount Decimal? @map("cost_amount") @db.Decimal(18,4)
  id String @id @default(uuid()) @db.Uuid
  businessId String @map("business_id") @db.Uuid
  documentId String @map("document_id") @db.Uuid
@@ -1030,4 +1036,22 @@ model ManualSubscriptionPayment {
  @@unique([method,reference])
  @@index([businessId,endsAt])
  @@map("manual_subscription_payments")
+}
+
+model FifoLayer {
+ totalCost Decimal @map("total_cost") @db.Decimal(18,4)
+ remainingCost Decimal @map("remaining_cost") @db.Decimal(18,4)
+ originOrder BigInt @default(autoincrement()) @map("origin_order")
+ id String @id @default(uuid()) @db.Uuid
+ businessId String @map("business_id") @db.Uuid
+ locationId String @map("location_id") @db.Uuid
+ productId String @map("product_id") @db.Uuid
+ quantity Decimal @db.Decimal(18,4)
+ remaining Decimal @db.Decimal(18,4)
+ unitCost Decimal @map("unit_cost") @db.Decimal(18,4)
+ acquiredAt DateTime @map("acquired_at") @db.Timestamptz(3)
+ originId String @map("origin_id")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ @@index([businessId,locationId,productId,acquiredAt,originOrder,id])
+ @@map("fifo_layers")
 }

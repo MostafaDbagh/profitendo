@@ -1,3 +1,4 @@
+import {originalLayers,sliceCosts,sliceCostAmount,type CostSlice} from '../operations/fifo.js';
 import {randomUUID} from 'node:crypto';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
 import type {Prisma} from '../generated/prisma/client.js';
@@ -10,7 +11,7 @@ import {fail,hash,entitled,permission,isReturn,locationScope,stockSnapshot} from
 import type {AdjustmentInput} from './contracts.js';
 type Doc=Prisma.AdjustmentGetPayload<{include:{lines:true}}>;
 type Access=Awaited<ReturnType<typeof requireLocation>>;
-const present=(d:Doc,a:Access)=>({...d,clientKey:undefined,requestHash:undefined,total:d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?undefined:d.total,lines:d.lines.map(({unitCost,amount,...l})=>({...l,...(d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?{}:{amount}),...(a.permissions['catalogue.cost']?{unitCost}:{})})),capabilities:{confirm:d.status==='DRAFT'&&a.permissions[permission(d.kind,'approve')]&&(d.kind!=='SUPPLIER_RETURN'||a.permissions['purchasing.manage']),cancel:d.status==='DRAFT'&&a.permissions[permission(d.kind,'delete')]&&(d.actorId===a.user.id&&a.permissions[permission(d.kind,'create')]||a.permissions[permission(d.kind,'approve')])}});
+const present=(d:Doc,a:Access)=>({...d,clientKey:undefined,requestHash:undefined,total:d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?undefined:d.total,lines:d.lines.map(({unitCost,costAmount,amount,...l})=>({...l,...(d.kind==='SUPPLIER_RETURN'&&!a.permissions['catalogue.cost']?{}:{amount}),...(a.permissions['catalogue.cost']?{unitCost,costAmount}:{})})),capabilities:{confirm:d.status==='DRAFT'&&a.permissions[permission(d.kind,'approve')]&&(d.kind!=='SUPPLIER_RETURN'||a.permissions['purchasing.manage']),cancel:d.status==='DRAFT'&&a.permissions[permission(d.kind,'delete')]&&(d.actorId===a.user.id&&a.permissions[permission(d.kind,'create')]||a.permissions[permission(d.kind,'approve')])}});
 // Cumulative proportional credit means the final return receives exactly the
 // original tax-inclusive line amount, without rounding drift over partial returns.
 // Allocate returned tax against cumulative refunded money so it never exceeds
@@ -79,8 +80,19 @@ export class WorkflowService{
     let amount=l.amount.toFixed(4),tax=l.tax.toFixed(4);
     if(source){const origin=source.lines.find(x=>x.id===l.sourceLineId)!;const used=await this.used(tx,bid,origin.id);if(used.quantity+scaled(l.quantity.toFixed(4))>scaled(origin.quantity))fail('RETURN_QUANTITY_EXCEEDED');amount=credit(origin.total,origin.quantity,used.quantity,used.amount,scaled(l.quantity.toFixed(4)),d.currencyDigits);if(scaled(origin.total)>0n)tax=credit(origin.tax,origin.total,used.amount,used.tax,scaled(amount),d.currencyDigits);if(scaled(amount)!==scaled(l.amount.toFixed(4))||scaled(tax)!==scaled(l.tax.toFixed(4)))fail('RETURN_VALUE_CHANGED');}
     if(d.kind==='COUNT'||d.kind==='OPENING'){const latest=await stockSnapshot(tx,bid,d.locationId,l.productId);if(latest!==l.snapshotToken)fail('COUNT_STALE');const b=await tx.stockBalance.findFirst({where:{businessId:bid,locationId:d.locationId,productId:l.productId}});if((b?.onHand.toFixed(4)??'0.0000')!==l.expected.toFixed(4))fail('COUNT_STALE');}
-    if(!l.delta.isZero())await postStock(tx,{businessId:bid,locationId:d.locationId,productId:l.productId,delta:l.delta.toFixed(4),type:d.kind,sourceId:id,sourceLineId:l.id,reference:d.reference,actorId:ctx.user.id,notes:d.reason});
-    await tx.adjustmentLine.update({where:{id:l.id},data:{amount,tax}});total+=scaled(amount);
+    let layers:CostSlice[]|undefined,costAmount:string|undefined;
+    if(a.business.fifoStartedAt&&d.kind==='CUSTOMER_RETURN'&&l.sourceLineId){
+     const original=await tx.saleLine.findFirstOrThrow({where:{businessId:bid,id:l.sourceLineId},include:{sale:{select:{completedAt:true}}}});
+     const originalCost=await originalLayers(tx,bid,'SALE',l.sourceLineId)??[{quantity:original.baseQuantity.toFixed(4),unitCost:original.unitCost.toFixed(4),acquiredAt:(original.sale.completedAt??new Date()).toISOString(),originId:l.sourceLineId}];
+     const used=await this.used(tx,bid,l.sourceLineId);
+     layers=sliceCosts(originalCost,used.quantity,scaled(l.quantity.toFixed(4)),d.currencyDigits);
+     costAmount=sliceCostAmount(originalCost,used.quantity,scaled(l.quantity.toFixed(4)),d.currencyDigits);
+    }
+    if(!l.delta.isZero()){
+     const movement=await postStock(tx,{businessId:bid,locationId:d.locationId,productId:l.productId,delta:l.delta.toFixed(4),unitCost:l.unitCost.toFixed(4),layers,type:d.kind,sourceId:id,sourceLineId:l.id,reference:d.reference,actorId:ctx.user.id,notes:d.reason});
+     if(costAmount===undefined&&movement.costAmount!==null)costAmount=movement.costAmount.toFixed(4);
+    }
+    await tx.adjustmentLine.update({where:{id:l.id},data:{amount,tax,costAmount}});total+=scaled(amount);
    }
    await tx.adjustment.update({where:{id},data:{total:checked(total),status:'COMPLETED',revision:{increment:1},completedBy:ctx.user.id,completedName:ctx.user.name,completedAt:new Date()}});
   }else await tx.adjustment.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});

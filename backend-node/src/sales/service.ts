@@ -20,7 +20,7 @@ type Access=Awaited<ReturnType<typeof requireLocation>>;
 function present(doc:Sale,access:Access){
  const {requestHash,clientKey,checkoutKey,checkoutHash,...data}=doc;
  const edit=doc.status==='DRAFT'&&access.permissions['sales.create']&&(doc.actorId===access.user.id||access.permissions['sales.manage']);
- return {...data,lines:doc.lines.map(({unitCost,...line})=>line),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
+ return {...data,lines:doc.lines.map(({unitCost,costAmount,...line})=>line),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
 }
 async function entitled(tx:Tx,bid:string){if(!(await billingState(tx,bid)).active)fail('SUBSCRIPTION_REQUIRED',402);}
 export class SalesService{
@@ -101,7 +101,8 @@ export class SalesService{
   const postedAt=input.payment.method==='CASH'?(await lockCash(tx,bid,doc.locationId,access.business.timezone)).at:new Date();
   for(const line of [...doc.lines].sort((a,b)=>a.productId.localeCompare(b.productId)||a.id.localeCompare(b.id))){
    const p=await tx.product.findFirst({where:{businessId:bid,id:line.productId,active:true}});if(!p)fail('PRODUCT_INACTIVE');if(!p.sellingPrice.equals(line.unitPrice))fail('PRICE_CHANGED');
-   await postStock(tx,{businessId:bid,locationId:doc.locationId,productId:line.productId,delta:fixed(-scaled(line.baseQuantity.toFixed(4))),type:'SALE',sourceId:id,sourceLineId:line.id,reference:doc.reference,actorId:ctx.user.id,notes:doc.notes});
+   const movement=await postStock(tx,{businessId:bid,locationId:doc.locationId,productId:line.productId,delta:fixed(-scaled(line.baseQuantity.toFixed(4))),type:'SALE',sourceId:id,sourceLineId:line.id,reference:doc.reference,actorId:ctx.user.id,notes:doc.notes});
+   if(movement.costAmount!==null)await tx.saleLine.update({where:{id:line.id},data:{costAmount:movement.costAmount}});
   }
   await tx.salePayment.create({data:{businessId:bid,saleId:id,method:input.payment.method,createdAt:postedAt,amount:doc.total,received:input.payment.received,change:checked(received-total),reference:input.payment.reference,actorId:ctx.user.id,actorName:ctx.user.name}});
   await tx.sale.update({where:{id},data:{status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:ctx.user.name,completedAt:postedAt}});

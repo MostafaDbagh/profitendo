@@ -1,3 +1,4 @@
+import {costOf,type CostSlice} from '../operations/fifo.js';
 import type {Prisma} from '../generated/prisma/client.js';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
 import {requireLocation} from '../locations/access.js';
@@ -30,7 +31,13 @@ export class ReportService{
   if(q.view==='stock'){
    if(!q.export&&!q.lowStock)pagedTotal=await tx.stockBalance.count({where:scoped});
    const data=await tx.stockBalance.findMany({where:scoped,include:{product:true,location:{select:{name:true}}},orderBy:[{locationId:'asc'},{productId:'asc'}],...(q.lowStock?{skip:0,take:limit+1}:paging)});if(data.length>limit)fail('REPORT_TOO_LARGE',422);
-   rows=data.filter(r=>!q.lowStock||r.onHand.minus(r.reserved).lte(r.product.minimumStock)).map(r=>({location:r.location.name,sku:r.product.sku,product:r.product.name,unit:r.product.unit,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),minimum:r.product.minimumStock.toFixed(4),...(cost?{estimatedValue:lineGross(r.onHand.toFixed(4),r.product.purchasePrice.toFixed(4),digits)}:{})}));
+   const fifoValues=new Map<string,string>();
+   if(cost&&access.business.fifoStartedAt&&data.length){
+    const layers=await tx.fifoLayer.findMany({where:{businessId:bid,remaining:{gt:0},OR:data.map(r=>({locationId:r.locationId,productId:r.productId}))},take:100001});if(layers.length>100000)fail('REPORT_TOO_LARGE',422);
+    const groups=new Map<string,CostSlice[]>();for(const l of layers){const key=`${l.locationId}:${l.productId}`;const group=groups.get(key)??[];group.push({quantity:l.remaining.toFixed(4),amount:l.remainingCost.toFixed(4),unitCost:l.unitCost.toFixed(4),acquiredAt:l.acquiredAt.toISOString(),originId:l.originId});groups.set(key,group);}
+    for(const r of data){const group=groups.get(`${r.locationId}:${r.productId}`)??[];if(group.reduce((n,l)=>n+scaled(l.quantity),0n)!==scaled(r.onHand.toFixed(4)))fail('FIFO_REVIEW_REQUIRED');fifoValues.set(r.id,costOf(group,digits));}
+   }
+   rows=data.filter(r=>!q.lowStock||r.onHand.minus(r.reserved).lte(r.product.minimumStock)).map(r=>({location:r.location.name,sku:r.product.sku,product:r.product.name,unit:r.product.unit,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),minimum:r.product.minimumStock.toFixed(4),...(cost?{estimatedValue:fifoValues.get(r.id)??lineGross(r.onHand.toFixed(4),r.product.purchasePrice.toFixed(4),digits)}:{})}));
   }else if(q.view==='sales'){
    const where={...scoped,status:'COMPLETED' as const,completedAt:range};
    if(!q.export)pagedTotal=await tx.sale.count({where});
@@ -77,14 +84,14 @@ export async function summaryTotals(tx:Tx,bid:string,range:{gte:Date;lt:Date},sc
    if([sales,returns,entries,losses].some(r=>r.length>limit))fail('REPORT_TOO_LARGE',422);
    const sold=sales.reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),customerReturns=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+scaled(d.total.toFixed(4)),0n),expenses=entries.filter(e=>e.kind==='EXPENSE').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);
    const collectedTax=sales.reduce((s,d)=>s+scaled(d.tax.toFixed(4)),0n),returnedTax=returns.filter(d=>d.kind==='CUSTOMER_RETURN').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.tax.toFixed(4)),0n),0n);
-   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n),recoveredCost=await recoveredReturnCost(tx,bid,returns.filter(d=>d.kind==='CUSTOMER_RETURN').flatMap(d=>d.lines),digits),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
+   const saleCost=sales.reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled((l.costAmount?.toFixed(4)??lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits))),0n),0n),recoveredCost=await recoveredReturnCost(tx,bid,returns.filter(d=>d.kind==='CUSTOMER_RETURN').flatMap(d=>d.lines),digits),damageCost=returns.filter(d=>d.kind==='DAMAGE').reduce((s,d)=>s+d.lines.reduce((a,l)=>a+scaled(l.costAmount?.toFixed(4)??lineGross(l.quantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n);
    const countAdjustmentValue=returns.filter(d=>d.kind==='COUNT').reduce((sum,d)=>sum+d.lines.reduce((value,l)=>{
     const delta=scaled(l.delta.toFixed(4));
-    const amount=scaled(lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
+    const amount=scaled(l.costAmount?.toFixed(4)??lineGross(fixed(delta<0n?-delta:delta),l.unitCost.toFixed(4),digits));
     return value+(delta<0n?-amount:amount);
    },0n),0n);
-   const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null).length;
-   const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
+   const lossLines=losses.flatMap(event=>event.lines),unvaluedTransferLosses=lossLines.filter(line=>line.unitCost===null&&line.costAmount===null).length;
+   const transferLossCost=lossLines.reduce((sum,line)=>sum+(line.costAmount!==null?scaled(line.costAmount.toFixed(4)):line.unitCost===null?0n:scaled(lineGross(line.quantity.toFixed(4),line.unitCost.toFixed(4),digits))),0n);
    const low=await tx.stockBalance.count({where:{...scoped,onHand:{lte:0}}});
  return {saleCount:sales.length,sales:fixed(sold),customerReturns:fixed(customerReturns),netSales:fixed(sold-customerReturns),netTax:fixed(collectedTax-returnedTax),expenses:fixed(expenses),zeroStockProducts:low,grossProfit:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost),estimatedProfit:unvaluedTransferLosses?null:fixed(sold-customerReturns-collectedTax+returnedTax-saleCost+recoveredCost-damageCost-transferLossCost-expenses+countAdjustmentValue),transferLossCost:fixed(transferLossCost),unvaluedTransferLosses,estimatedCost:fixed(saleCost-recoveredCost),damageCost:fixed(damageCost),countAdjustmentValue:fixed(countAdjustmentValue)};
 }
@@ -106,10 +113,10 @@ async function recoveredReturnCost(tx:Tx,bid:string,current:Prisma.AdjustmentLin
  for(const line of history){
   const source=sourceById.get(line.sourceLineId!);if(!source)fail('NOT_FOUND',404);
   const before=cumulative.get(source.id)??{quantity:0n,cost:0n},quantity=scaled(line.quantity.toFixed(4));
-  const total=lineGross(source.baseQuantity.toFixed(4),source.unitCost.toFixed(4),digits);
+  const total=source.costAmount?.toFixed(4)??lineGross(source.baseQuantity.toFixed(4),source.unitCost.toFixed(4),digits);
   const amount=scaled(credit(total,source.baseQuantity.toFixed(4),before.quantity,before.cost,quantity,digits));
   cumulative.set(source.id,{quantity:before.quantity+quantity,cost:before.cost+amount});
-  if(selected.has(line.id))recovered+=amount;
+  if(selected.has(line.id))recovered+=line.costAmount!==null?scaled(line.costAmount.toFixed(4)):amount;
  }
  return recovered;
 }
