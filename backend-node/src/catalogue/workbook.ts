@@ -11,9 +11,9 @@ export async function parseWorkbook(buffer:Buffer):Promise<WorkbookRow[]> {
   try{return await new Promise((resolve,reject)=>{
     const worker=new Worker(new URL('./xlsx-worker.cjs',import.meta.url),{workerData:buffer,resourceLimits:{maxOldGenerationSizeMb:96,maxYoungGenerationSizeMb:16}});
     let settled=false;
-    const finish=async(rows?:WorkbookRow[])=>{if(settled)return;settled=true;clearTimeout(timer);await worker.terminate();if(rows)resolve(rows);else reject(new ApiError(422,'INVALID_WORKBOOK','Workbook could not be read within the allowed limits'));};
+    const finish=async(rows?:WorkbookRow[],code='INVALID_WORKBOOK')=>{if(settled)return;settled=true;clearTimeout(timer);await worker.terminate();if(rows)resolve(rows);else reject(new ApiError(422,code,'Workbook could not be read within the allowed limits'));};
     const timer=setTimeout(()=>finish(),8000);
-    worker.once('message',message=>finish(message.error?undefined:message.rows));worker.once('error',()=>finish());worker.once('exit',()=>finish());
+    worker.once('message',message=>finish(message.error?undefined:message.rows,message.error==='IMPORT_HEADERS'?'IMPORT_HEADERS':'INVALID_WORKBOOK'));worker.once('error',()=>finish());worker.once('exit',()=>finish());
   });}finally{running--;}
 }
 export async function importTemplate(){

@@ -1,3 +1,4 @@
+import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { useResource } from '../business-v2/useBusinessApi';
 import { useState } from 'react';
 import { Field, inputClass } from '../auth-v2/Fields';
@@ -6,16 +7,17 @@ export default function ProductForm({canDelete, product, cost, path, api, c, lan
   const references=useResource(api,`${path}/references`);
   const [form,setForm]=useState(product ? {...product,barcodes:product.barcodes.join('\n')} : {name:'',sku:'',unit:'PIECE',category:'',subcategory:'',brand:'',description:'',purchasePrice:'',sellingPrice:'',minimumStock:'0',active:true,barcodes:''});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}`,{form},saved=>{setForm(saved.form);});
   const set=key=>e=>setForm(f=>({...f,[key]:e.target.value}));
   async function save(e){
     e.preventDefault();setBusy(true);setError('');
     const body=Object.fromEntries(['name','category','subcategory','brand','description','sellingPrice','minimumStock','active',...(cost?['purchasePrice']:[])].map(k=>[k,form[k]]));
     body.barcodes=form.barcodes.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);
     if(product)body.revision=product.revision;else{body.sku=form.sku;body.unit=form.unit;}
-    try{await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});done();}catch(e){setError(e.message);}finally{setBusy(false);}
+    try{await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});draft.clear();done();}catch(e){setError(e.message);}finally{setBusy(false);}
   }
   return <Modal title={c(product?'editProduct':'addProduct')} description={c('productFormHint')} {...{close,returnFocus,c,lang,busy}}>
-    <form onSubmit={save} className="space-y-4"><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>
+    <form onSubmit={save} className="space-y-4"><LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>
       <fieldset disabled={busy||error==='REVISION_CONFLICT'} className="grid sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2"><Field id="product-name" label={c('productName')} placeholder={c('productNamePlaceholder')} value={form.name} onChange={set('name')} required minLength={2} maxLength={160}/></div>
         {!product && <><Field id="product-sku" label={c('sku')} placeholder="MILK-001" dir="ltr" value={form.sku} onChange={set('sku')} required minLength={2} maxLength={60}/><Select id="product-unit" label={c('unit')} value={form.unit} onChange={set('unit')}>{[...['PIECE','BOX','CARTON','KG','LITRE','METRE'],...(references.data?.items.filter(r=>r.kind==='UNIT'&&r.active).map(r=>r.code)||[])].map(v=><option key={v} value={v}>{references.data?.items.find(r=>r.kind==='UNIT'&&r.code===v)?.name||c(v)}</option>)}</Select></>}

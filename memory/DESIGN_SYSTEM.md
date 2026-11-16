@@ -783,3 +783,53 @@ retains the selected historical pack for display, while repricing validates it.
 AR/EN evidence: tmp/accountant-round/supplier-adjustment-* and
  tmp/cashier-round/screenshots/draft-pack-fixed-*.png. Full317-test backend suite,
 application/test typechecks and frontend production build passed.
+
+### Local entry recovery — 17 November 2026
+
+Operational entry forms use a shared compact slate notice with explicit saved,
+restored, offline and storage/conflict states plus a confirmed discard action.
+Existing fields, buttons, tables, RTL and responsive layouts remain unchanged.
+Drafts are synchronous browser-local snapshots scoped to business, membership,
+permission set, entry type and (for edits) record/revision. Reopen the same entry
+form to resume. This is not cross-device sync or an offline application shell.
+No password, OTP, payment confirmation or review modal is restored. Backend
+validation/authorization remains authoritative. Payment/sales/adjustment retry
+keys are checkpointed before requests; drafts clear only after success.
+
+Coverage: products, Excel import contents/previews, pack/category/unit text and pending product images,
+suppliers, locations, purchase orders/receiving, sales, transfers and transfer
+events, returns/counts/damage, payment/expense entries, cash closing, reversal
+reasons, opening-stock CSV, FIFO opening costs, staff creation/editing, roles and
+business settings. Security/authentication forms are not persisted. Server-generated reports and confirmation actions are not replayed.
+
+Evidence: `tmp/draft-recovery/` (purchase/product before/after; AR/EN at
+320/768/1024/1440, additional entry-form recovery screenshots). Ten-line invoice
+recovery after offline edits/reload, failed saves, modal closure, discard,
+storage failure, membership scoping and second-tab conflicts tested in browser.
+Reusable checks: `src/lib/localDraft.test.jsx` in frontend; from repository root,
+`node --env-file=backend-node/.env.staging frontend/scripts/verify-entry-drafts.cjs`
+requires local staging on 3200/4200 and installed Chrome. Its product writes are
+intercepted; no financial records are posted.
+
+Additional checks: seven shared draft regression tests pass. Separate browser
+checks verified payment retry-key preservation with fresh confirmation, retained
+Excel bytes/preview IDs, and failed product image recovery. Checkout payment
+fields and the Invitations entry form also use scoped drafts; passwords are
+excluded. Production frontend build and public prerender complete successfully.
+
+### CSV product imports — 17 November 2026
+
+The existing product import modal now accepts XLSX and UTF-8 comma-separated
+CSV, with separate template downloads and the required ordered headers shown
+inline. Header mismatch uses the existing red alert, explicitly saying no data
+was imported; Arabic copy follows the user's requested wording. Missing,
+reordered, duplicate or extra columns are rejected server-side. Same preview,
+confirmation, tenant authorization, subscription checks, encrypted preview,
+atomic commit and local draft recovery apply to both formats. CSV keeps Arabic,
+leading-zero identifiers, quoted commas, escaped quotes and multiline cells.
+Limits remain 500 product rows / 1 MB. Product imports do not add stock.
+
+Validation: backend application/test typechecks, 15 CSV/Excel tests, actual local
+CSV preview/header errors in AR/EN at 320/1440, frontend build/public prerender.
+Screenshots: `tmp/csv-import/`. No products were committed by the browser check;
+commit tests use the isolated `qa_deep_test` database and clean up their fixtures.

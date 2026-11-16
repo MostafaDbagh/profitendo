@@ -239,3 +239,26 @@ it('returns structured client errors across operational API boundaries without m
  for(const quantity of ['-1','0','1e3','NaN','100000000000000','0.00001']){const result=await write('',body({lines:[{productId:product,quantity}]}));expect(result.status,result.text).toBe(422);}
  expect(await db.sale.count({where:{businessId:business}})).toBe(beforeSales);expect(await db.salePayment.count({where:{businessId:business}})).toBe(beforePayments);expect(await stock(source)).toBe(beforeStock);
 });
+
+it('revokes an already-open cashier draft immediately and permits a single checkout only after access is restored',async()=>{
+ const who=await actor('CASHIER',business,source),member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:who.user.id}}}),p=await funded('5');
+ const d=await draft({lines:[{productId:p,quantity:'1'}]},who),input=checkoutBody(d);
+ const unchanged=async()=>{expect(await stock(source,p)).toBe('5.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(0);expect(await db.stockMovement.count({where:{type:'SALE',sourceId:d.id}})).toBe(0);};
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'sales.create':false}}});
+ expect((await get(`/${d.id}`,who)).body.capabilities.checkout).toBe(false);expect((await checkout(d,input,who)).status).toBe(403);await unchanged();
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{}}});
+ await db.locationAssignment.deleteMany({where:{membershipId:member.id}});expect((await get(`/${d.id}`,who)).status).toBe(404);expect((await checkout(d,input,who)).status).toBe(404);await unchanged();
+ await db.locationAssignment.create({data:{businessId:business,locationId:source,membershipId:member.id}});
+ await db.membership.update({where:{id:member.id},data:{disabledAt:new Date()}});expect((await checkout(d,input,who)).status).toBe(403);await unchanged();
+ await db.membership.update({where:{id:member.id},data:{disabledAt:null}});
+ const paid=await checkout(d,input,who);expect(paid.status,paid.text).toBe(200);expect((await checkout(d,input,who)).status).toBe(200);expect(await stock(source,p)).toBe('4.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(1);
+});
+it('blocks suspended businesses and inactive products without poisoning checkout retry keys',async()=>{
+ const p=await funded('5'),d=await draft({lines:[{productId:p,quantity:'1'}]}),input=checkoutBody(d);
+ try{
+  await db.business.update({where:{id:business},data:{suspendedAt:new Date()}});expect((await checkout(d,input)).status).toBe(403);
+ }finally{await db.business.update({where:{id:business},data:{suspendedAt:null}});}
+ await db.product.update({where:{id:p},data:{active:false}});const inactive=await checkout(d,input);expect(inactive.status).toBe(409);expect(inactive.body.error.code).toBe('PRODUCT_INACTIVE');
+ expect(await stock(source,p)).toBe('5.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(0);
+ await db.product.update({where:{id:p},data:{active:true}});expect((await checkout(d,input)).status).toBe(200);expect(await stock(source,p)).toBe('4.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(1);
+});

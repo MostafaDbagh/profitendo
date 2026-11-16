@@ -1,3 +1,4 @@
+import { parseCsv } from './csv.js';
 import { baseUnits, validateReferences } from './references.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -33,10 +34,11 @@ export class ProductImportService {
     await this.auth.transaction(async tx=>{await access(this.auth,tx,ctx,businessId);await tx.productImport.updateMany({where:{id,businessId,actorId:ctx.user.id,status:'PREVIEW'},data:{status:'EXPIRED',payload:''}});});
     return {ok:true};
   }
-  async preview(ctx:AuthContext,businessId:string,base64:string){
+  async preview(ctx:AuthContext,businessId:string,base64:string,format:'xlsx'|'csv'='xlsx'){
     await this.authorize(ctx,businessId);
-    const source=await parseWorkbook(Buffer.from(base64,'base64'));
-    if(!source[0] || source[0].invalid || columns.some((column,i)=>source[0]!.values[i]!==column))throw new ApiError(422,'IMPORT_HEADERS','Use the provided template headers');
+    const buffer=Buffer.from(base64,'base64');
+    const source=format==='csv'?parseCsv(buffer):await parseWorkbook(buffer);
+    if(!source[0] || source[0].invalid || source[0].values.length!==columns.length || columns.some((column,i)=>source[0]!.values[i]!==column))throw new ApiError(422,'IMPORT_HEADERS','Use the provided template headers');
     const rows:Parsed[]=[],issues:Issue[]=[];
     for(const item of source.slice(1)){
       if(item.invalid){issues.push({row:item.row,field:'row',code:'PLAIN_VALUES_REQUIRED'});continue;}

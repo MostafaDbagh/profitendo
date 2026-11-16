@@ -31,7 +31,8 @@ async function inspectZip(buffer) {
   const workbook=new Excel.Workbook();await workbook.xlsx.load(buffer);
   if(workbook.worksheets.length!==1)throw new Error('ONE_SHEET_REQUIRED');
   const sheet=workbook.worksheets[0];
-  if(sheet.rowCount>501 || sheet.columnCount>12 || sheet.model.merges.length)throw new Error('WORKBOOK_LIMIT');
+  if(sheet.columnCount>12){parentPort.postMessage({error:'IMPORT_HEADERS'});return;}
+  if(sheet.rowCount>501 || sheet.model.merges.length)throw new Error('WORKBOOK_LIMIT');
   const rows=[];
   for(let n=1;n<=sheet.rowCount;n++){
     const values=[];let invalid=false;

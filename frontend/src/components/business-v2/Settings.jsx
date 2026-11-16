@@ -1,3 +1,4 @@
+import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import FifoSettings from './FifoSettings';
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
@@ -6,6 +7,7 @@ const currencies = ['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP',
 export default function Settings({ context, api, c, reload, onName, lang }) {
   const { business, permissions } = context;
   const [form, setForm] = useState(business), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
+ const draft=useLocalDraft(`business-settings:${business.revision}`,{form},saved=>{setForm(saved.form);});
   const editable = permissions['business.edit'];
   const set = key => event => setForm(f => ({ ...f, [key]: event.target.value }));
   const save = async event => {
@@ -13,13 +15,13 @@ export default function Settings({ context, api, c, reload, onName, lang }) {
     try {
       const { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate } = form;
       const updated = await api(`/businesses/${business.id}`, { method: 'PATCH', body: { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate } });
-      setForm(updated); onName(updated.name); setNotice('saved');
+      setForm(updated); onName(updated.name); draft.clear();setNotice('saved');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   return <div className="space-y-5"><FifoSettings {...{context,api,c,lang}}/><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
     <h2 className="text-lg font-bold text-slate-900">{c('settings')}</h2>
     {!editable && <p className="text-sm text-slate-500">{c('readOnly')}</p>}
-    <Feedback error={error} notice={notice} c={c} retry={reload} />
+    <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} notice={notice} c={c} retry={reload} />
     <fieldset disabled={!editable || busy || error === 'REVISION_CONFLICT'} className="grid sm:grid-cols-2 gap-5 disabled:opacity-75">
       <div className="sm:col-span-2"><Field id="business-name" label={c('business')} placeholder={c('businessPlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required /></div>
       <div><Select id="business-currency" label={c('currency')} value={form.baseCurrency} onChange={set('baseCurrency')} disabled={!!business.currencyLockedAt}>{currencies.map(v => <option key={v}>{v}</option>)}</Select><p className="text-xs text-slate-500 mt-1.5">{c('currencyHint')}</p></div>

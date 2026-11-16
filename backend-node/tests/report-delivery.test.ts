@@ -158,3 +158,16 @@ it('allows only one worker to prepare a report and enqueue its email',async()=>{
  const results=await Promise.all([prepareReportBatch(db,settings),prepareReportBatch(db,settings)]);expect(results.reduce((sum,result)=>sum+result.prepared,0)).toBe(1);
  expect(await db.authMail.count({where:{reportId:queued.body.id}})).toBe(1);expect((await get(`/report-delivery/${queued.body.id}`)).status).toBe(200);
 });
+
+it('revokes profit-report access before preparation and after snapshot creation when cost permission is removed',async()=>{
+ const user=await actor('OWNER'),member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:user.user.id}}});
+ expect((await put({revision:0,enabled:false,reportTypes:['NET_PROFIT'],language:'en'},user)).status).toBe(200);
+ const first=await send(user);expect(first.status,first.text).toBe(202);
+ await db.membership.update({where:{id:member.id},data:{role:'OPERATIONS_MANAGER',permissionOverrides:{'catalogue.cost':false}}});
+ await prepareReportBatch(db,settings);expect((await db.reportDelivery.findUniqueOrThrow({where:{id:first.body.id}})).cancelledAt).not.toBeNull();expect(await db.authMail.count({where:{reportId:first.body.id}})).toBe(0);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{}}});
+ const second=await send(user);expect(second.status,second.text).toBe(202);await prepareReportBatch(db,settings);expect((await get(`/report-delivery/${second.body.id}`,user)).status).toBe(200);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'catalogue.cost':false}}});
+ expect((await get(`/report-delivery/${second.body.id}`,user)).status).toBe(404);const list=await get('/report-delivery',user);expect(list.status).toBe(200);expect(list.body.items).toEqual([]);
+ await prioritize(second.body.id);let sent=false;await deliverMailBatch(db,settings,async()=>{sent=true;},1);expect(sent).toBe(false);expect((await db.reportDelivery.findUniqueOrThrow({where:{id:second.body.id}})).cancelledAt).not.toBeNull();
+});

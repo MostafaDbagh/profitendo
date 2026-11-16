@@ -54,7 +54,7 @@ if(process.env.RECOVERY_CHILD==='true'){
    await route.fulfill({response});
   });
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('profitlens_lang','en'));
-  await page.goto(settings.appOrigin+'/business-v2');await page.getByRole('navigation').getByRole('button',{name:'Products',exact:true}).click();await page.getByRole('button',{name:'Import Excel',exact:true}).click();
+  await page.goto(settings.appOrigin+'/business-v2');await page.getByRole('navigation').getByRole('button',{name:'Products',exact:true}).click();await page.getByRole('button',{name:'Import Excel / CSV',exact:true}).click();
   const wb=new Excel.Workbook(),sheet=wb.addWorksheet('Products');sheet.addRow([...columns]);sheet.addRow(['RECOVERY-001','Recovery milk','LITRE','1','3','0','','','','','1234567001','true']);
   await page.locator('#product-import-file').setInputFiles({name:'recovery.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await wb.xlsx.writeBuffer())});
   failure='preview-before';await page.getByRole('button',{name:'Preview import',exact:true}).click();await page.getByRole('alert').filter({hasText:'Cannot connect to the server'}).waitFor();assert.equal(await db.product.count({where:{businessId:bid}}),0);await shot('01-interrupted-preview');
@@ -72,7 +72,7 @@ if(process.env.RECOVERY_CHILD==='true'){
    const retry=page.getByRole('button',{name:lang==='ar'?'إعادة المحاولة':'Try again',exact:true});if(await retry.count()){await retry.click();await page.getByRole('table').waitFor();}
    const nextLang=lang==='en'&&width===1440?'ar':lang==='ar'&&width===1440?'en':lang;
    if(nextLang!==lang)await page.getByRole('button',{name:nextLang==='ar'?'العربية':'English',exact:true}).click();
-   await page.getByRole('button',{name:nextLang==='ar'?'استيراد Excel':'Import Excel',exact:true}).click();await page.locator('#product-import-file').setInputFiles({name:'recovery.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await wb.xlsx.writeBuffer())});await page.getByRole('button',{name:nextLang==='ar'?'معاينة الاستيراد':'Preview import',exact:true}).click();await page.getByRole('button',{name:nextLang==='ar'?'تأكيد الاستيراد':'Confirm import',exact:true}).waitFor();
+   await page.getByRole('button',{name:nextLang==='ar'?'استيراد Excel / CSV':'Import Excel / CSV',exact:true}).click();await page.locator('#product-import-file').setInputFiles({name:'recovery.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await wb.xlsx.writeBuffer())});await page.getByRole('button',{name:nextLang==='ar'?'معاينة الاستيراد':'Preview import',exact:true}).click();await page.getByRole('button',{name:nextLang==='ar'?'تأكيد الاستيراد':'Confirm import',exact:true}).waitFor();
   }
   console.log('PASS: offline import cancellation and Escape, focus trap/return, AR/EN mobile/desktop; no product writes');
   failure='commit-after';await page.getByRole('button',{name:'Confirm import',exact:true}).click();await page.getByRole('alert').filter({hasText:'Cannot connect to the server'}).waitFor();assert.equal(await db.product.count({where:{businessId:bid}}),1);await shot('02-commit-response-lost');

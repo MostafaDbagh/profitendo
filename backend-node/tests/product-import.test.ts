@@ -104,3 +104,21 @@ it('rejects expanded ZIP payloads before workbook parsing and rejects extra shee
  await expect(parseWorkbook(compressed)).rejects.toMatchObject({code:'INVALID_WORKBOOK'});
  const two=new Excel.Workbook();two.addWorksheet('One');two.addWorksheet('Two');await expect(parseWorkbook(Buffer.from(await two.xlsx.writeBuffer()))).rejects.toMatchObject({code:'INVALID_WORKBOOK'});
 });
+
+it('previews and commits CSV with the same identifier preservation and atomic workflow',async()=>{
+ await db.businessSubscription.update({where:{businessId:business},data:{trialStartedAt:new Date(),trialEndsAt:new Date(Date.now()+86400000)}});
+ const row=productRow('CSV-001','00098765');row[1]='حليب, طازج';
+ const escape=(v:string)=>'"'+v.replaceAll('"','""')+'"';
+ const res=await write('/preview',{filename:'products.csv',fileBase64:Buffer.from('\uFEFF'+columns.join(',')+'\r\n'+row.map(escape).join(',')).toString('base64')});
+ expect(res.status).toBe(201);expect(res.body.issues).toEqual([]);expect(res.body.rows[0].product.barcodes).toEqual(['00098765']);
+ expect((await write(`/${res.body.id}/commit`,{confirm:true})).status).toBe(200);
+ expect((await db.product.findUniqueOrThrow({where:{businessId_sku:{businessId:business,sku:'CSV-001'}}})).name).toBe('حليب, طازج');
+});
+it('rejects CSV missing, reordered, duplicate and extra headers before creating a preview',async()=>{
+ for(const headers of [columns.slice(1),[...columns].reverse(),columns.map(()=> 'sku'),[...columns,'extra']]){
+  const res=await write('/preview',{filename:'bad.csv',fileBase64:Buffer.from(headers.join(',')+'\n'+productRow().join(',')).toString('base64')});
+  expect(res.status).toBe(422);expect(res.body.error.code).toBe('IMPORT_HEADERS');
+ }
+ const extraExcel=await write('/preview',await file([productRow()], [...columns,'unexpected']));expect(extraExcel.body.error.code).toBe('IMPORT_HEADERS');
+ const template=await get('/template?format=csv');expect(template.status).toBe(200);expect(Buffer.from(template.body.fileBase64,'base64').toString()).toBe('\uFEFF'+columns.join(',')+'\r\n');
+});

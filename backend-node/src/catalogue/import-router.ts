@@ -4,7 +4,7 @@ import type { AuthService } from '../auth/service.js';
 import { authHttp } from '../auth/http.js';
 import { ApiError, validateBody } from '../errors.js';
 import { ProductImportService } from './import-service.js';
-import { importTemplate } from './workbook.js';
+import { columns, importTemplate } from './workbook.js';
 export function productImportRouter(auth:AuthService){
   const router=Router({mergeParams:true}),service=new ProductImportService(auth),{ctx,origin,attach,full,csrf}=authHttp(auth);
   const bid=(req:Request)=>String(req.params.businessId);
@@ -13,10 +13,10 @@ export function productImportRouter(auth:AuthService){
   router.use(async(req,res,next)=>{if(!z.string().uuid().safeParse(bid(req)).success)throw new ApiError(400,'INVALID_ID','Invalid business');await service.authorize(ctx(res),bid(req));next();});
   router.use(json({limit:'1400kb'}));
   router.param('importId',(_req,_res,next,id)=>{if(!z.string().uuid().safeParse(id).success)throw new ApiError(400,'INVALID_ID','Invalid import');next();});
-  router.get('/template',async(_req,res)=>{res.json({filename:'product-import-template.xlsx',fileBase64:await importTemplate()});});
-  router.post('/preview',validateBody(z.object({filename:z.string().max(200).regex(/\.xlsx$/i),fileBase64:z.string().max(1400000).regex(/^[A-Za-z0-9+/]+={0,2}$/)}).strict()),async(req,res)=>{
+  router.get('/template',async(req,res)=>{if(req.query.format==='csv')res.json({filename:'product-import-template.csv',fileBase64:Buffer.from('\uFEFF'+columns.join(',')+'\r\n').toString('base64')});else res.json({filename:'product-import-template.xlsx',fileBase64:await importTemplate()});});
+  router.post('/preview',validateBody(z.object({filename:z.string().max(200).regex(/\.(xlsx|csv)$/i),fileBase64:z.string().max(1400000).regex(/^[A-Za-z0-9+/]+={0,2}$/)}).strict()),async(req,res)=>{
     await auth.limit('product-import',ctx(res).user.id,20,3600);
-    res.status(201).json(await service.preview(ctx(res),bid(req),req.body.fileBase64));
+    res.status(201).json(await service.preview(ctx(res),bid(req),req.body.fileBase64,/\.csv$/i.test(req.body.filename)?'csv':'xlsx'));
   });
   router.post('/:importId/commit',validateBody(z.object({confirm:z.literal(true)}).strict()),async(req,res)=>{res.json(await service.commit(ctx(res),bid(req),String(req.params.importId)));});
   router.post('/:importId/discard',validateBody(z.object({}).strict()),async(req,res)=>{

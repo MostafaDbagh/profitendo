@@ -1,3 +1,4 @@
+import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { Feedback, Modal, Select, buttonClass, primaryClass } from './UI';
@@ -8,18 +9,19 @@ export default function AddMember({ context, roles, api, c, lang, close, done, r
   const [name, setName] = useState('');
   const [email, setEmail] = useState(''), [role, setRole] = useState(available.find(r => r.role === 'CASHIER')?.role || available[0]?.role || '');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+ const draft=useLocalDraft('new-member',{name,email,role},saved=>{setName(saved.name);setEmail(saved.email);setRole(saved.role);});
   async function submit(event) {
     event.preventDefault(); setBusy(true); setError('');
     const selected = available.find(item => item.role === role);
     if (!selected) { setError('VALIDATION_ERROR'); setBusy(false); return; }
     try {
       await api(`/businesses/${context.business.id}/invitations`, { method:'POST', body:{ ...(password ? { password } : {}), name:name.trim(), email:email.trim(), ...(selected.custom ? { customRoleId:role } : { role }) } });
-      done();
+      draft.clear();done();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   return <Modal title={c('addTeamMember')} description={c('addTeamMemberHint')} {...{ close, busy, c, lang, returnFocus }}>
     <form onSubmit={submit} className="space-y-5">
-      <Feedback error={error} c={c} />
+      <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} />
       <fieldset disabled={busy} className="space-y-4">
         <Field id="add-member-name" label={c('memberName')} placeholder={c('teamMemberNamePlaceholder')} autoComplete="name" minLength={2} maxLength={100} required value={name} onChange={event => setName(event.target.value)} />
         <Field id="add-member-email" label={c('inviteEmail')} placeholder={c('inviteEmailPlaceholder')} type="email" dir="ltr" autoComplete="email" maxLength={254} required value={email} onChange={event => setEmail(event.target.value)} />

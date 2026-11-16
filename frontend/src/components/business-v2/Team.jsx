@@ -1,3 +1,4 @@
+import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { UserPlus } from 'lucide-react';
 import AddMember from './AddMember';
 import { useRef, useState } from 'react';
@@ -9,14 +10,15 @@ function EditMember({ member, api, path, c, lang, close, done, returnFocus, perm
   const groupLabels={business:'settings',team:'team',roles:'roles',audit:'audit',locations:'locations',catalogue:'catalogue',suppliers:'suppliers',purchasing:'purchases',receiving:'purchases',sales:'sales',transfers:'transfers',inventory:'inventory',returns:'returns',counts:'counts',payments:'payments',cash:'payments',reports:'reports'};
   const groups=[...new Set(permissionKeys.map(key=>key.split('.')[0]))];
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+ const draft=useLocalDraft(`member:${member.id}:${member.revision}`,{role,active,overrides},saved=>{setRole(saved.role);setActive(saved.active);setOverrides(saved.overrides);});
   async function save(event) {
     event.preventDefault(); setBusy(true); setError('');
-    try { await api(`${path}/${member.id}`, { method: 'PATCH', body: { revision: member.revision, ...(staffRoles.includes(role) ? { role, customRoleId: null } : { customRoleId: role }), active, permissionOverrides: Object.fromEntries(Object.entries(overrides).filter(([key])=>isOwner||key!=='team.manage')) } }); done(); }
+    try { await api(`${path}/${member.id}`, { method: 'PATCH', body: { revision: member.revision, ...(staffRoles.includes(role) ? { role, customRoleId: null } : { customRoleId: role }), active, permissionOverrides: Object.fromEntries(Object.entries(overrides).filter(([key])=>isOwner||key!=='team.manage')) } }); draft.clear();done(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   return <Modal title={`${c('edit')} · ${member.name}`} description={c('accessHint')} {...{ close, busy, c, lang, returnFocus }}>
     <form onSubmit={save} className="space-y-5">
-      <Feedback error={error} c={c} retry={error === 'REVISION_CONFLICT' ? () => done(false) : undefined} />
+      <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error === 'REVISION_CONFLICT' ? () => done(false) : undefined} />
       <fieldset disabled={busy || error === 'REVISION_CONFLICT'} className="space-y-4">
         <Select id="member-role" label={c('role')} value={role} onChange={e => { setRole(e.target.value); setOverrides({}); }}>{staffRoles.map(r => <option key={r} value={r}>{c(r)}</option>)}{roleDefaults.filter(r => r.custom).map(r => <option key={r.role} value={r.role}>{r.name}</option>)}</Select>
         <div><label className="flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" className="h-4 w-4 accent-emerald-600" checked={active} disabled={member.accountDisabled} onChange={e => setActive(e.target.checked)} />{c('active')}</label><p className="text-xs text-slate-500 mt-1.5">{c(member.accountDisabled ? 'accountDisabled' : 'activeHint')}</p></div>

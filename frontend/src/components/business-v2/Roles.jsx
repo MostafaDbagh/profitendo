@@ -1,3 +1,4 @@
+import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Field } from '../auth-v2/Fields';
@@ -7,6 +8,7 @@ import { Feedback, Modal, Select, Table, buttonClass, primaryClass } from './UI'
 function AddRole({ data, api, path, c, lang, close, done, returnFocus }) {
   const [name, setName] = useState(''), [base, setBase] = useState(''), [permissions, setPermissions] = useState({ 'business.view': true });
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+ const draft=useLocalDraft('new-role',{name,base,permissions},saved=>{setName(saved.name);setBase(saved.base);setPermissions(saved.permissions);});
   const allowed = data.grantableKeys;
   const groups = [...new Set(allowed.map(key => key.split('.')[0]))];
   const labels = { business:'settings', team:'team', roles:'roles', audit:'audit', locations:'locations', catalogue:'catalogue', suppliers:'suppliers', purchasing:'purchases', receiving:'purchases', sales:'sales', transfers:'transfers', inventory:'inventory', returns:'returns', counts:'counts', payments:'payments', cash:'payments', reports:'reports' };
@@ -17,12 +19,12 @@ function AddRole({ data, api, path, c, lang, close, done, returnFocus }) {
   }
   async function save(event) {
     event.preventDefault(); setBusy(true); setError('');
-    try { await api(path, { method:'POST', body:{ name:name.trim(), permissions } }); done(); }
+    try { await api(path, { method:'POST', body:{ name:name.trim(), permissions } }); draft.clear();done(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   return <Modal title={c('addRole')} description={c('roleCreateHint')} {...{ close, busy, c, lang, returnFocus }}>
     <form onSubmit={save} className="space-y-5">
-      <Feedback error={error} c={c} />
+      <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} />
       <fieldset disabled={busy} className="space-y-4">
         <Field id="role-name" label={c('roleName')} placeholder={c('roleNamePlaceholder')} required minLength={2} maxLength={80} value={name} onChange={event => setName(event.target.value)} />
         <Select id="role-base" label={c('roleStartFrom')} value={base} onChange={event => startFrom(event.target.value)}>
