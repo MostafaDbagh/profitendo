@@ -224,3 +224,18 @@ it('refreshes editable draft pack choices without leaking costs or changing rece
  await db.productPack.update({where:{id:dozen.id},data:{name:'Renamed dozen',retiredAt:new Date()}});
  const receipt=await get(`/${d.id}`,cashier);expect(receipt.body.lines[0].packName).toBe('Dozen bottles');expect(receipt.body.lines[0]).not.toHaveProperty('availablePacks');expect(receipt.text).not.toMatch(/purchasePrice|unitCost|costAmount|9\.8765/);
 });
+
+it('returns structured client errors across operational API boundaries without mutating sales or stock',async()=>{
+ const beforeSales=await db.sale.count({where:{businessId:business}}),beforePayments=await db.salePayment.count({where:{businessId:business}}),beforeStock=await stock(source);
+ const paths=['sales','products','locations','transfers','operations/suppliers','operations/purchases',`operations/inventory?locationId=${source}`,'workflows/payments'];
+ for(const path of paths)for(const page of ['0','10001','NaN','1&page=2']){
+  const response=await request(app).get(`/api/businesses/${business}/${path}${path.includes('?')?'&':'?'}page=${page}`).set('Cookie',cookie(owner));
+  expect(response.status,`${path} page=${page}: ${response.text}`).toBe(422);expect(response.body.error.code).toBe('VALIDATION_ERROR');expect(response.body.requestId).toBeTruthy();
+ }
+ for(const path of ['sales','transfers','operations/purchases','workflows/adjustments']){
+  const invalid=await request(app).get(`/api/businesses/${business}/${path}/not-a-uuid`).set('Cookie',cookie(owner));expect(invalid.status,invalid.text).toBe(400);
+  const malformed=await request(app).get(`/api/businesses/${business}/${path}/%E0%A4%A`).set('Cookie',cookie(owner));expect(malformed.status,malformed.text).toBe(400);expect(malformed.body.error.code).toBe('INVALID_URL');
+ }
+ for(const quantity of ['-1','0','1e3','NaN','100000000000000','0.00001']){const result=await write('',body({lines:[{productId:product,quantity}]}));expect(result.status,result.text).toBe(422);}
+ expect(await db.sale.count({where:{businessId:business}})).toBe(beforeSales);expect(await db.salePayment.count({where:{businessId:business}})).toBe(beforePayments);expect(await stock(source)).toBe(beforeStock);
+});

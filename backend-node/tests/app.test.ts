@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import express from 'express';
@@ -35,6 +36,29 @@ describe('HTTP boundary', () => {
     const malformed = await request(app).post('/api/example').set('Content-Type','application/json').send('{');
     expect(malformed.status).toBe(400); expect(malformed.body.error.code).toBe('INVALID_JSON');
     expect((await request(app).post('/api/example').send({ text: 'x'.repeat(110_000) })).status).toBe(413);
+  });
+  it('rejects unsupported body encodings without reporting server failures', async () => {
+    for (const headers of [{'Content-Type':'application/json; charset=unknown'},{'Content-Type':'application/json','Content-Encoding':'unknown'}]) {
+      const res=await request(app).post('/api/example').set(headers).send('{}');
+      expect(res.status).toBe(415);expect(res.body.error.code).toBe('UNSUPPORTED_ENCODING');expect(res.body.requestId).toBeTruthy();
+    }
+  });
+  it('rejects corrupt and truncated compressed bodies without exposing parser details', async () => {
+    for(const body of ['garbage',Buffer.from([0x1f,0x8b,0x08,0x00])]){
+      const res=await request(app).post('/api/example').set('Content-Type','application/json').set('Content-Encoding','gzip').serialize(data=>data).send(body);
+      expect(res.status).toBe(400);expect(res.body.error.code).toBe('INVALID_COMPRESSED_BODY');expect(res.text).not.toContain('header check');
+    }
+  });
+  it('continues accepting valid compressed JSON', async () => {
+    const res=await request(app).post('/api/example').set('Content-Type','application/json').set('Content-Encoding','gzip').serialize(data=>data).send(gzipSync('{}'));
+    expect(res.status).toBe(404);expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+  it('normalizes malformed URL parameters while keeping unexpected exceptions as server errors', async () => {
+    const routes=express();routes.get('/items/:id',(_req,res)=>res.sendStatus(204));
+    routes.get('/unexpected',()=>{throw new URIError('private internal error');});routes.use(errorHandler(logger));
+    const res=await request(routes).get('/items/%E0%A4%A');expect(res.status).toBe(400);expect(res.body.error.code).toBe('INVALID_URL');
+    expect((await request(routes).get('/items/valid')).status).toBe(204);
+    const unexpected=await request(routes).get('/unexpected');expect(unexpected.status).toBe(500);expect(unexpected.text).not.toContain('private');
   });
   it('validates bodies and hides unexpected exception content', async () => {
     const validationApp = express();
