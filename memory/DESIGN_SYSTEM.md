@@ -833,3 +833,47 @@ Validation: backend application/test typechecks, 15 CSV/Excel tests, actual loca
 CSV preview/header errors in AR/EN at 320/1440, frontend build/public prerender.
 Screenshots: `tmp/csv-import/`. No products were committed by the browser check;
 commit tests use the isolated `qa_deep_test` database and clean up their fixtures.
+
+### Purchase entry guidance — 17 November 2026
+
+Added inline AR/EN instructions beside product selection explaining that the
+quantity field appears on each product card after selection/scanning. A compact
+slate help panel explains Products → Add product → return to the purchase or
+receiving form, and that creating a product does not add stock. Users without
+product creation/cost permission are directed to an authorized staff member.
+The same guidance appears in the empty product picker. Existing input, draft,
+stock and posting behavior is unchanged. Browser checks cover AR/EN 390/1440
+and empty-picker states; screenshots: `tmp/purchase-guidance/`.
+
+### Purchase form density and dropdown — 17 November 2026
+
+User requested a tidier purchase/receiving form. The scan mode now uses the
+installed Radix Select primitives in a compact 16rem desktop field with a menu
+matched to the trigger width, logical RTL spacing, keyboard support and short
+AR/EN labels. Barcode entry and mode align in one desktop row and stack on
+mobile. Location/supplier picker triggers fill their grid columns with chevrons;
+document metadata is grouped, notes are shorter, and totals/save share a footer.
+The missing-product help is collapsed by default; a single short quantity hint
+remains visible. Empty forms no longer show a redundant zero-value total.
+Changes are limited to this editor, its help component and scan-mode control.
+
+Verified AR/EN 390/1440, menu bounds, keyboard selection, empty product picker,
+help disclosure and repeated barcode quantity increments; production build.
+Latest screenshots: `tmp/purchase-tidy/updated-*` and `populated-ar-*`.
+
+### Per-tab explanations — 17 November 2026
+
+All 21 business workspace tabs now show a compact PageGuide: a short purpose
+statement and an AR/EN Read more / Read less button. Expanded content gives
+practical starting steps and relevant distinctions (draft vs posted movement,
+product vs stock, return credit vs refund, counted total vs adjustment, and
+subscription payment vs activation). Long explanations are hidden by default
+and reset to collapsed when navigating to another tab. Content is maintained
+in `components/business-v2/pageGuides.js`; no API or authorization changes.
+Existing slate/white/emerald styling and RTL layout are preserved. The guide
+uses an accessible button with aria-expanded/aria-controls and a hidden region.
+
+Browser checks passed for all 21 tabs in both languages, keyboard opening,
+closing and overflow at 390/1440. Test-only hidden-tab preferences were overridden
+in the browser response; saved business preferences were not modified.
+Screenshots: `tmp/page-guides/`; frontend production build/public prerender passed.

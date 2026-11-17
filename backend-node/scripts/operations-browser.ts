@@ -49,7 +49,7 @@ try{
  const scan=page.getByLabel('Scan delivery barcode',{exact:true});
  await scan.fill('UNKNOWN');await scan.press('Enter');await page.getByRole('alert').waitFor();
  await scan.fill('001234567890');await scan.press('Enter');await page.getByLabel('Quantity',{exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='line-quantity-0');await page.getByLabel('Quantity',{exact:true}).fill('5');
- await page.getByLabel('Scanning mode',{exact:true}).selectOption('repeat');
+ await page.getByRole('combobox',{name:'Scanning mode',exact:true}).click();await page.getByRole('option',{name:'Add one per scan',exact:true}).click();
  for(let n=0;n<2;n++){await scan.fill('001234567890');await scan.press('Enter');}
  await page.waitForFunction(()=> (document.getElementById('line-quantity-0') as HTMLInputElement)?.value==='7.0000');
  assert(await scan.evaluate(el=>el===document.activeElement));
