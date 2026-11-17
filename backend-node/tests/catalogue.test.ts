@@ -51,13 +51,22 @@ it('scopes identifiers per business and atomically rolls back barcode conflicts'
  const original=await get(`/${productId}`);expect(original.body.product).toMatchObject({revision:0,name:'Milk one litre',barcodes:['001234567890']});
 });
 it('redacts costs in lists, detail and exact scanner lookups, preserving leading zeros',async()=>{
- for(const path of ['',`/${productId}`,'/barcode?value=001234567890']){
+ for(const path of ['',`/${productId}`,'/barcode?value=001234567890','/barcode?value=SKU-01','/barcode?value=sku-01']){
   const response=await get(path,staff);expect(response.status).toBe(200);expect(response.text).not.toContain('purchasePrice');expect(response.text).not.toContain('1.2345');
  }
  expect((await get('/barcode?value=1234567890',staff)).body.error.code).toBe('PRODUCT_NOT_FOUND');
  expect((await get('?search=001234567890',staff)).body.total).toBe(1);
  expect((await get(`/${productId}`,foreign,other)).status).toBe(404);
  expect((await get('/barcode?value=001234567890',foreign,other)).body.product.id).not.toBe(productId);
+});
+it('matches exact SKUs within the tenant and rejects ambiguous codes',async()=>{
+ expect((await get('/barcode?value=SKU-0')).status).toBe(404);
+ expect((await get('/barcode?value=SKU-01',foreign,other)).body.product.id).not.toBe(productId);
+ const collision=await write('',input('COLLISION',['SKU-01']));
+ expect(collision.status).toBe(201);
+ expect((await get('/barcode?value=SKU-01')).body.error.code).toBe('PRODUCT_CODE_AMBIGUOUS');
+ await db.productBarcode.deleteMany({where:{productId:collision.body.id}});
+ await db.product.delete({where:{id:collision.body.id}});
 });
 it('checks revisions, immutable units/SKUs and purchase-cost permissions on writes',async()=>{
  expect((await write(`/${productId}`,{revision:0,unit:'PIECE'},owner,'patch')).status).toBe(422);
@@ -100,6 +109,7 @@ it('creates immutable tenant-scoped packs and converts exactly without stock or 
 it('retains inactive identifiers and blocks growth after expiry without hiding records',async()=>{
  expect((await write(`/${productId}`,{revision:1,active:false},owner,'patch')).status).toBe(200);
  expect((await get('/barcode?value=ALT-01')).body.error.code).toBe('PRODUCT_INACTIVE');
+ expect((await get('/barcode?value=SKU-01')).body.error.code).toBe('PRODUCT_INACTIVE');
  expect((await get('?state=inactive')).body.items[0].id).toBe(productId);
  expect((await write('',input('NEW',['ALT-01']))).status).toBe(409);
  await db.businessSubscription.update({where:{businessId:business},data:{trialStartedAt:new Date(Date.now()-86400000),trialEndsAt:new Date(Date.now()-1000)}});

@@ -46,7 +46,7 @@ try{
  await page.getByRole('button',{name:'Add supplier',exact:true}).click();await page.getByLabel('Supplier code',{exact:true}).fill('SUP-001');await page.getByPlaceholder('e.g. Gulf Food Supplies').fill('Gulf Food Supplies');await page.getByLabel('Phone',{exact:true}).fill('+971 50 123 4567');await page.getByRole('dialog').getByRole('button',{name:'Save changes',exact:true}).click();await page.getByRole('cell',{name:'Gulf Food Supplies',exact:true}).waitFor();
  await section(page,'Purchases');await page.getByRole('button',{name:'New receiving',exact:true}).click();
  await choose(page,'Choose location','Main warehouse');await choose(page,'Choose supplier','Gulf Food Supplies');
- const scan=page.getByLabel('Scan delivery barcode',{exact:true});
+ const scan=page.getByLabel('Barcode or SKU',{exact:true});
  await scan.fill('UNKNOWN');await scan.press('Enter');await page.getByRole('alert').waitFor();
  await scan.fill('001234567890');await scan.press('Enter');await page.getByLabel('Quantity',{exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='line-quantity-0');await page.getByLabel('Quantity',{exact:true}).fill('5');
  await page.getByRole('combobox',{name:'Scanning mode',exact:true}).click();await page.getByRole('option',{name:'Add one per scan',exact:true}).click();
@@ -76,7 +76,7 @@ try{
   await section(page,lang==='ar'?'الموردون':'Suppliers');await page.getByRole('button',{name:lang==='ar'?'تعديل المورد':'Edit supplier',exact:true}).click();await page.getByRole('dialog').waitFor();await shot(page,`new-${lang}-${width}-supplier-form`);await page.keyboard.press('Escape');
   await section(page,lang==='ar'?'المشتريات':'Purchases');await page.getByRole('button',{name:lang==='ar'?'استلام جديد':'New receiving',exact:true}).click();
   await choose(page,lang==='ar'?'اختيار الموقع':'Choose location','Main warehouse');await choose(page,lang==='ar'?'اختيار المورد':'Choose supplier','Gulf Food Supplies');
-  const localScan=page.getByLabel(lang==='ar'?'مسح باركود البضاعة':'Scan delivery barcode',{exact:true});await localScan.fill('001234567890');await localScan.press('Enter');await page.getByLabel(lang==='ar'?'الكمية':'Quantity',{exact:true}).waitFor();await shot(page,`new-${lang}-${width}-editor`);
+  const localScan=page.getByLabel(lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU',{exact:true});await localScan.fill('001234567890');await localScan.press('Enter');await page.getByLabel(lang==='ar'?'الكمية':'Quantity',{exact:true}).waitFor();await shot(page,`new-${lang}-${width}-editor`);
  }
  assert.equal(errors.length,0,errors.join('; '));console.log(`PASS: supplier create, both scanner modes, staff cost privacy, draft/pending no stock, confirmed receipt, partial PO, AR/EN widths ${process.env.BROWSER_QUICK==='1'?'320/390/1440':'320/390/768/1024/1440'}.`);
 }finally{

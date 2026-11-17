@@ -30,7 +30,9 @@ export class CatalogueService {
   async get(ctx:AuthContext,businessId:string,selector:{id:string}|{barcode:string}){
     return this.auth.transaction(async tx=>{
       const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.view');
-      const row=await tx.product.findFirst({where:{businessId,...('id' in selector?{id:selector.id}:{barcodes:{some:{value:selector.barcode}}})},include:{barcodes:true}});
+      const matches=await tx.product.findMany({where:{businessId,...('id' in selector?{id:selector.id}:{OR:[{barcodes:{some:{value:selector.barcode}}},{sku:selector.barcode.toUpperCase()}]})},include:{barcodes:true},take:2});
+      if(matches.length>1)throw new ApiError(409,'PRODUCT_CODE_AMBIGUOUS','This code matches multiple products. Select the product from the list.');
+      const row=matches[0];
       if(!row)throw new ApiError(404,'PRODUCT_NOT_FOUND','Product not found');
       // Scanner lookup must distinguish an inactive item from an unknown barcode.
       if('barcode' in selector && !row.active)throw new ApiError(409,'PRODUCT_INACTIVE','This product is inactive');
