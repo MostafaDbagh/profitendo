@@ -1,12 +1,13 @@
 import TableTools from './TableTools';
+import { ChevronDown } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { inputClass } from '../auth-v2/Fields';
 export const buttonClass = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50';
 export const primaryClass = `${buttonClass} !bg-emerald-500 hover:!bg-emerald-600 !text-white !border-emerald-500`;
 export const panelClass = 'bg-white border border-slate-200 rounded-xl shadow-sm p-5 md:p-6';
-export function Select({ id, label, children, ...props }) {
-  return <div><label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label><select id={id} className={inputClass} {...props}>{children}</select></div>;
+export function Select({ id, label, children, className = '', ...props }) {
+  return <div><label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label><div className="relative" dir={props.dir}><select id={id} className={`${inputClass.replace('px-3', 'ps-3 pe-10')} appearance-none ${className}`} {...props}>{children}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" /></div></div>;
 }
 export const UpgradeContext = createContext(null);
 export function Feedback({ error, notice, c, retry }) {
