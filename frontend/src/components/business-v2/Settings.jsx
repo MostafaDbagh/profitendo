@@ -1,3 +1,4 @@
+import ServiceRequests from './ServiceRequests';
 import Select from './SettingsSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
@@ -44,5 +45,5 @@ export default function Settings({ context, api, c, reload, onName, lang }) {
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT'}>{c(busy ? 'saving' : 'save')}</button>}
-  </form></div>;
+  </form><ServiceRequests {...{context,api,lang}}/></div>;
 }

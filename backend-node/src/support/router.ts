@@ -5,7 +5,7 @@ import { authHttp } from '../auth/http.js';
 import { digest,randomToken,equal } from '../auth/crypto.js';
 import { requirePlatform } from '../platform/service.js';
 import { ApiError,validateBody } from '../errors.js';
-const body=z.string().trim().min(2).max(5000),category=z.enum(['SUBSCRIPTION','BILLING','TECHNICAL','GENERAL']);
+const body=z.string().trim().min(2).max(5000),category=z.enum(['SUBSCRIPTION','BILLING','TECHNICAL','GENERAL','SERVICE','FEATURE']);
 const newTicket=z.object({subject:z.string().trim().min(3).max(160),category,body,businessId:z.uuid().optional()}).strict();
 const publicTicket=newTicket.omit({businessId:true}).extend({name:z.string().trim().min(2).max(100),email:z.email().max(254),website:z.string().max(0).optional()}).strict();
 const invalid=()=>new ApiError(404,'NOT_FOUND','Request not found');
@@ -47,8 +47,8 @@ export function supportRouter(auth:AuthService){
  for(const admin of [false,true]){
   const prefix=admin?'/admin/tickets':'/tickets';
   router.get(prefix,async(req,res)=>{
-   const q=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),status:z.enum(['ALL','NEW','IN_PROGRESS','RESOLVED']).default('ALL')}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid query');
-   res.json(await auth.transaction(async tx=>{if(admin)await requirePlatform(auth,tx,ctx(res));else await auth.assertSession(tx,ctx(res));const where={...(!admin?{userId:ctx(res).user.id}:{}),...(q.data.status==='ALL'?{}:{status:q.data.status})};return {page:q.data.page,pageSize:25,total:await tx.supportTicket.count({where}),items:await tx.supportTicket.findMany({where,take:25,skip:(q.data.page-1)*25,orderBy:[{updatedAt:'desc'},{id:'desc'}],select:{business:{select:{name:true}},id:true,name:true,email:true,businessId:true,subject:true,category:true,status:true,revision:true,updatedAt:true}})};}));
+   const q=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),status:z.enum(['ALL','NEW','IN_PROGRESS','RESOLVED']).default('ALL'),businessId:z.uuid().optional(),requestOnly:z.enum(['true','false']).optional()}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid query');
+   res.json(await auth.transaction(async tx=>{if(admin)await requirePlatform(auth,tx,ctx(res));else await auth.assertSession(tx,ctx(res));const where={...(q.data.businessId?{businessId:q.data.businessId}:{}),...(q.data.requestOnly==='true'?{category:{in:['SERVICE','FEATURE']}}:{}),...(!admin?{userId:ctx(res).user.id}:{}),...(q.data.status==='ALL'?{}:{status:q.data.status})};return {page:q.data.page,pageSize:25,total:await tx.supportTicket.count({where}),items:await tx.supportTicket.findMany({where,take:25,skip:(q.data.page-1)*25,orderBy:[{updatedAt:'desc'},{id:'desc'}],select:{business:{select:{name:true}},id:true,name:true,email:true,businessId:true,subject:true,category:true,status:true,revision:true,updatedAt:true}})};}));
   });
   router.get(prefix+'/:id',async(req,res)=>res.json(await auth.transaction(async tx=>{await authorize(tx,String(req.params.id),ctx(res),undefined,admin);return thread(tx,String(req.params.id));})));
   router.post(prefix+'/:id/messages',validateBody(z.object({body}).strict()),async(req,res)=>{await auth.limit('support-reply',ctx(res).user.id,60,3600);res.json(await auth.transaction(async tx=>{await authorize(tx,String(req.params.id),ctx(res),undefined,admin);await reply(tx,String(req.params.id),req.body.body,admin,ctx(res).user.id);if(admin)await tx.authAudit.create({data:{action:'support.replied',userId:ctx(res).user.id,targetId:String(req.params.id)}});return {ok:true};}));});

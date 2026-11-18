@@ -199,3 +199,19 @@ it('rejects a downgrade below people, pending invitations, stores or warehouses'
  for(const kind of ['SHOP','WAREHOUSE'] as const){const location=await db.location.create({data:{businessId:b.id,name:kind,code:kind,kind}});expect((await write(path,input)).body.error.code).toBe('PLAN_CAPACITY_EXCEEDED');await db.location.delete({where:{id:location.id}});}
  expect(await db.manualSubscriptionPayment.count({where:{businessId:b.id}})).toBe(1);expect((await write(path,input)).status).toBe(201);
 });
+
+it('routes service and feature requests to platform support and scopes customer history',async()=>{
+ const created:string[]=[];
+ for(const category of ['SERVICE','FEATURE']){
+  const result=await write('/support/tickets',{businessId:bid,category,subject:'Request '+category,body:'Please add a monthly profit export.'},owner);
+  expect(result.status,result.text).toBe(201);tickets.push(result.body.id);created.push(result.body.id);
+  expect((await get('/support/admin/tickets/'+result.body.id)).body.category).toBe(category);
+  expect((await get('/support/tickets/'+result.body.id,other)).status).toBe(404);
+ }
+ const list=await get(`/support/tickets?businessId=${bid}&requestOnly=true`,owner);
+ expect(list.status).toBe(200);expect(list.body.items.map((r:{id:string})=>r.id).sort()).toEqual(created.sort());
+ expect((await get(`/support/tickets?businessId=${bid}&requestOnly=true`,other)).body.items).toEqual([]);
+ expect((await get(`/support/tickets?businessId=${randomUUID()}&requestOnly=true`,owner)).body.items).toEqual([]);
+ expect((await write('/support/tickets',{businessId:bid,category:'FEATURE',subject:' ',body:' '},owner)).status).toBe(422);
+ expect((await write('/support/tickets',{businessId:bid,category:'SERVICE',subject:'Unauthorized request',body:'Test request'},other)).status).toBe(403);
+});
