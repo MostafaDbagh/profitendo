@@ -2,6 +2,10 @@ import type { MembershipRole, Prisma } from '../generated/prisma/client.js';
 // Only implemented business-level capabilities. Location-scoped operational
 // permissions must be introduced with their services and location authorization.
 export const PERMISSIONS = {
+  'damage.view': { ownerOnly: false },
+  'damage.create': { ownerOnly: false },
+  'damage.approve': { ownerOnly: false },
+  'damage.delete': { ownerOnly: false },
   'returns.delete': { ownerOnly: false },
   'returns.view': { ownerOnly: false },
   'returns.create': { ownerOnly: false },
@@ -69,7 +73,7 @@ export const ROLE_DEFAULTS: Record<MembershipRole, readonly Permission[]> = {
   CASHIER: ['returns.view','returns.create','sales.view','sales.create','business.view', 'locations.view', 'catalogue.view'],
   VIEWER: ['reports.view','transfers.view','inventory.view','business.view', 'locations.view', 'catalogue.view'],
 };
-const inherited: Partial<Record<Permission,Permission>> = {'catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
+const inherited: Partial<Record<Permission,Permission>> = {'damage.view':'counts.view','damage.create':'counts.create','damage.approve':'counts.approve','damage.delete':'counts.delete','catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
 export function effectivePermissions(role: MembershipRole, overrides: Prisma.JsonValue) {
   const changes = overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {};
   const result = Object.fromEntries(permissionKeys.map(key => [key,
@@ -77,9 +81,9 @@ export function effectivePermissions(role: MembershipRole, overrides: Prisma.Jso
       : typeof changes[key] === 'boolean' ? changes[key] : inherited[key] ? (typeof changes[inherited[key]!] === 'boolean' ? changes[inherited[key]!] : ROLE_DEFAULTS[role].includes(inherited[key]!)) : ROLE_DEFAULTS[role].includes(key),
   ])) as Record<Permission, boolean>;
   // Preserve existing built-in access; an explicit delete override always wins.
-  const deletionDefaults: Partial<Record<Permission, Permission[]>> = {'returns.delete': ['returns.create', 'returns.approve'], 'counts.delete': ['counts.create', 'counts.approve'], 'sales.delete': ['sales.create'], 'purchasing.delete': ['purchasing.manage'], 'receiving.delete': ['receiving.create'], 'transfers.delete': ['transfers.create'], 'catalogue.delete': ['catalogue.edit'], 'suppliers.delete': ['suppliers.edit']};
+  const deletionDefaults: Partial<Record<Permission, Permission[]>> = {'damage.delete': ['damage.create','damage.approve'], 'returns.delete': ['returns.create', 'returns.approve'], 'counts.delete': ['counts.create', 'counts.approve'], 'sales.delete': ['sales.create'], 'purchasing.delete': ['purchasing.manage'], 'receiving.delete': ['receiving.create'], 'transfers.delete': ['transfers.create'], 'catalogue.delete': ['catalogue.edit'], 'suppliers.delete': ['suppliers.edit']};
   for (const [key, sources] of Object.entries(deletionDefaults)) {
-    if (role !== 'OWNER' && typeof changes[key] !== 'boolean') result[key as Permission] = sources.some(source => result[source]);
+    if (role !== 'OWNER' && typeof changes[key] !== 'boolean' && !(key==='damage.delete' && typeof changes['counts.delete']==='boolean')) result[key as Permission] = sources.some(source => result[source]);
   }
   return result;
 }

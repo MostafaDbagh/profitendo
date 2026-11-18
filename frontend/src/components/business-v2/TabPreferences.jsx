@@ -5,7 +5,7 @@ const bottom = ['security', 'settings'];
 const fixed = ['dashboard', 'billing', 'security', 'settings'];
 export default function TabPreferences({ context, api, c, lang, availableTabs, hiddenTabs, tabOrder, onTabsSaved }) {
   const [hidden, setHidden] = useState(hiddenTabs), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [order, setOrder] = useState(() => [...tabOrder, ...availableTabs.map(([key])=>key).filter(key=>!tabOrder.includes(key))]);
+  const [order, setOrder] = useState(() => {const next=[...tabOrder, ...availableTabs.map(([key])=>key).filter(key=>!tabOrder.includes(key))];if(!tabOrder.includes('damage')&&next.includes('damage')&&next.includes('counts')){next.splice(next.indexOf('damage'),1);next.splice(next.indexOf('counts')+1,0,'damage');}return next;});
   const orderedTabs = [...order.filter(key=>!bottom.includes(key)), ...bottom].filter(key=>availableTabs.some(([id])=>id===key));
   function move(key, offset) {
     const target = orderedTabs[orderedTabs.indexOf(key)+offset];

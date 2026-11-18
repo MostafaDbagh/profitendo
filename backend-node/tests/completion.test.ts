@@ -359,3 +359,64 @@ it('rechecks report and export permissions on the next request using the same se
  await db.membership.update({where:{id:member.id},data:{role:'OWNER',permissionOverrides:{},disabledAt:new Date()}});
  expect((await get(path,viewer)).status).toBe(403);
 });
+
+it('separates count and damage access for viewing, creation and approval',async()=>{
+ const worker=await actor('CASHIER',business,source),p=await funded('10');
+ const membership=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:worker.user.id}}});
+ const set=async(damage:boolean)=>db.membership.update({where:{id:membership.id},data:{permissionOverrides:{'counts.view':!damage,'counts.create':!damage,'counts.approve':!damage,'damage.view':damage,'damage.create':damage,'damage.approve':damage}}});
+ await set(true);
+ expect((await get('/adjustments?kind=DAMAGE',worker)).status).toBe(200);
+ expect((await get('/adjustments?kind=COUNT',worker)).status).toBe(403);
+ expect((await get(`/snapshot?locationId=${source}&productId=${p}`,worker)).status).toBe(403);
+ const d=await adjustment('DAMAGE',[{productId:p,quantity:'1'}],{},worker);
+ const count=await adjustment('COUNT',[{productId:p,quantity:'9'}]);
+ expect((await approve(count,worker)).status).toBe(403);
+ await set(false);
+ expect((await get('/adjustments?kind=COUNT',worker)).status).toBe(200);
+ expect((await get('/adjustments?kind=DAMAGE',worker)).status).toBe(403);
+ expect((await write('/adjustments',{clientKey:randomUUID(),kind:'DAMAGE',locationId:source,reason:'Damaged item during handling',lines:[{productId:p,quantity:'1'}]},worker)).status).toBe(403);
+ expect((await get('/adjustments/'+d.id,worker)).status).toBe(403);
+});
+
+it('accounting QA: damage concurrent approval posts one loss and never moves cash',async()=>{
+ const p=await funded('10'),day=new Date().toISOString().slice(0,10),path=`/reports?from=${day}&to=${day}&view=summary`;
+ const before=(await get(path)).body,money=await db.moneyEntry.count({where:{businessId:business}});
+ const d=await adjustment('DAMAGE',[{productId:p,quantity:'1.25'}]);
+ expect(await stock(source,p)).toBe('10.0000');
+ const results=await Promise.all([approve(d),approve(d)]);
+ expect(results.map(r=>r.status)).toEqual([200,200]);
+ expect(await stock(source,p)).toBe('8.7500');
+ expect(await db.stockMovement.count({where:{sourceId:d.id}})).toBe(1);
+ expect(await db.moneyEntry.count({where:{businessId:business}})).toBe(money);
+ const after=(await get(path)).body;
+ expect(Number(after.damageCost)-Number(before.damageCost)).toBeCloseTo(12.35,4);
+ expect(Number(after.estimatedProfit)-Number(before.estimatedProfit)).toBeCloseTo(-12.35,4);
+});
+it('accounting QA: cancelled count and damage drafts cannot later change inventory',async()=>{
+ for(const kind of ['COUNT','DAMAGE']){
+  const p=await funded('10'),d=await adjustment(kind,[{productId:p,quantity:'2'}]);
+  const cancelled=await write(`/adjustments/${d.id}/status`,{revision:d.revision,action:'cancel',confirm:true});
+  expect(cancelled.status,cancelled.text).toBe(200);
+  expect((await approve(cancelled.body)).status).toBe(409);
+  expect(await stock(source,p)).toBe('10.0000');
+  expect(await db.stockMovement.count({where:{sourceId:d.id}})).toBe(0);
+ }
+});
+it('accounting QA: competing damage documents cannot overdraw stock',async()=>{
+ const p=await funded('10'),a=await adjustment('DAMAGE',[{productId:p,quantity:'6'}]),b=await adjustment('DAMAGE',[{productId:p,quantity:'6'}]);
+ const results=await Promise.all([approve(a),approve(b)]);
+ expect(results.map(r=>r.status).sort()).toEqual([200,409]);
+ expect(await stock(source,p)).toBe('4.0000');
+ expect(await db.stockMovement.count({where:{sourceId:{in:[a.id,b.id]}}})).toBe(1);
+});
+it('accounting QA: invalid quantities and duplicate products never create adjustment documents',async()=>{
+ const p=await funded('10'),before=await db.adjustment.count({where:{businessId:business}});
+ for(const quantity of ['0','-1','1.00001','١٢','NaN','1e2','']){
+  const r=await write('/adjustments',{clientKey:randomUUID(),kind:'DAMAGE',locationId:source,reason:'Invalid input test',lines:[{productId:p,quantity}]});
+  expect(r.status,`${quantity}: ${r.text}`).toBe(422);
+ }
+ const duplicate=await write('/adjustments',{clientKey:randomUUID(),kind:'DAMAGE',locationId:source,reason:'Duplicate input test',lines:[{productId:p,quantity:'1'},{productId:p,quantity:'2'}]});
+ expect(duplicate.status).toBe(422);
+ expect(await db.adjustment.count({where:{businessId:business}})).toBe(before);
+ expect(await stock(source,p)).toBe('10.0000');
+});

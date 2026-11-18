@@ -11,7 +11,7 @@ function AddRole({ data, api, path, c, lang, close, done, returnFocus }) {
  const draft=useLocalDraft('new-role',{name,base,permissions},saved=>{setName(saved.name);setBase(saved.base);setPermissions(saved.permissions);});
   const allowed = data.grantableKeys;
   const groups = [...new Set(allowed.map(key => key.split('.')[0]))];
-  const labels = { business:'settings', team:'team', roles:'roles', audit:'audit', locations:'locations', catalogue:'catalogue', suppliers:'suppliers', purchasing:'purchases', receiving:'purchases', sales:'sales', transfers:'transfers', inventory:'inventory', returns:'returns', counts:'counts', payments:'payments', cash:'payments', reports:'reports' };
+  const labels = { business:'settings', team:'team', roles:'roles', audit:'audit', locations:'locations', catalogue:'catalogue', suppliers:'suppliers', purchasing:'purchases', receiving:'purchases', sales:'sales', transfers:'transfers', inventory:'inventory', returns:'returns', counts:'counts',damage:'damage', payments:'payments', cash:'payments', reports:'reports' };
   function startFrom(value) {
     setBase(value);
     const source = data.roles.find(role => role.role === value)?.permissions || {};

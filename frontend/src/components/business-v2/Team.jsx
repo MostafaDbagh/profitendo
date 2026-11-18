@@ -7,7 +7,7 @@ import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass } from
 import { staffRoles } from './copy';
 function EditMember({ member, api, path, c, lang, close, done, returnFocus, permissionKeys, actorPermissions, isOwner, roleDefaults }) {
   const [role, setRole] = useState(member.customRoleId || member.role), [active, setActive] = useState(member.active), [overrides, setOverrides] = useState(member.permissionOverrides || {});
-  const groupLabels={business:'settings',team:'team',roles:'roles',audit:'audit',locations:'locations',catalogue:'catalogue',suppliers:'suppliers',purchasing:'purchases',receiving:'purchases',sales:'sales',transfers:'transfers',inventory:'inventory',returns:'returns',counts:'counts',payments:'payments',cash:'payments',reports:'reports'};
+  const groupLabels={business:'settings',team:'team',roles:'roles',audit:'audit',locations:'locations',catalogue:'catalogue',suppliers:'suppliers',purchasing:'purchases',receiving:'purchases',sales:'sales',transfers:'transfers',inventory:'inventory',returns:'returns',counts:'counts',damage:'damage',payments:'payments',cash:'payments',reports:'reports'};
   const groups=[...new Set(permissionKeys.map(key=>key.split('.')[0]))];
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
  const draft=useLocalDraft(`member:${member.id}:${member.revision}`,{role,active,overrides},saved=>{setRole(saved.role);setActive(saved.active);setOverrides(saved.overrides);});
