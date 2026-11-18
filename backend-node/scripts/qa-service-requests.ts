@@ -71,15 +71,22 @@ try{
  await page.getByRole('status').filter({hasText:'Request sent.'}).waitFor();
  const ticket=await db.supportTicket.findFirstOrThrow({where:{businessId:business.id,subject:'QA service '+run}});
  assert.equal(ticket.category,'SERVICE');
- await platform.page.goto(settings.appOrigin+'/platform-v2');
+ await platform.page.goto(settings.appOrigin+'/platform-v2?tab=support');
  assert.equal((await api(platform.page,'/support/admin/tickets/'+ticket.id)).status,200);
- assert.equal((await api(platform.page,'/support/admin/tickets/'+ticket.id+'/messages','POST',{body:'We received your service request and will review it.'})).status,200);
+ await platform.page.getByRole('row').filter({hasText:'QA service '+run}).getByRole('button',{name:'View conversation',exact:true}).click();
+ await platform.page.locator('#support-reply').fill('We received your service request and will review it.');
+ await platform.page.getByRole('button',{name:'Send reply',exact:true}).click();
+ await platform.page.getByText('We received your service request and will review it.',{exact:true}).waitFor();
+ await shot(platform.page,'admin-request-reply');
+ await platform.page.getByRole('button',{name:'Resolved',exact:true}).click();
+ await platform.page.getByRole('button',{name:'Resolved',exact:true}).waitFor({state:'hidden'});
  const row=page.getByRole('row').filter({hasText:'QA service '+run});
  await row.getByRole('button',{name:'View conversation',exact:true}).click();
  await page.getByText('We received your service request and will review it.',{exact:true}).waitFor();
+ assert((await page.locator('main').textContent())?.includes('Resolved'));
  await open(accountant.page,'settings');
  assert.equal((await api(accountant.page,'/support/tickets/'+ticket.id)).status,404);
- checks.push('Service request saved with business, visible to platform, reply visible to requester, private from other users');
+ checks.push('Service request saved with business, visible to platform, admin UI reply and resolution visible to requester, private from other users');
  for(const lang of ['en','ar']){
   await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);
   await open(page,'settings');await page.locator('#service-request-subject').waitFor();
