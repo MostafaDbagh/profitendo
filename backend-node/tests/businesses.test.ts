@@ -394,3 +394,40 @@ it('resolves delegated custom-role assignment from the original request after a 
   expect(result.customRoleId).toBe(role.body.role);expect(result.revision).toBe(1);
  }finally{spy.mockRestore();}
 });
+
+it('assigns invited staff to selected tenant locations and exposes them in the team list',async()=>{
+ const location=await db.location.create({data:{businessId:a,code:'QA-ASSIGN',name:'Assigned warehouse',kind:'WAREHOUSE'}});
+ const foreign=await db.location.create({data:{businessId:b,code:'QA-FOREIGN',name:'Foreign warehouse',kind:'WAREHOUSE'}});
+ const email=`locations-${randomUUID()}@example.test`;let token='';
+ const mail=vi.spyOn(auth,'queueMail').mockImplementation(async(_tx,_email,_subject,_action,value)=>{token=value;});
+ try{
+  const body={name:'Assigned colleague',email,role:'CASHIER',password:'Assignment test password 123!',locationIds:[foreign.id]};
+  expect((await write(`/${a}/invitations`,body,ownerA,'post')).status).toBe(404);
+  expect((await write(`/${a}/invitations`,{...body,locationIds:[location.id]},ownerA,'post')).status).toBe(202);
+  await acceptInvitation(auth,{token});
+  const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
+  const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:a,userId:user.id}}});
+  expect(await db.locationAssignment.count({where:{membershipId:member.id,locationId:location.id}})).toBe(1);
+  const service=new BusinessService(auth);const ctx=await auth.transaction(tx=>auth.makeSession(tx,user,true));
+  const ownerUser=await db.authUser.findUniqueOrThrow({where:{id:ownerA.id}});
+  const list=await service.members(await auth.transaction(tx=>auth.makeSession(tx,ownerUser,true)),a,{page:1,pageSize:100});
+  expect(list.items.find(m=>m.id===member.id)?.locations[0]?.id).toBe(location.id);
+ }finally{mail.mockRestore();await db.locationAssignment.deleteMany({where:{locationId:location.id}});await db.location.deleteMany({where:{id:{in:[location.id,foreign.id]}}});}
+});
+
+it('creates hired staff immediately with assigned locations and no invitation email',async()=>{
+ const location=await db.location.create({data:{businessId:a,code:'DIRECT-QA',name:'Direct shop',kind:'SHOP'}});
+ const email=`direct-${randomUUID()}@example.test`,password='Direct employee password 123!';
+ const mail=vi.spyOn(auth,'queueMail');
+ try{
+  const body={name:'Hired employee',email,password,role:'CASHIER',locationIds:[location.id]};
+  expect((await write(`/${a}/members`,{...body,locationIds:[]},ownerA,'post')).status).toBe(422);
+  const created=await write(`/${a}/members`,body,ownerA,'post');expect(created.status,created.text).toBe(201);
+  const user=await db.authUser.findUniqueOrThrow({where:{email}});ids.push(user.id);
+  expect(await passwordMatches(user.passwordHash,password)).toBe(true);
+  expect(await db.locationAssignment.count({where:{membershipId:created.body.id,locationId:location.id}})).toBe(1);
+  expect(mail).not.toHaveBeenCalled();
+  expect((await write(`/${a}/members`,body,ownerA,'post')).status).toBe(409);
+  expect(await db.invitation.count({where:{email}})).toBe(0);
+ }finally{mail.mockRestore();await db.locationAssignment.deleteMany({where:{locationId:location.id}});await db.location.delete({where:{id:location.id}});}
+});

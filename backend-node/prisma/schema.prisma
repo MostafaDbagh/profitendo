@@ -177,6 +177,7 @@ model AuthToken {
   @@map("auth_tokens")
 }
 model Invitation {
+  locationIds String[] @default([]) @map("location_ids") @db.Uuid
   initialPasswordHash String? @map("initial_password_hash")
   name        String? @db.VarChar(100)
   id          String @id @default(uuid()) @db.Uuid

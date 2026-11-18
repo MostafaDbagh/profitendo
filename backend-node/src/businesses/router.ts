@@ -1,3 +1,4 @@
+import {createMember} from './create-member.js';
 import { countryCurrencies } from './countries.js';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -36,10 +37,11 @@ export function businessRouter(auth: AuthService) {
   router.patch('/:businessId', validateBody(businessPatch), async (req, res) => { res.json(await service.update(ctx(res), String(req.params.businessId), req.body)); });
   router.get('/:businessId/roles', async (req, res) => { res.json(await service.roles(ctx(res), String(req.params.businessId))); });
   router.post('/:businessId/roles', validateBody(z.object({ name: z.string().trim().min(2).max(80), permissions: overrides }).strict()), async (req, res) => { res.status(201).json(await service.createRole(ctx(res), String(req.params.businessId), req.body)); });
+  router.post('/:businessId/members', validateBody(z.object({name:z.string().trim().min(2).max(100),email:z.string().trim().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(128),role:z.enum(staffRoles).optional(),customRoleId:z.string().uuid().optional(),locationIds:z.array(z.string().uuid()).max(100)}).strict().refine(v=>Boolean(v.role)!==Boolean(v.customRoleId))),async(req,res)=>{await auth.limit('create-member',ctx(res).user.id,20);res.status(201).json(await createMember(auth,ctx(res),{...req.body,businessId:String(req.params.businessId)}));});
   router.get('/:businessId/members', async (req, res) => { res.json(await service.members(ctx(res), String(req.params.businessId), paging(req.query))); });
   router.patch('/:businessId/members/:memberId', validateBody(memberPatch), async (req, res) => { res.json(await service.updateMember(ctx(res), String(req.params.businessId), String(req.params.memberId), req.body)); });
   router.get('/:businessId/invitations', async (req, res) => { res.json(await service.invitations(ctx(res), String(req.params.businessId), paging(req.query))); });
-  router.post('/:businessId/invitations', validateBody(z.object({ password: z.string().min(8).max(128).optional(), name: z.string().trim().min(2).max(100).optional(), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().optional() }).strict().refine(v => Boolean(v.role) !== Boolean(v.customRoleId))), async (req, res) => {
+  router.post('/:businessId/invitations', validateBody(z.object({ password: z.string().min(8).max(128).optional(), locationIds: z.array(z.string().uuid()).max(100).optional(), name: z.string().trim().min(2).max(100).optional(), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), role: z.enum(staffRoles).optional(), customRoleId: z.string().uuid().optional() }).strict().refine(v => Boolean(v.role) !== Boolean(v.customRoleId))), async (req, res) => {
     await auth.limit('invitations', ctx(res).user.id, 20);
     await invite(auth, ctx(res), { ...req.body, businessId: String(req.params.businessId) }); res.status(202).json({ detail: 'Invitation queued.' });
   });

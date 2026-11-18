@@ -63,10 +63,10 @@ export class BusinessService {
       const { permissions, membership: actor } = await requireBusiness(this.auth, tx, ctx, businessId, 'team.view');
       const where = { businessId };
       const rows = await tx.membership.findMany({ where, skip: (paging.page - 1) * paging.pageSize, take: paging.pageSize, orderBy: { id: 'asc' },
-        select: { id: true, role: true, customRoleId: true, customRole: { select: { name: true } }, disabledAt: true, revision: true, permissionOverrides: true, user: { select: { id: true, name: true, email: true, disabledAt: true } } } });
+        select: { locationAssignments: {select:{location:{select:{id:true,name:true,code:true,kind:true}}}}, id: true, role: true, customRoleId: true, customRole: { select: { name: true } }, disabledAt: true, revision: true, permissionOverrides: true, user: { select: { id: true, name: true, email: true, disabledAt: true } } } });
       return { ...paging, permissionKeys: permissions['team.manage'] ? permissionKeys.filter(key=>!PERMISSIONS[key].ownerOnly && (actor.role==='OWNER'||key!=='team.manage')) : [], roleDefaults: permissions['team.manage'] ? [...roleCatalog(), ...await customRoleCatalog(tx, businessId)] : [], total: await tx.membership.count({ where }), items: rows.map(row => ({
         canEdit: permissions['team.manage'] && row.role!=='OWNER' && (actor.role==='OWNER'||row.user.id!==ctx.user.id&&!effectivePermissions(row.role,row.permissionOverrides)['team.manage']),
-        id: row.id, userId: row.user.id, name: row.user.name, email: row.user.email, role: row.role, customRoleId: row.customRoleId, roleName: row.customRole?.name,
+        locations: row.locationAssignments.map(a=>a.location), allLocations: effectivePermissions(row.role,row.permissionOverrides)['locations.all'], id: row.id, userId: row.user.id, name: row.user.name, email: row.user.email, role: row.role, customRoleId: row.customRoleId, roleName: row.customRole?.name,
         active: !row.disabledAt, accountDisabled: !!row.user.disabledAt, revision: row.revision,
         // Only authorized permission administrators receive stored overrides.
         ...(permissions['team.manage'] ? { permissionOverrides: row.permissionOverrides, permissions: effectivePermissions(row.role, row.permissionOverrides) } : {}),

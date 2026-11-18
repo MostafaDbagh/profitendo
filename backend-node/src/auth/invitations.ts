@@ -1,3 +1,4 @@
+import { requireLocation } from '../locations/access.js';
 import {queueWelcome} from './welcome.js';
 import { effectivePermissions, permissionKeys } from '../businesses/permissions.js';
 import { customRole, roleGrants } from '../businesses/custom-roles.js';
@@ -11,10 +12,12 @@ const invalid = () => new ApiError(400, 'INVALID_INVITATION', 'Invitation is inv
 async function owner(auth: AuthService, tx: Tx, ctx: AuthContext, businessId: string) {
   await requireBusiness(auth, tx, ctx, businessId, 'invitations.manage');
 }
-export async function invite(auth: AuthService, ctx: AuthContext, input: { businessId: string; password?: string; name?: string; email: string; role?: Exclude<MembershipRole, 'OWNER'>; customRoleId?: string }) {
+export async function invite(auth: AuthService, ctx: AuthContext, input: { businessId: string; locationIds?: string[]; password?: string; name?: string; email: string; role?: Exclude<MembershipRole, 'OWNER'>; customRoleId?: string }) {
   const initialPasswordHash = input.password ? await passwordHash(input.password) : undefined;
   await auth.transaction(async tx => {
     const actor = await requireBusiness(auth, tx, ctx, input.businessId, 'team.manage');
+    const locationIds = [...new Set(input.locationIds ?? [])];
+    for (const id of locationIds) await requireLocation(auth, tx, ctx, input.businessId, id, 'locations.manage');
     const selected = input.customRoleId ? await customRole(tx, input.businessId, input.customRoleId) : null;
     if (!selected && !input.role) throw new ApiError(422, 'VALIDATION_ERROR', 'Choose a role');
     const grants = effectivePermissions(selected ? 'VIEWER' : input.role!, selected?.permissions ?? {});
@@ -24,7 +27,7 @@ export async function invite(auth: AuthService, ctx: AuthContext, input: { busin
     await tx.invitation.updateMany({ where: { businessId: input.businessId, email: input.email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date(), initialPasswordHash: null } });
     await requireMemberCapacity(tx, input.businessId, { email: input.email });
     const token = randomToken();
-    await tx.invitation.create({ data: { tokenHash: digest(token), initialPasswordHash, businessId: input.businessId, name: input.name, email: input.email, role: selected ? 'VIEWER' : input.role!, customRoleId: selected?.id, invitedBy: ctx.user.id, expiresAt: new Date(Date.now() + 48 * 3600000) } });
+    await tx.invitation.create({ data: { tokenHash: digest(token), locationIds, initialPasswordHash, businessId: input.businessId, name: input.name, email: input.email, role: selected ? 'VIEWER' : input.role!, customRoleId: selected?.id, invitedBy: ctx.user.id, expiresAt: new Date(Date.now() + 48 * 3600000) } });
     await auth.queueMail(tx, input.email, 'Your ProfitLens team invitation', 'invite', token);
     await auth.audit(tx, 'invitation.created', ctx.user.id, input.businessId);
   });
@@ -50,6 +53,11 @@ export async function acceptInvitation(auth: AuthService, input: { token: string
     const inviterGrants = effectivePermissions(inviter.role, inviter.permissionOverrides);
     const invitedGrants = effectivePermissions(invitation.role, selected?.permissions ?? {});
     if (!inviterGrants['business.view'] || !inviterGrants['team.manage'] || (inviter.role !== 'OWNER' && (invitedGrants['team.manage'] || permissionKeys.some(key => invitedGrants[key] && !inviterGrants[key])))) throw invalid();
+    for (const id of invitation.locationIds) {
+      if (!inviterGrants['locations.manage'] || !inviterGrants['locations.view']) throw invalid();
+      const location = await tx.location.findFirst({where:{id,businessId:invitation.businessId,archivedAt:null,...(inviterGrants['locations.all']?{}:{assignments:{some:{membershipId:inviter.id}}})}});
+      if (!location) throw invalid();
+    }
     let user = await tx.authUser.findUnique({ where: { email: invitation.email } });
     if (user) {
       if (!ctx || ctx.user.id !== user.id || auth.stage(ctx) !== 'authenticated') {
@@ -67,7 +75,8 @@ export async function acceptInvitation(auth: AuthService, input: { token: string
     const existing = await tx.membership.findUnique({ where: { businessId_userId: { businessId: invitation.businessId, userId: user.id } } });
     if (existing) throw new ApiError(409, 'MEMBER_EXISTS', 'Membership already exists');
     await requireMemberCapacity(tx, invitation.businessId, { invitationId: invitation.id });
-    await tx.membership.create({ data: { businessId: invitation.businessId, userId: user.id, role: invitation.role, customRoleId: selected?.id, ...(selected ? { permissionOverrides: roleGrants(selected.permissions) } : {}) } });
+    const membership = await tx.membership.create({ data: { businessId: invitation.businessId, userId: user.id, role: invitation.role, customRoleId: selected?.id, ...(selected ? { permissionOverrides: roleGrants(selected.permissions) } : {}) } });
+    if (invitation.locationIds.length) await tx.locationAssignment.createMany({data:invitation.locationIds.map(locationId=>({businessId:invitation.businessId,membershipId:membership.id,locationId}))});
     if(auth.settings.emailOtp)await queueWelcome(auth,tx,user.id);
     await auth.audit(tx, 'invitation.accepted', user.id, invitation.businessId);
   });
