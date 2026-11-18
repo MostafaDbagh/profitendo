@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { OfflineBanner, InstallPrompt, UpdateBanner } from "@/components/PwaManager";
+import { OfflineBanner, UpdateBanner } from "@/components/PwaManager";
 import { registerServiceWorker } from "@/lib/pwa";
 import { LanguageProvider, useLanguage } from "@/context/LanguageContext";
 import Layout from "@/components/Layout";
@@ -145,7 +145,6 @@ function App() {
         </BrowserRouter>
         <Toaster position="top-center" richColors />
         <OfflineBanner />
-        <InstallPrompt />
         {updateReady && <UpdateBanner registration={swReg} onDone={() => setUpdateReady(false)} />}
       </AuthProvider>
     </LanguageProvider>
