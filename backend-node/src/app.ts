@@ -38,7 +38,7 @@ export function createApp(config: Pick<Config, 'CORS_ORIGINS'> & Partial<Pick<Co
       status: res.statusCode, durationMs: Math.round(performance.now() - start) }, 'Request completed'));
     next();
   });
-  app.use(helmet());
+  app.use(helmet({contentSecurityPolicy:{useDefaults:false,directives:{defaultSrc:["'none'"],baseUri:["'none'"],frameAncestors:["'none'"],formAction:["'none'"],scriptSrc:["'none'"],objectSrc:["'none'"]}}}));
   app.use(cors({ credentials: true, origin(origin, cb) {
     if (!origin || config.CORS_ORIGINS.includes(origin)) return cb(null, true);
     cb(new ApiError(403, 'ORIGIN_NOT_ALLOWED', 'Origin is not allowed'));
