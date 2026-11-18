@@ -297,7 +297,7 @@ it('enforces country currencies and Syria zero tax on the server',async()=>{
   expect((await configure({baseCurrency:'AED'})).body.error.code).toBe('COUNTRY_CURRENCY_REQUIRED');
   await configure({baseCurrency:'USD'});
   await db.business.update({where:{id:business},data:{currencyLockedAt:new Date()}});
-  expect((await configure({baseCurrency:'SYP'})).body.error.code).toBe('CURRENCY_LOCKED');
+  expect((await configure({baseCurrency:'SYP'})).status).toBe(200);
   for(const countryCode of ['AE','SA','QA','OM','JO','LB'])expect((await configure({countryCode,baseCurrency:'USD'})).status).toBe(200);
  } finally {await configure({countryCode:null,salesTaxRate:'0'});}
 });

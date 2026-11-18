@@ -112,11 +112,12 @@ describe('tenant authorization', () => {
     expect(updates).toHaveLength(1); expect(updates[0].changes.name.before).toBe(current.name);
     expect((await get(`/${b}/audit`, ownerB)).body.total).toBe(0);
   });
-  it('locks currency after financial activity without blocking unrelated settings', async () => {
+  it('allows audited currency changes after financial activity without conversion', async () => {
     await db.business.update({ where: { id: b }, data: { currencyLockedAt: new Date() } });
     const before = (await get(`/${b}`, ownerB)).body.business;
-    expect((await write(`/${b}`, { revision: before.revision, baseCurrency: 'AED' }, ownerB)).body.error.code).toBe('CURRENCY_LOCKED');
-    expect((await write(`/${b}`, { revision: before.revision, dateFormat: 'ymd' }, ownerB)).status).toBe(200);
+    const changed = await write(`/${b}`, { revision: before.revision, baseCurrency: 'AED' }, ownerB);
+    expect(changed.status).toBe(200); expect(changed.body.baseCurrency).toBe('AED');
+    expect((await write(`/${b}`, { revision: before.revision + 1, dateFormat: 'ymd' }, ownerB)).status).toBe(200);
   });
   it('rejects cross-tenant target IDs and ownership escalation', async () => {
     const other = await actor('CASHIER', b);

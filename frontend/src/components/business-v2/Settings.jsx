@@ -1,11 +1,12 @@
+import Select from './SettingsSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import FifoSettings from './FifoSettings';
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { Feedback, Select, panelClass, primaryClass } from './UI';
+import { Feedback, panelClass, primaryClass } from './UI';
 const countryCurrencies = {SY:'SYP',AE:'AED',SA:'SAR',QA:'QAR',OM:'OMR',JO:'JOD',LB:'LBP',IQ:'IQD',KW:'KWD',BH:'BHD',EG:'EGP',YE:'YER',TR:'TRY',US:'USD',GB:'GBP',DE:'EUR',FR:'EUR',ES:'EUR',IT:'EUR',NL:'EUR',AT:'EUR',BE:'EUR',IE:'EUR',PT:'EUR',GR:'EUR',FI:'EUR',CY:'EUR'};
-const countries = Object.keys(countryCurrencies);
+const countries = ['SY', 'LB', 'JO', 'SA', 'QA', 'AE', 'OM'];
 const currencies = ['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY'];
 export default function Settings({ context, api, c, reload, onName, lang }) {
   const { business, permissions } = context;
@@ -17,7 +18,7 @@ export default function Settings({ context, api, c, reload, onName, lang }) {
   const countryNames = new Intl.DisplayNames([lang === 'ar' ? 'ar' : 'en'], {type:'region'});
   const changeCountry = event => {
     const countryCode = event.target.value || null;
-    setForm(f => ({...f, countryCode, ...(countryCode === 'SY' ? {salesTaxRate:'0'} : {}), ...(!business.currencyLockedAt && countryCode && !['USD',countryCurrencies[countryCode]].includes(f.baseCurrency) ? {baseCurrency:countryCurrencies[countryCode]} : {})}));
+    setForm(f => ({...f, countryCode, ...(countryCode === 'SY' ? {salesTaxRate:'0'} : {}), ...(countryCode && !['USD',countryCurrencies[countryCode]].includes(f.baseCurrency) ? {baseCurrency:countryCurrencies[countryCode]} : {})}));
   };
   const set = key => event => setForm(f => ({ ...f, [key]: event.target.value }));
   const save = async event => {
@@ -36,7 +37,7 @@ export default function Settings({ context, api, c, reload, onName, lang }) {
     <fieldset disabled={!editable || busy || error === 'REVISION_CONFLICT'} className="grid sm:grid-cols-2 gap-5 disabled:opacity-75">
       <div className="sm:col-span-2"><Field id="business-name" label={c('business')} placeholder={c('businessPlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required /></div>
       <div className="sm:col-span-2"><Select id="business-country" label={c('country')} value={form.countryCode ?? ''} onChange={changeCountry}><option value="">{c('chooseCountry')}</option>{countries.map(code=><option key={code} value={code}>{countryNames.of(code)}</option>)}</Select></div>
-      <div><Select id="business-currency" label={c('currency')} value={form.baseCurrency} onChange={set('baseCurrency')} disabled={!!business.currencyLockedAt}>{(form.countryCode ? [...new Set([countryCurrencies[form.countryCode],'USD',...(business.currencyLockedAt?[business.baseCurrency]:[])])] : currencies).map(v => <option key={v}>{v}</option>)}</Select><p className="text-xs text-slate-500 mt-1.5">{c('currencyHint')}</p></div>
+      <div><Select id="business-currency" label={c('currency')} value={form.baseCurrency} onChange={set('baseCurrency')}>{(form.countryCode ? [...new Set([countryCurrencies[form.countryCode],'USD'])] : currencies).map(v => <option key={v}>{v}</option>)}</Select><p className="text-xs text-slate-500 mt-1.5">{c('currencyHint')}</p></div>
       {syria ? <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">{c('syriaTaxDisabled')}</div> : <div><Field id="business-tax" label={c('salesTaxRate')} type="number" dir="ltr" min="0" max="100" step="0.0001" value={form.salesTaxRate ?? '0'} onChange={set('salesTaxRate')} required aria-describedby="business-tax-hint" /><p id="business-tax-hint" className="text-xs text-slate-500 mt-1.5">{c('salesTaxHint')}</p></div>}
       <Field id="business-timezone" label={c('timezone')} placeholder={c('timezonePlaceholder')} dir="ltr" value={form.timezone} onChange={set('timezone')} maxLength={80} required />
       <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>

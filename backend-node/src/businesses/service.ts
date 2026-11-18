@@ -45,9 +45,6 @@ export class BusinessService {
         await tx.$queryRaw`SELECT id FROM businesses WHERE id=${businessId}::uuid FOR UPDATE`;
         if(await tx.salePayment.count({where:{businessId}})||await tx.moneyEntry.count({where:{businessId}})||await tx.cashClose.count({where:{businessId}}))throw new ApiError(409,'TIMEZONE_LOCKED','Timezone is fixed after payment activity');
       }
-      if (patch.baseCurrency && patch.baseCurrency !== business.baseCurrency && business.currencyLockedAt) {
-        throw new ApiError(409, 'CURRENCY_LOCKED', 'The currency cannot change after financial activity begins');
-      }
       const { revision, ...data } = patch;
       const countryCode = patch.countryCode === undefined ? business.countryCode : patch.countryCode;
       if (countryCode === 'SY') data.salesTaxRate = '0';
