@@ -22,7 +22,9 @@ export class ReportService{
   if(q.view==='summary'){
    const totals=await summaryTotals(tx,bid,range,{...(q.locationId?{locationId:q.locationId}:{}),...(where.location?{location:where.location}:{})},digits);
    const {expenses,estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue,...publicTotals}=totals;
-   return {...base,...publicTotals,...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue}:{})};
+   const received=purchase?await tx.purchaseDocument.findMany({where:{...scoped,kind:'RECEIPT',status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1}):null;
+   if(received&&received.length>limit)fail('REPORT_TOO_LARGE',422);
+   return {...base,...publicTotals,...(received?{purchases:fixed(received.reduce((sum,r)=>sum+r.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n))}:{}),...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue}:{})};
   }
   if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];

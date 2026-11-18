@@ -1,3 +1,4 @@
+import { currencyFormatter } from '../../lib/currencyFormat';
 import { ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 import { useResource } from '../business-v2/useBusinessApi';
@@ -13,7 +14,7 @@ export default function Receipts({ businessId, timezone, api, c, lang }) {
     {data && data.items.length > 0 && <><Table headers={['date', 'receiptAmount', 'receiptReference']} c={key => c(key === 'empty' ? 'noReceipts' : key)} empty={!data.items.length}>
       {data.items.map(receipt => <tr key={receipt.id}>
         <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{new Date(receipt.paidAt).toLocaleString(lang === 'ar' ? 'ar' : 'en', { timeZone: timezone })}</td>
-        <td className="px-5 py-3 font-semibold text-slate-800 whitespace-nowrap tabular">{new Intl.NumberFormat(lang, { style: 'currency', currency: receipt.currency }).format(receipt.amountMinor / 100)}</td>
+        <td className="px-5 py-3 font-semibold text-slate-800 whitespace-nowrap tabular">{currencyFormatter(lang, { style: 'currency', currency: receipt.currency }).format(receipt.amountMinor / 100)}</td>
         <td className="px-5 py-3 text-slate-500"><span dir="ltr">{receipt.reference}</span></td>
       </tr>)}
     </Table>{data.total > data.pageSize && <Pager data={data} setPage={setPage} c={c} />}</>}

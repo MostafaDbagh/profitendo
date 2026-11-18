@@ -1,10 +1,11 @@
+import { currencyFormatter } from '../../lib/currencyFormat';
 import {BarChart,Bar,Cell,CartesianGrid,ReferenceLine,XAxis,YAxis,Tooltip,ResponsiveContainer,PieChart,Pie} from 'recharts';
 import {panelClass} from './UI';
 const palette={sales:'#059669',returns:'#d97706',expenses:'#0284c7',profit:'#0f766e',loss:'#dc2626',stock:'#64748b'};
 const number=value=>value===null||value===undefined?null:Number.isFinite(Number(value))?Number(value):null;
 export default function DashboardCharts({data,lang}){
  const ar=lang==='ar',t=(en,arabic)=>ar?arabic:en;
- const money=value=>new Intl.NumberFormat(lang,{style:'currency',currency:data.currency}).format(value);
+ const money=value=>currencyFormatter(lang,{style:'currency',currency:data.currency}).format(value);
  const compact=value=>new Intl.NumberFormat(lang,{notation:'compact',maximumFractionDigits:1}).format(value);
  const performance=[
   {key:'netSales',label:t('Net sales','صافي المبيعات'),color:palette.sales},

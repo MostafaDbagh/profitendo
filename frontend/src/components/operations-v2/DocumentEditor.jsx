@@ -1,6 +1,6 @@
 import CopyableCode from '@/components/CopyableCode';
 import ScanModeSelect from './ScanModeSelect';
-import { ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import ProductEntryHelp from './ProductEntryHelp';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { unitLabel } from '../catalogue-v2/units';
@@ -47,7 +47,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
   }catch(e){setError(e.message);}finally{setBusy(false);}
  }
  const validNumber='(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
- return <section className="space-y-5"><button className={buttonClass} disabled={busy||scanning} onClick={close}>{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2><p className="text-sm text-slate-500 mt-1">{c(kind==='ORDER'?'orderHint':'documentHint')}</p></div>
+ return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2><p className="text-sm text-slate-500 mt-1">{c(kind==='ORDER'?'orderHint':'documentHint')}</p></div>
  <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><p className="text-sm font-medium mb-2">{c(key==='location'?'selectedLocation':'selectedSupplier')}</p><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||!!source} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
  {!seed&&<div className={`${panelClass} space-y-3`}>
  <form onSubmit={lookup} className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)] items-end">

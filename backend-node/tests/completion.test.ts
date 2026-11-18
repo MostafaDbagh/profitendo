@@ -433,3 +433,12 @@ it('performance round: concurrent catalogue reads preserve pagination and tenant
  times.sort((a,b)=>a-b);
  console.log('PERFORMANCE_RESULT',JSON.stringify({requests:50,concurrency:5,dataset:'2000+ products',p50Ms:Math.round(times[24]!),p95Ms:Math.round(times[47]!),maxMs:Math.round(times[49]!),elapsedMs:Math.round(performance.now()-started)}));
 });
+
+it('dashboard purchases sum completed receipts and hide purchase values without cost permission',async()=>{
+ const day=new Date().toISOString().slice(0,10),path=`/reports?view=summary&from=${day}&to=${day}`;
+ const before=(await get(path)).body;const r=await receipt();const after=(await get(path)).body;
+ expect(Number(after.purchases)-Number(before.purchases)).toBe(100);
+ const worker=await actor('CASHIER',business,source);
+ await db.membership.updateMany({where:{userId:worker.user.id,businessId:business},data:{permissionOverrides:{'reports.view':true,'catalogue.cost':false}}});
+ const redacted=await get(path,worker);expect(redacted.status).toBe(200);expect(redacted.body).not.toHaveProperty('purchases');
+});

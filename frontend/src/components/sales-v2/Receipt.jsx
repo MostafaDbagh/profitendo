@@ -1,9 +1,10 @@
+import { currencyFormatter } from '../../lib/currencyFormat';
 import { formatQuantity } from '@/lib/quantity';
 import { unitLabel } from '../catalogue-v2/units';
-export function money(value,doc,lang){return new Intl.NumberFormat(lang==='ar'?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:doc.currencyDigits}).format(value);}
+export function money(value,doc,lang){return currencyFormatter(lang==='ar'?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:doc.currencyDigits}).format(value);}
 export default function Receipt({doc,c,lang}) {
  const ar=lang==='ar',amount=v=>money(v,doc,lang);
- const price=v=>new Intl.NumberFormat(ar?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:4}).format(v);
+ const price=v=>currencyFormatter(ar?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:4}).format(v);
  const date=doc.completedAt||(doc.status==='DRAFT'?doc.expiresAt:doc.createdAt)||doc.expiresAt;
  const totals=[['saleSubtotal',doc.subtotal],['saleDiscount',doc.discount],...(Number(doc.taxRate??0)>0||Number(doc.tax??0)>0?[['saleTax',doc.tax??'0']]:[])];
  const footer=doc.status==='CANCELLED'?(ar?'فاتورة ملغاة — لا تُستخدم للتحصيل.':'Cancelled invoice — not for collection.'):c(doc.status==='COMPLETED'?'saleReceiptHint':'saleNoStock');

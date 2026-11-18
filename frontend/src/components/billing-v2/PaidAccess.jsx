@@ -1,3 +1,4 @@
+import { currencyFormatter } from '../../lib/currencyFormat';
 import { useState } from 'react';
 import { Check, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { useResource } from '../business-v2/useBusinessApi';
@@ -23,7 +24,7 @@ export default function PaidAccess({businessId,api,lang}) {
         return <article key={p.id} className={`flex flex-col rounded-xl border bg-white shadow-sm overflow-hidden ${approved?'border-emerald-300':'border-slate-200'}`}>
           <div className="p-5 md:p-6 space-y-5 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold text-lg text-slate-900">{lang==='ar'?p.nameAr:p.name}</h4>{request&&<span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${approved?'bg-emerald-50 text-emerald-700':pending?'bg-amber-50 text-amber-800':'bg-slate-100 text-slate-600'}`}>{c(request.status)}</span>}</div>
-            <p className="flex flex-wrap items-baseline gap-2"><bdi className="text-3xl font-semibold tracking-tight text-slate-900">{new Intl.NumberFormat(lang,{style:'currency',currency:p.currency}).format(p.priceMinor/100)}</bdi><span className="text-sm text-slate-500">/ {p.interval==='YEAR'?t('year','سنة'):t('month','شهر')}</span></p>
+            <p className="flex flex-wrap items-baseline gap-2"><bdi className="text-3xl font-semibold tracking-tight text-slate-900">{currencyFormatter(lang,{style:'currency',currency:p.currency}).format(p.priceMinor/100)}</bdi><span className="text-sm text-slate-500">/ {p.interval==='YEAR'?t('year','سنة'):t('month','شهر')}</span></p>
             <ul className="space-y-2 text-sm text-slate-600">{[[t('Staff places','أماكن الفريق'),p.maxMembers],[t('Warehouses','المستودعات'),p.maxWarehouses],[t('Shops','المتاجر'),p.maxShops]].map(([label,value])=><li key={label} className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" /><span className="font-semibold text-slate-800">{value}</span> {label}</li>)}</ul>
             {request?.reason&&<p className="text-sm text-slate-600 break-words rounded-lg bg-slate-50 p-3">{request.reason}</p>}
           </div>

@@ -1,3 +1,4 @@
+import { currencyFormatter } from './currencyFormat';
 import { getRegionalPrefs, NUMBER_LOCALES } from "./locale";
 
 export function num(v) {
@@ -45,7 +46,7 @@ export function fmtMoney(n, currency) {
   const cur = currency || CURRENT_CURRENCY;
   const nfLocale = NUMBER_LOCALES[getRegionalPrefs().number_format] || "en-US";
   try {
-    return new Intl.NumberFormat(nfLocale, {
+    return currencyFormatter(nfLocale, {
       style: "currency",
       currency: cur,
       minimumFractionDigits: 2,
