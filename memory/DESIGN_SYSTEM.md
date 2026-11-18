@@ -877,3 +877,51 @@ Browser checks passed for all 21 tabs in both languages, keyboard opening,
 closing and overflow at 390/1440. Test-only hidden-tab preferences were overridden
 in the browser response; saved business preferences were not modified.
 Screenshots: `tmp/page-guides/`; frontend production build/public prerender passed.
+
+### Sales discount percentage — 18 November 2026
+
+The item discount editor now accepts a percentage (0–100, up to four decimal
+places) in every currency, with a bilingual helper below the existing Field.
+New receipt lines show the saved percentage; aggregate deductions remain money
+amounts. The API calculates deductions against the rounded line subtotal before
+tax, using existing currency precision, and enforces discount permission/reason.
+An additive nullable sale-line rate preserves historical monetary records.
+Legacy draft amounts are retained exactly until the rate, quantity or pack changes;
+old browser drafts are converted for display without treating their amount as a rate.
+Validation: 28 sales/tax tests in an isolated database, two draft compatibility
+checks, application/test typechecks, production build/prerender, AR/EN 390/1440
+browser checks for limits and request payloads. Browser writes were intercepted.
+Evidence: tmp/product-buttons/percentage-*.png.
+
+### Compact invoice layout — 18 November 2026
+
+Receipt-only sales views now use a centered max-w-2xl card instead of stretching
+across the workspace. The shared receipt uses compact customer/cashier/date
+metadata, a semantic item/quantity/total table and full-width aligned totals.
+No-tax rows stay hidden; cancelled documents use an explicit cancellation footer.
+Existing slate, white and emerald styling, financial amounts and permissions
+are preserved. AR/EN screenshots at 320/768/1024/1440 and the actual cancelled
+invoice at 390/1440: tmp/product-buttons/invoice-layout-* and invoice-real-*.
+Screen/print checks confirm hidden zero tax, visible nonzero tax and no page overflow.
+
+### Copy product identifiers — 18 November 2026
+
+Shared CopyableCode adds a compact Lucide copy button beside displayed SKUs and
+each barcode in catalogue, lookup results, purchases, stock, transfers, FIFO,
+adjustments, import previews and product pickers, including legacy product views.
+LTR code isolation preserves RTL row alignment and leading zeros. Copy actions
+stop row activation, never submit forms, show a check/toast on success and a
+clear failure message when clipboard access is denied. Buttons are hidden in
+print; identifier text remains available to shared table search/export logic.
+Picker copy controls are siblings of selection buttons (no nested buttons).
+Verified clipboard content with owner and cashier accounts in AR/EN at 390/1440,
+plus success/failure and propagation regression tests and production build.
+
+### Quantity display — 18 November 2026
+
+Displayed non-monetary quantities now use shared string-based formatQuantity:
+5.0000 → 5, 2.5000 → 2.5, preserving all nonzero fractional digits without Number
+rounding. Applied to inventory, sales/receipts, purchasing, transfers, adjustments,
+opening previews, packs, FIFO, reports and legacy quantity views. Editable strings,
+stored precision and money formatting are unchanged. Seven precision cases pass;
+frontend build and AR/EN inventory browser checks pass.

@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
@@ -219,7 +220,7 @@ export default function ReturnNew() {
                     <option value="">{t("selectProduct")}</option>
                     {(selectedSale ? selectedSale.items : []).map((l) => (
                       <option key={l.product_id} value={l.product_id}>
-                        {l.name} (×{l.quantity})
+                        {l.name} (×{formatQuantity(l.quantity)})
                       </option>
                     ))}
                   </select>

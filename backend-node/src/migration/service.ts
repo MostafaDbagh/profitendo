@@ -10,10 +10,12 @@ export class MigrationService{
  constructor(readonly auth:AuthService){}
  async preview(ctx:AuthContext,bid:string,input:z.infer<typeof previewSchema>){return this.auth.transaction(async tx=>{
   await requireLocation(this.auth,tx,ctx,bid,input.locationId,'migration.manage');await entitled(tx,bid);
-  const previous=await tx.migrationPreview.findUnique({where:{businessId_clientKey:{businessId:bid,clientKey:input.clientKey}}});if(previous){if(previous.requestHash!==hash(input))fail('IDEMPOTENCY_CONFLICT');return previous;}
+  const products=await tx.product.findMany({where:{businessId:bid,sku:{in:input.rows.map(r=>r.sku)}},select:{sku:true,barcodes:{select:{value:true}}}});
+  const rows=input.rows.map(row=>({...row,barcodes:products.find(p=>p.sku===row.sku)?.barcodes.map(b=>b.value)??[]}));
+  const previous=await tx.migrationPreview.findUnique({where:{businessId_clientKey:{businessId:bid,clientKey:input.clientKey}}});if(previous){if(previous.requestHash!==hash(input))fail('IDEMPOTENCY_CONFLICT');return {...previous,rows};}
   const lines=[];for(const row of input.rows){const p=await tx.product.findUnique({where:{businessId_sku:{businessId:bid,sku:row.sku}}});if(!p||!p.active)fail('MIGRATION_SKU_INVALID',422);if(await stockSnapshot(tx,bid,input.locationId,p.id))fail('OPENING_STOCK_EXISTS');lines.push({productId:p.id,quantity:row.quantity,condition:'RESTOCK' as const});}
   const payload={clientKey:input.clientKey,kind:'OPENING',locationId:input.locationId,reason:input.reason,lines};
-  return tx.migrationPreview.create({data:{businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash:hash(input),payload,actorId:ctx.user.id,expiresAt:new Date(Date.now()+30*60*1000)}});
+  const preview=await tx.migrationPreview.create({data:{businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash:hash(input),payload,actorId:ctx.user.id,expiresAt:new Date(Date.now()+30*60*1000)}});return {...preview,rows};
  });}
  async confirm(ctx:AuthContext,bid:string,id:string){
   // Preview only creates a draft. Approval uses the same opening-stock workflow,

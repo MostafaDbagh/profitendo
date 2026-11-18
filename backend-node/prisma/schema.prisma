@@ -62,6 +62,7 @@ model Business {
   manualPayments ManualSubscriptionPayment[]
   id           String @id @default(uuid()) @db.Uuid
   name         String
+  countryCode String? @map("country_code") @db.VarChar(2)
   salesTaxRate Decimal @default(0) @map("sales_tax_rate") @db.Decimal(7,4)
   baseCurrency String @default("USD") @map("base_currency")
   timezone     String @default("UTC")
@@ -719,6 +720,7 @@ model SaleLine {
   tax Decimal @default(0) @db.Decimal(18,4)
   gross Decimal @db.Decimal(18,4)
   discount Decimal @db.Decimal(18,4)
+  discountPercent Decimal? @map("discount_percent") @db.Decimal(7,4)
   discountReason String @default("") @map("discount_reason")
   total Decimal @db.Decimal(18,4)
   sale Sale @relation(fields:[businessId,saleId],references:[businessId,id],onDelete:Restrict)

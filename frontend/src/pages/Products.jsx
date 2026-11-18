@@ -1,3 +1,5 @@
+import { formatQuantity } from '@/lib/quantity';
+import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, Package, Upload, Download } from "lucide-react";
@@ -260,7 +262,7 @@ export default function Products() {
                         {specLabel(p, t) && (
                           <p className="text-xs text-slate-400" data-testid={`spec-cell-${p.product_id}`}>{specLabel(p, t)}</p>
                         )}
-                        {p.sku && <p className="text-xs text-slate-400 tabular">{p.sku}</p>}
+                        {p.sku && <p className="text-xs text-slate-400 tabular"><CopyableCode>{p.sku}</CopyableCode></p>}
                       </div>
                       {p.is_demo && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
@@ -276,7 +278,7 @@ export default function Products() {
                       {p.stock_qty ?? 0}
                     </span>
                   </td>
-                  <td className="px-5 py-4 tabular text-slate-700">{p.quantity_sold}</td>
+                  <td className="px-5 py-4 tabular text-slate-700">{formatQuantity(p.quantity_sold)}</td>
                   {fin && (
                     <td className={`px-5 py-4 tabular font-semibold ${p.net_profit < 0 ? "text-red-600" : "text-emerald-600"}`}>
                       {fmtMoney(p.net_profit)}

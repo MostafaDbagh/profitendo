@@ -1,0 +1,1 @@
+export const countryCurrencies: Record<string,string> = {SY:'SYP',AE:'AED',SA:'SAR',QA:'QAR',OM:'OMR',JO:'JOD',LB:'LBP',IQ:'IQD',KW:'KWD',BH:'BHD',EG:'EGP',YE:'YER',TR:'TRY',US:'USD',GB:'GBP',DE:'EUR',FR:'EUR',ES:'EUR',IT:'EUR',NL:'EUR',AT:'EUR',BE:'EUR',IE:'EUR',PT:'EUR',GR:'EUR',FI:'EUR',CY:'EUR'};

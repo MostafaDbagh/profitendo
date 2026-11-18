@@ -97,3 +97,12 @@ html[dir="rtl"] .auth-icon-input {
   padding-left: 1rem;
   padding-right: 2.5rem;
 }
+
+/* Keep disabled controls hit-testable so the cursor explains their state.
+   Native disabled semantics still prevent mouse and keyboard activation. */
+button:disabled,
+input[type="submit"]:disabled,
+input[type="button"]:disabled {
+  cursor: not-allowed !important;
+  pointer-events: auto !important;
+}

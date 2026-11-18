@@ -1,3 +1,5 @@
+import { formatQuantity } from '@/lib/quantity';
+import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { ArrowLeft, Pencil, FlaskConical } from "lucide-react";
@@ -129,7 +131,7 @@ export default function ProductDetails() {
                 </span>
               )}
             </div>
-            {p.sku && <p className="text-sm text-slate-400 tabular">{p.sku}</p>}
+            {p.sku && <p className="text-sm text-slate-400 tabular"><CopyableCode>{p.sku}</CopyableCode></p>}
           </div>
         </div>
         {can("products.edit") && (
@@ -145,11 +147,11 @@ export default function ProductDetails() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label={t("sellingPrice")} value={fmtMoney(p.selling_price)} testid="detail-price" />
-        <Stat label={t("fQty")} value={`${p.quantity_sold} ${t("unitsSold")}`} testid="detail-qty" />
+        <Stat label={t("fQty")} value={`${formatQuantity(p.quantity_sold)} ${t("unitsSold")}`} testid="detail-qty" />
         <Stat label={t("revenueLabel")} value={fmtMoney(p.revenue)} testid="detail-revenue" />
         <Stat
           label={t("stockCol")}
-          value={`${p.stock_qty ?? 0}${p.minimum_stock_level > 0 ? ` / ${p.minimum_stock_level}` : ""}`}
+          value={`${formatQuantity(p.stock_qty ?? 0)}${p.minimum_stock_level > 0 ? ` / ${formatQuantity(p.minimum_stock_level)}` : ""}`}
           tone={p.minimum_stock_level > 0 && (p.stock_qty ?? 0) <= p.minimum_stock_level ? "text-amber-600" : "text-slate-900"}
           testid="detail-stock"
         />

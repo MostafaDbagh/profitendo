@@ -30,14 +30,14 @@ export class ReportService{
   const paging={skip:q.export?0:(q.page-1)*25,take:q.export?limit+1:25};
   if(q.view==='stock'){
    if(!q.export&&!q.lowStock)pagedTotal=await tx.stockBalance.count({where:scoped});
-   const data=await tx.stockBalance.findMany({where:scoped,include:{product:true,location:{select:{name:true}}},orderBy:[{locationId:'asc'},{productId:'asc'}],...(q.lowStock?{skip:0,take:limit+1}:paging)});if(data.length>limit)fail('REPORT_TOO_LARGE',422);
+   const data=await tx.stockBalance.findMany({where:scoped,include:{product:{include:{barcodes:{select:{value:true}}}},location:{select:{name:true}}},orderBy:[{locationId:'asc'},{productId:'asc'}],...(q.lowStock?{skip:0,take:limit+1}:paging)});if(data.length>limit)fail('REPORT_TOO_LARGE',422);
    const fifoValues=new Map<string,string>();
    if(cost&&access.business.fifoStartedAt&&data.length){
     const layers=await tx.fifoLayer.findMany({where:{businessId:bid,remaining:{gt:0},OR:data.map(r=>({locationId:r.locationId,productId:r.productId}))},take:100001});if(layers.length>100000)fail('REPORT_TOO_LARGE',422);
     const groups=new Map<string,CostSlice[]>();for(const l of layers){const key=`${l.locationId}:${l.productId}`;const group=groups.get(key)??[];group.push({quantity:l.remaining.toFixed(4),amount:l.remainingCost.toFixed(4),unitCost:l.unitCost.toFixed(4),acquiredAt:l.acquiredAt.toISOString(),originId:l.originId});groups.set(key,group);}
     for(const r of data){const group=groups.get(`${r.locationId}:${r.productId}`)??[];if(group.reduce((n,l)=>n+scaled(l.quantity),0n)!==scaled(r.onHand.toFixed(4)))fail('FIFO_REVIEW_REQUIRED');fifoValues.set(r.id,costOf(group,digits));}
    }
-   rows=data.filter(r=>!q.lowStock||r.onHand.minus(r.reserved).lte(r.product.minimumStock)).map(r=>({location:r.location.name,sku:r.product.sku,product:r.product.name,unit:r.product.unit,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),minimum:r.product.minimumStock.toFixed(4),...(cost?{estimatedValue:fifoValues.get(r.id)??lineGross(r.onHand.toFixed(4),r.product.purchasePrice.toFixed(4),digits)}:{})}));
+   rows=data.filter(r=>!q.lowStock||r.onHand.minus(r.reserved).lte(r.product.minimumStock)).map(r=>({location:r.location.name,sku:r.product.sku,barcodes:r.product.barcodes.map(b=>b.value).join(' | '),product:r.product.name,unit:r.product.unit,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),minimum:r.product.minimumStock.toFixed(4),...(cost?{estimatedValue:fifoValues.get(r.id)??lineGross(r.onHand.toFixed(4),r.product.purchasePrice.toFixed(4),digits)}:{})}));
   }else if(q.view==='sales'){
    const where={...scoped,status:'COMPLETED' as const,completedAt:range};
    if(!q.export)pagedTotal=await tx.sale.count({where});

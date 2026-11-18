@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
@@ -264,7 +265,7 @@ export default function SaleNew() {
                     </div>
                   </div>
                   {p && (parseInt(r.quantity, 10) || 0) > p.stock_qty && (
-                    <p className="col-span-full text-xs text-amber-600 font-medium">⚠ {p.name}: {t("currentStock")} = {p.stock_qty}</p>
+                    <p className="col-span-full text-xs text-amber-600 font-medium">⚠ {p.name}: {t("currentStock")} = {formatQuantity(p.stock_qty)}</p>
                   )}
                 </div>
               );

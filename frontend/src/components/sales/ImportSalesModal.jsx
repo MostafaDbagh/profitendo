@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, Download, Loader2, CheckCircle2, XCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
@@ -161,7 +162,7 @@ export function ImportSalesModal({ open, onClose, onImported }) {
                             <td className="py-2 px-3 tabular text-slate-500">{r.row}</td>
                             <td className="py-2 px-3 tabular text-slate-400">{r.values.invoice_ref || "—"}</td>
                             <td className="py-2 px-3 text-slate-200 max-w-[160px] truncate">{r.values.product || "—"}</td>
-                            <td className="py-2 px-3 tabular text-slate-400">{r.values.quantity ?? "—"}</td>
+                            <td className="py-2 px-3 tabular text-slate-400">{formatQuantity(r.values.quantity ?? "—")}</td>
                             <td className="py-2 px-3">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold ${s.cls}`}>
                                 <s.icon className="w-3 h-3" /> {t(s.key)}{r.reason ? ` · ${t(REASON_KEY[r.reason])}` : ""}

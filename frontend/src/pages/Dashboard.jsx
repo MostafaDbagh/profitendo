@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -83,7 +84,7 @@ function ProductMiniList({ title, products, valueKey, testid }) {
                     {p.name}
                   </p>
                   <p className="text-xs text-slate-400 tabular">
-                    {p.quantity_sold} {t("unitsSold")}
+                    {formatQuantity(p.quantity_sold)} {t("unitsSold")}
                   </p>
                 </div>
                 {p[valueKey] == null ? (
@@ -376,7 +377,7 @@ export default function Dashboard() {
                 >
                   <span className="text-sm font-medium text-slate-800 truncate">{p.name}</span>
                   <span className="text-xs font-bold text-amber-700 tabular whitespace-nowrap">
-                    {p.stock_qty} / {p.minimum_stock_level}
+                    {formatQuantity(p.stock_qty)} / {formatQuantity(p.minimum_stock_level)}
                   </span>
                 </Link>
               </li>

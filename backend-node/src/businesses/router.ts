@@ -1,3 +1,4 @@
+import { countryCurrencies } from './countries.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthService } from '../auth/service.js';
@@ -9,6 +10,7 @@ import { BusinessService } from './service.js';
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) }).strict();
 const currency = z.enum(['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY']);
 const businessPatch = z.object({
+  countryCode: z.string().refine(v => v in countryCurrencies).nullable().optional(),
   salesTaxRate: z.string().regex(/^(0|[1-9]\d?)(\.\d{1,4})?$|^100(?:\.0{1,4})?$/).optional(),
   revision: z.number().int().nonnegative(), name: z.string().trim().min(2).max(120).optional(), baseCurrency: currency.optional(),
   timezone: z.string().max(80).refine(v => { try { new Intl.DateTimeFormat('en', { timeZone: v }); return true; } catch { return false; } }).optional(),

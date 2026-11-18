@@ -1,3 +1,5 @@
+import { formatQuantity } from '@/lib/quantity';
+import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Boxes, AlertTriangle, SlidersHorizontal, Loader2 } from "lucide-react";
@@ -122,10 +124,10 @@ export default function Inventory() {
                     <Link to={`/products/${r.product_id}`} className="font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
                       {r.name}
                     </Link>
-                    {r.sku && <p className="text-xs text-slate-400 tabular">{r.sku}</p>}
+                    {r.sku && <p className="text-xs text-slate-400 tabular"><CopyableCode>{r.sku}</CopyableCode></p>}
                   </td>
-                  <td className="px-5 py-3.5 tabular font-bold text-slate-900" data-testid={`stock-${r.product_id}`}>{r.stock_qty}</td>
-                  <td className="px-5 py-3.5 tabular text-slate-500">{r.minimum_stock_level}</td>
+                  <td className="px-5 py-3.5 tabular font-bold text-slate-900" data-testid={`stock-${r.product_id}`}>{formatQuantity(r.stock_qty)}</td>
+                  <td className="px-5 py-3.5 tabular text-slate-500">{formatQuantity(r.minimum_stock_level)}</td>
                   <td className="px-5 py-3.5">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${statusBadge[r.status]}`} data-testid={`status-${r.product_id}`}>
                       {t(r.status === "ok" ? "stOk" : r.status === "low" ? "stLow" : "stOut")}
@@ -172,7 +174,7 @@ export default function Inventory() {
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">{t(`mv_${m.movement_type}`)}</span>
                   </td>
                   <td className={`px-5 py-3 tabular font-bold ${m.quantity >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {m.quantity >= 0 ? "+" : ""}{m.quantity}
+                    {m.quantity >= 0 ? "+" : ""}{formatQuantity(m.quantity)}
                   </td>
                   <td className="px-5 py-3 text-slate-500 tabular">{m.reference_number || "—"}</td>
                   <td className="px-5 py-3 text-slate-500">{m.user_name}</td>
@@ -213,10 +215,10 @@ export default function Inventory() {
                             className="font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
                             {r.name}
                           </Link>
-                          {r.sku && <p className="text-xs text-slate-400 tabular">{r.sku}</p>}
+                          {r.sku && <p className="text-xs text-slate-400 tabular"><CopyableCode>{r.sku}</CopyableCode></p>}
                         </td>
-                        <td className="py-2.5 pe-3 tabular font-bold text-slate-900">{r.stock_qty}</td>
-                        <td className="py-2.5 pe-3 tabular text-slate-500">{r.minimum_stock_level}</td>
+                        <td className="py-2.5 pe-3 tabular font-bold text-slate-900">{formatQuantity(r.stock_qty)}</td>
+                        <td className="py-2.5 pe-3 tabular text-slate-500">{formatQuantity(r.minimum_stock_level)}</td>
                         <td className="py-2.5 tabular font-bold text-red-600">{shortage > 0 ? `-${shortage}` : "—"}</td>
                       </tr>
                     );

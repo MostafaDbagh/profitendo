@@ -1,3 +1,4 @@
+import { countryCurrencies } from './countries.js';
 import { customRole, customRoleCatalog, roleGrants } from './custom-roles.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { AuthService, AuthContext } from '../auth/service.js';
@@ -6,7 +7,7 @@ import { ApiError } from '../errors.js';
 import { requireBusiness } from './access.js';
 import { effectivePermissions, PERMISSIONS, permissionKeys, roleCatalog, type Permission } from './permissions.js';
 export type Page = { page: number; pageSize: number };
-export type BusinessPatch = { revision: number; salesTaxRate?: string; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
+export type BusinessPatch = { revision: number; countryCode?: string | null; salesTaxRate?: string; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
 export type MemberPatch = { revision: number; customRoleId?: string | null; role?: 'OPERATIONS_MANAGER' | 'WAREHOUSE_STAFF' | 'SHOP_MANAGER' | 'CASHIER' | 'VIEWER'; permissionOverrides?: Partial<Record<Permission, boolean>>; active?: boolean };
 const conflict = () => new ApiError(409, 'REVISION_CONFLICT', 'This record changed. Reload it before saving.');
 const missing = () => new ApiError(404, 'NOT_FOUND', 'Record not found');
@@ -48,6 +49,11 @@ export class BusinessService {
         throw new ApiError(409, 'CURRENCY_LOCKED', 'The currency cannot change after financial activity begins');
       }
       const { revision, ...data } = patch;
+      const countryCode = patch.countryCode === undefined ? business.countryCode : patch.countryCode;
+      if (countryCode === 'SY') data.salesTaxRate = '0';
+      if (countryCode && ![countryCurrencies[countryCode], 'USD'].includes(patch.baseCurrency ?? business.baseCurrency)) {
+        throw new ApiError(422, 'COUNTRY_CURRENCY_REQUIRED', 'Choose the local currency or USD');
+      }
       const updated = await tx.business.updateMany({ where: { id: businessId, revision }, data: { ...data, revision: { increment: 1 } } });
       if (!updated.count) throw conflict();
       const changes = Object.fromEntries(Object.entries(data).map(([key, after]) => [key, { before: business[key as keyof typeof data], after }]));

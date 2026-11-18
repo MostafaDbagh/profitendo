@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, ShoppingBag, XCircle, Pencil, Undo2, Download, Upload } from "lucide-react";
@@ -133,7 +134,7 @@ export default function Purchases() {
                           <div key={j} className="flex items-baseline gap-1.5 text-xs leading-5">
                             <span className="font-medium text-slate-700 truncate">{it.name}</span>
                             <span className="text-slate-400 tabular whitespace-nowrap">
-                              × {it.quantity}{unit ? ` ${unit}` : ""}
+                              × {formatQuantity(it.quantity)}{unit ? ` ${unit}` : ""}
                             </span>
                           </div>
                         );

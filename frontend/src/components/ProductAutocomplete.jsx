@@ -1,3 +1,5 @@
+import { formatQuantity } from '@/lib/quantity';
+import CopyableCode from './CopyableCode';
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Package } from "lucide-react";
 
@@ -92,19 +94,22 @@ export function ProductAutocomplete({ products, value, onPick, onAdd, index, pre
             </div>
           )}
           {matches.map((p, j) => (
+            <div key={p.product_id}>
             <button
-              key={p.product_id}
               type="button"
               data-testid={`${prefix}-option-${index}-${p.product_id}`}
-              onMouseDown={(e) => { e.preventDefault(); pick(p); }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(p)}
               onMouseEnter={() => setHi(j)}
               className={`w-full text-start px-3 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
                 j === hi ? "bg-emerald-50 text-emerald-800" : "text-slate-700"
               } ${p.product_id === value ? "font-bold" : ""}`}
             >
-              <span className="truncate">{p.name}{p.sku ? ` · ${p.sku}` : ""}</span>
-              <span className="text-[11px] text-slate-400 tabular shrink-0">{p.stock_qty ?? ""}</span>
+              <span className="truncate">{p.name}</span>
+              <span className="text-[11px] text-slate-400 tabular shrink-0">{formatQuantity(p.stock_qty ?? "")}</span>
             </button>
+            {p.sku && <span className="block px-3 pb-1 text-xs text-slate-500" onMouseDown={e=>e.preventDefault()}><CopyableCode>{p.sku}</CopyableCode></span>}
+            </div>
           ))}
         </div>
       )}

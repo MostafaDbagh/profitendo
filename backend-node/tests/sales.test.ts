@@ -262,3 +262,42 @@ it('blocks suspended businesses and inactive products without poisoning checkout
  expect(await stock(source,p)).toBe('5.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(0);
  await db.product.update({where:{id:p},data:{active:true}});expect((await checkout(d,input)).status).toBe(200);expect(await stock(source,p)).toBe('4.0000');expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(1);
 });
+
+it('prices percentage discounts server-side, persists rates and validates permissions and range',async()=>{
+ for(const rate of ['-1','100.0001','101','١٠','1.23456'])expect((await write('',body({lines:[{productId:product,quantity:'1',discountPercent:rate}]}))).status).toBe(422);
+ expect((await write('',body({lines:[{productId:product,quantity:'1',discountPercent:'10',discount:'1',discountReason:'Promotion discount'}]}))).status).toBe(422);
+ expect((await write('',body({lines:[{productId:product,quantity:'1',discountPercent:'10',discountReason:'Promotion discount'}]}),cashier)).status).toBe(403);
+ expect((await write('',body({lines:[{productId:product,quantity:'1',discountPercent:'10'}]}))).body.error.code).toBe('DISCOUNT_REASON_REQUIRED');
+ const p=await funded();
+ const d=await draft({lines:[{productId:p,quantity:'2',discountPercent:'12.5',discountReason:'Promotion discount'}]});
+ expect(d.subtotal).toBe('24');expect(d.discount).toBe('3');expect(d.total).toBe('21');expect(d.lines[0].discountPercent).toBe('12.5');
+ expect((await get(`/${d.id}`)).body.lines[0].discountPercent).toBe('12.5');
+ const edited=await write(`/${d.id}`,{revision:d.revision,lines:[{productId:p,quantity:'4',discountPercent:'12.5',discountReason:'Promotion discount'}]},owner,'patch');
+ expect(edited.status).toBe(200);expect(edited.body.discount).toBe('6');expect(edited.body.total).toBe('42');
+ const free=await draft({lines:[{productId:p,quantity:'1',discountPercent:'100',discountReason:'Complimentary item'}]});expect(free.total).toBe('0');
+ const original=await db.business.findUniqueOrThrow({where:{id:business}});
+ try{
+  for(const currency of ['USD','SYP']){
+   await db.business.update({where:{id:business},data:{baseCurrency:currency}});
+   const quoted=await draft({lines:[{productId:p,quantity:'1',discountPercent:'10',discountReason:'Promotion discount'}]});
+   expect(quoted.lines[0].discountPercent).toBe('10');expect(quoted.discount).toBe(currency==='SYP'?'1':'1.2');expect(quoted.total).toBe(currency==='SYP'?'11':'10.8');
+  }
+ }finally{await db.business.update({where:{id:business},data:{baseCurrency:original.baseCurrency}});}
+});
+
+it('enforces country currencies and Syria zero tax on the server',async()=>{
+ const configure=async(patch:object)=>request(app).patch(`/api/businesses/${business}`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:(await db.business.findUniqueOrThrow({where:{id:business}})).revision,...patch});
+ try {
+  const saved=await configure({countryCode:'SY',salesTaxRate:'15'});
+  expect(saved.status,saved.text).toBe(200);expect(Number(saved.body.salesTaxRate)).toBe(0);
+  expect(Number((await draft()).tax)).toBe(0);
+  expect((await configure({salesTaxRate:'20'})).body.salesTaxRate).toBe('0');
+  expect((await configure({countryCode:'ZZ'})).status).toBe(422);
+  expect((await configure({baseCurrency:'SYP'})).status).toBe(200);
+  expect((await configure({baseCurrency:'AED'})).body.error.code).toBe('COUNTRY_CURRENCY_REQUIRED');
+  await configure({baseCurrency:'USD'});
+  await db.business.update({where:{id:business},data:{currencyLockedAt:new Date()}});
+  expect((await configure({baseCurrency:'SYP'})).body.error.code).toBe('CURRENCY_LOCKED');
+  for(const countryCode of ['AE','SA','QA','OM','JO','LB'])expect((await configure({countryCode,baseCurrency:'USD'})).status).toBe(200);
+ } finally {await configure({countryCode:null,salesTaxRate:'0'});}
+});

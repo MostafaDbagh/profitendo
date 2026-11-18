@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
@@ -106,7 +107,7 @@ export function PurchaseReturnModal({ open, onClose, purchases, preselect, onDon
                   {purchase.items.map((l) => (
                     <tr key={l.product_id} className="border-b border-slate-100 last:border-0">
                       <td className="py-2 px-3 text-slate-700">{l.product_name}</td>
-                      <td className="py-2 px-2 text-center tabular text-slate-500">{l.quantity}</td>
+                      <td className="py-2 px-2 text-center tabular text-slate-500">{formatQuantity(l.quantity)}</td>
                       <td className="py-2 px-2 text-center tabular text-slate-500">{l.returned_qty || 0}</td>
                       <td className="py-2 px-2 text-center tabular text-slate-500">{fmtMoney(l.unit_cost)}</td>
                       <td className="py-2 px-2">

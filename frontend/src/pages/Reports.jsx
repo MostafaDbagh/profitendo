@@ -1,3 +1,4 @@
+import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import api from "../lib/api";
@@ -298,8 +299,8 @@ export default function Reports() {
                   {data.rows.map((r) => (
                     <tr key={r.product_id} className="border-b border-slate-50">
                       <td className={`${cell} font-medium`}>{r.name}</td>
-                      <td className={`${cell} tabular`}>{r.stock_qty}</td>
-                      <td className={`${cell} tabular`}>{r.minimum_stock_level}</td>
+                      <td className={`${cell} tabular`}>{formatQuantity(r.stock_qty)}</td>
+                      <td className={`${cell} tabular`}>{formatQuantity(r.minimum_stock_level)}</td>
                       <td className={cell}>{t(r.status === "ok" ? "stOk" : r.status === "low" ? "stLow" : "stOut")}</td>
                       {fin && <td className={`${cell} tabular`}>{fmtMoney(r.stock_value || 0)}</td>}
                     </tr>

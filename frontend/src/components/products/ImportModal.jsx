@@ -1,3 +1,4 @@
+import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, Download, Loader2, CheckCircle2, XCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
@@ -189,7 +190,7 @@ export function ImportModal({ open, onClose, onImported }) {
                           <tr key={r.row} className="border-b border-slate-700/30" data-testid={`import-row-${r.row}`}>
                             <td className="py-2 px-3 tabular text-slate-500">{r.row}</td>
                             <td className="py-2 px-3 text-slate-200 max-w-[160px] truncate">{r.values.name || "—"}</td>
-                            <td className="py-2 px-3 tabular text-slate-400">{r.values.sku || "—"}</td>
+                            <td className="py-2 px-3 tabular text-slate-400">{r.values.sku ? <CopyableCode>{r.values.sku}</CopyableCode> : "—"}</td>
                             <td className="py-2 px-3 tabular text-slate-400">{r.values.selling_price ?? "—"}</td>
                             <td className="py-2 px-3 tabular text-slate-400">{r.values.stock_qty ?? "—"}</td>
                             <td className="py-2 px-3">
