@@ -215,3 +215,9 @@ it('routes service and feature requests to platform support and scopes customer 
  expect((await write('/support/tickets',{businessId:bid,category:'FEATURE',subject:' ',body:' '},owner)).status).toBe(422);
  expect((await write('/support/tickets',{businessId:bid,category:'SERVICE',subject:'Unauthorized request',body:'Test request'},other)).status).toBe(403);
 });
+
+it('limits malformed contact bursts even when forwarded IP headers change',async()=>{
+ let last;
+ for(let i=0;i<11;i++)last=await request(app).post('/api/support/public').set('Origin',settings.appOrigin).set('X-Forwarded-For',`198.51.100.${i}`).send({website:'bot-filled'});
+ expect(last!.status).toBe(429);expect(last!.headers['retry-after']).toBe('60');
+});

@@ -5,9 +5,10 @@ import { authHttp } from '../auth/http.js';
 import { digest,randomToken,equal } from '../auth/crypto.js';
 import { requirePlatform } from '../platform/service.js';
 import { ApiError,validateBody } from '../errors.js';
-const body=z.string().trim().min(2).max(5000),category=z.enum(['SUBSCRIPTION','BILLING','TECHNICAL','GENERAL','SERVICE','FEATURE']);
-const newTicket=z.object({subject:z.string().trim().min(3).max(160),category,body,businessId:z.uuid().optional()}).strict();
-const publicTicket=newTicket.omit({businessId:true}).extend({name:z.string().trim().min(2).max(100),email:z.email().max(254),website:z.string().max(0).optional()}).strict();
+export const contactText=(min:number,max:number)=>z.string().max(max).transform(v=>v.normalize('NFC').replace(/\r\n?/g,'\n').trim()).pipe(z.string().min(min).max(max).refine(v=>!/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(v),'Invalid control characters'));
+const body=contactText(2,5000),category=z.enum(['SUBSCRIPTION','BILLING','TECHNICAL','GENERAL','SERVICE','FEATURE']);
+const newTicket=z.object({subject:contactText(3,160),category,body,businessId:z.uuid().optional()}).strict();
+const publicTicket=newTicket.omit({businessId:true}).extend({name:contactText(2,100),email:z.string().trim().toLowerCase().pipe(z.email().max(254)),website:z.string().max(0).optional()}).strict();
 const invalid=()=>new ApiError(404,'NOT_FOUND','Request not found');
 export function supportRouter(auth:AuthService){
  const router=Router(),{origin,attach,full,csrf,ctx}=authHttp(auth);
@@ -21,8 +22,9 @@ export function supportRouter(auth:AuthService){
   else if(!token||token.length!==43||!row.guestTokenHash||!equal(digest(token),row.guestTokenHash))throw invalid();
   return row;
  }
- router.post('/public',validateBody(publicTicket),async(req,res)=>{
-  await auth.limit('contact-ip',req.ip??'',5,3600);await auth.limit('contact-email',req.body.email.toLowerCase(),3,3600);const token=randomToken();
+ router.post('/public',async(req,res,next)=>{res.setHeader('Retry-After','60');await auth.limit('contact-attempt',req.ip??'',10,60);res.removeHeader('Retry-After');next();},validateBody(publicTicket),async(req,res)=>{
+  res.setHeader('Retry-After','3600');
+  await auth.limit('contact-ip',req.ip??'',5,3600);await auth.limit('contact-email',req.body.email.toLowerCase(),3,3600);res.removeHeader('Retry-After');const token=randomToken();
   const row=await auth.db.supportTicket.create({data:{name:req.body.name,email:req.body.email.toLowerCase(),subject:req.body.subject,category:req.body.category,guestTokenHash:digest(token),messages:{create:{body:req.body.body}}}});
   res.status(201).json({id:row.id,token});
  });

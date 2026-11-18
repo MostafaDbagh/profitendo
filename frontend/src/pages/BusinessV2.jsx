@@ -17,7 +17,7 @@ import Suppliers from '../components/operations-v2/Suppliers';
 import Purchases from '../components/operations-v2/Purchases';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Package, ShoppingBag, Boxes, Receipt, Building2, Users, ShieldCheck, Mail, History, ArrowLeftRight, ShoppingCart, RotateCcw, ClipboardCheck, Wallet, BarChart3, Upload } from 'lucide-react';
+import { Settings as SettingsIcon, Package, ShoppingBag, Boxes, Receipt, Building2, Users, ShieldCheck, LogOut, History, ArrowLeftRight, ShoppingCart, RotateCcw, ClipboardCheck, Wallet, BarChart3, Upload } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Seo } from '../components/Seo';
 import { businessCopy } from '../components/business-v2/copy';
@@ -33,6 +33,9 @@ const sections = [ ['dashboard',null,BarChart3], ['reports','reports.view',BarCh
 function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const { data: context, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [params,setParams]=useSearchParams();
+  const navigate=useNavigate();
+  const [loggingOut,setLoggingOut]=useState(false),[logoutError,setLogoutError]=useState('');
+  async function logout(){if(loggingOut)return;setLoggingOut(true);setLogoutError('');try{await api('/auth/logout',{method:'POST',body:{}});navigate('/auth-v2',{replace:true});}catch(e){setLogoutError(e.message);}finally{setLoggingOut(false);}}
   const [savedPreferences,setSavedPreferences]=useState(null);
   const section=params.get('tab')||'dashboard',setSection=tab=>{setParams({tab});requestScroll();};
   const {contentRef,requestScroll}=useTabScroll(section);
@@ -46,7 +49,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName }) {
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const Component = { dashboard:Dashboard,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];
   return <DraftScope.Provider value={{...context,lang}}><UpgradeContext.Provider value={{canUpgrade:!!context.permissions['billing.manage'],onUpgrade:()=>setSection('billing'),lang}}><div className="md:flex min-w-0">
-    <nav aria-label={c('title')} className="md:w-72 shrink-0 bg-white border-b md:border-b-0 md:border-e border-slate-200 p-4 md:p-6"><div className="flex flex-wrap md:flex-col gap-2">{visible.map(([key, , Icon]) => <button key={key} type="button" aria-current={current === key ? 'page' : undefined} onClick={() => setSection(key)} className={`flex items-center gap-3 text-start px-4 py-3 rounded-xl border text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${key === 'security' ? 'mt-4 border-t border-slate-200' : ''} ${current === key ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'text-slate-600 border-transparent hover:bg-slate-50'}`}><Icon className="w-5 h-5" aria-hidden="true" />{c(key)}</button>)}</div></nav>
+    <nav aria-label={c('title')} className="md:w-72 shrink-0 bg-white border-b md:border-b-0 md:border-e border-slate-200 p-4 md:p-6"><div className="flex flex-wrap md:flex-col gap-2">{visible.map(([key, , Icon]) => <button key={key} type="button" aria-current={current === key ? 'page' : undefined} onClick={() => setSection(key)} className={`flex items-center gap-3 text-start px-4 py-3 rounded-xl border text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${key === 'security' ? 'mt-4 border-t border-slate-200' : ''} ${current === key ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'text-slate-600 border-transparent hover:bg-slate-50'}`}><Icon className="w-5 h-5" aria-hidden="true" />{c(key)}</button>)}<button type="button" disabled={loggingOut} onClick={logout} className="flex items-center gap-3 text-start px-4 py-3 mt-4 rounded-xl border border-red-100 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"><LogOut className="w-5 h-5 rtl:rotate-180" aria-hidden="true"/>{c('logout')}</button><Feedback error={logoutError} c={c}/></div></nav>
     <main ref={contentRef} tabIndex={-1} className="outline-none flex-1 min-w-0 px-4 py-6 md:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/><PageGuide key={`guide-${current}`} section={current} lang={lang} title={c(current)}/><Component visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} key={`${current}-${context.business.revision}`} {...{ context, api, c, lang, reload, onName }} />{current==='settings'&&<TabPreferences {...{context,api,c,lang,availableTabs,hiddenTabs,tabOrder}} onTabsSaved={setSavedPreferences}/>}</div></div></main>
   </div></UpgradeContext.Provider></DraftScope.Provider>;
 }

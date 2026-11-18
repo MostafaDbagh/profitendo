@@ -431,3 +431,17 @@ it('creates hired staff immediately with assigned locations and no invitation em
   expect(await db.invitation.count({where:{email}})).toBe(0);
  }finally{mail.mockRestore();await db.locationAssignment.deleteMany({where:{locationId:location.id}});await db.location.delete({where:{id:location.id}});}
 });
+
+it('security round: direct member creation rejects foreign locations, staff escalation and platform bypass without writes',async()=>{
+ const location=await db.location.create({data:{businessId:b,code:'SEC-FOREIGN',name:'Private shop',kind:'SHOP'}});
+ const staff=await actor('CASHIER'),platform=await actor(undefined,a,'SUPER_ADMIN');
+ const body={name:'Forbidden employee',email:`security-${randomUUID()}@example.test`,password:'Security test password 123!',role:'CASHIER',locationIds:[location.id]};
+ try{
+  expect((await write(`/${a}/members`,body,ownerA,'post')).status).toBe(404);
+  expect((await write(`/${a}/members`,body,staff,'post')).status).toBe(403);
+  expect((await write(`/${a}/members`,body,platform,'post')).status).toBe(403);
+  expect((await write(`/${b}/members`,body,ownerA,'post')).status).toBe(403);
+  expect((await write(`/${a}/members`,{...body,role:'OWNER'},ownerA,'post')).status).toBe(422);
+  expect(await db.authUser.findUnique({where:{email:body.email}})).toBeNull();
+ }finally{await db.location.delete({where:{id:location.id}});}
+});

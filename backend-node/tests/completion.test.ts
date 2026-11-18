@@ -420,3 +420,16 @@ it('accounting QA: invalid quantities and duplicate products never create adjust
  expect(await db.adjustment.count({where:{businessId:business}})).toBe(before);
  expect(await stock(source,p)).toBe('10.0000');
 });
+
+it('performance round: concurrent catalogue reads preserve pagination and tenant isolation',async()=>{
+ const readers=await Promise.all(Array.from({length:5},()=>actor('OWNER')));
+ const times:number[]=[];const started=performance.now();
+ for(let batch=0;batch<10;batch++)await Promise.all(Array.from({length:5},async(_,index)=>{
+  const start=performance.now();
+  const response=await request(app).get(`/api/businesses/${business}/products/insights?page=${index+1}`).set('Cookie',cookie(readers[index]!));
+  times.push(performance.now()-start);expect(response.status,response.text).toBe(200);expect(response.body.items.length).toBeLessThanOrEqual(25);
+  for(const row of response.body.items)expect(row.businessId===undefined||row.businessId===business).toBe(true);
+ }));
+ times.sort((a,b)=>a-b);
+ console.log('PERFORMANCE_RESULT',JSON.stringify({requests:50,concurrency:5,dataset:'2000+ products',p50Ms:Math.round(times[24]!),p95Ms:Math.round(times[47]!),maxMs:Math.round(times[49]!),elapsedMs:Math.round(performance.now()-started)}));
+});

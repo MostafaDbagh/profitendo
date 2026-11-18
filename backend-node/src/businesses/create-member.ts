@@ -8,6 +8,9 @@ import {requireLocation} from '../locations/access.js';
 import {requireMemberCapacity} from '../billing/entitlements.js';
 import {ApiError} from '../errors.js';
 export async function createMember(auth:AuthService,ctx:AuthContext,input:{businessId:string;name:string;email:string;password:string;role?:Exclude<MembershipRole,'OWNER'>;customRoleId?:string;locationIds:string[]}){
+ // Reject unauthorized callers before spending CPU on password hashing.
+ // The write transaction still rechecks authority to prevent revocation races.
+ await auth.transaction(tx=>requireBusiness(auth,tx,ctx,input.businessId,'team.manage'));
  const hash=await passwordHash(input.password);
  return auth.transaction(async tx=>{
   const actor=await requireBusiness(auth,tx,ctx,input.businessId,'team.manage');
