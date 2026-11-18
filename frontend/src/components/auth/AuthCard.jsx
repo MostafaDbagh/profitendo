@@ -1,40 +1,11 @@
 import { Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const inputCls = "w-full ps-10 pe-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
+const inputCls = "auth-icon-input w-full py-2.5 rounded-lg border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
 
 const TITLES = { login: "loginTitle", kiosk: "kioskLoginTitle", "owner-setup": "ownerSetupTitle", "kiosk-setup": "setupPasswordTitle", register: "registerTitle" };
 
-function GoogleButton({ testid, onClick, t }) {
-  return (
-    <button
-      data-testid={testid}
-      onClick={onClick}
-      type="button"
-      className="w-full py-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors duration-150 flex items-center justify-center gap-2"
-    >
-      <svg className="w-4 h-4" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-        <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.94l3.66-2.84z" />
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-      </svg>
-      {t("googleBtn")}
-    </button>
-  );
-}
-
-function Divider({ t }) {
-  return (
-    <div className="flex items-center gap-3 my-5">
-      <div className="h-px flex-1 bg-slate-200" />
-      <span className="text-xs text-slate-400">{t("orDivider")}</span>
-      <div className="h-px flex-1 bg-slate-200" />
-    </div>
-  );
-}
-
-export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit, onGoogle, t }) {
+export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit, t }) {
   const isSetup = mode === "owner-setup" || mode === "kiosk-setup";
   const subtitle =
     mode === "login" ? t("loginSubtitle")
@@ -89,7 +60,7 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
               onChange={set("password")} placeholder={t("passwordPh")} className={inputCls} />
           </div>
           {mode === "login" && (
-            <div className="text-end mt-1.5">
+            <div className="text-end rtl:text-start mt-1.5">
               <Link to="/forgot-password" data-testid="forgot-password-link"
                 className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
                 {t("forgotLink")}
@@ -118,17 +89,8 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
         </button>
       </form>
 
-      {(mode === "login" || mode === "register") && (
-        <>
-          <Divider t={t} />
-          <GoogleButton testid="google-login-btn" onClick={onGoogle} t={t} />
-        </>
-      )}
-
       {mode === "owner-setup" && (
         <>
-          <Divider t={t} />
-          <GoogleButton testid="google-login-btn-setup" onClick={onGoogle} t={t} />
           <p className="text-sm text-slate-500 text-center mt-4">
             <button data-testid="setup-to-login-link" onClick={() => setMode("login")}
               className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors">

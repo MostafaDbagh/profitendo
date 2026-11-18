@@ -70,12 +70,6 @@ export default function Auth() {
     }
   };
 
-  const googleLogin = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-  };
-
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
@@ -101,7 +95,6 @@ export default function Auth() {
             setMode={setMode}
             loading={loading}
             onSubmit={submit}
-            onGoogle={googleLogin}
             t={t}
           />
         </div>

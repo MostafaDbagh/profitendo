@@ -87,3 +87,13 @@ html[dir="rtl"] input::placeholder,
 html[dir="rtl"] textarea::placeholder {
   text-align: right !important;
 }
+
+/* Icon placement follows the page direction, even for LTR email/usernames. */
+.auth-icon-input {
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+html[dir="rtl"] .auth-icon-input {
+  padding-left: 1rem;
+  padding-right: 2.5rem;
+}
