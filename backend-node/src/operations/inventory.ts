@@ -43,10 +43,37 @@ export class InventoryService{
  constructor(readonly auth:AuthService){}
  async list(ctx:AuthContext,businessId:string,locationId:string,page:number,search:string,movements:boolean){
   return this.auth.transaction(async tx=>{
-   await requireLocation(this.auth,tx,ctx,businessId,locationId,'inventory.view',false);
+   const access=await requireLocation(this.auth,tx,ctx,businessId,locationId,'inventory.view',false);
    const where={businessId,locationId,...(search?{product:{OR:[{name:{contains:search,mode:'insensitive' as const}},{sku:{contains:search,mode:'insensitive' as const}},{barcodes:{some:{value:search}}}]}}:{})};
    if(movements){const rows=await tx.stockMovement.findMany({where,include:{product:{select:{name:true,sku:true,barcodes:{select:{value:true}},unit:true}}},skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}]});
-    return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(({costAmount,costLayers,...r})=>({...r,quantity:r.quantity.toFixed(4)}))};}
+    const transferIds=rows.filter(row=>['TRANSFER_OUT','TRANSFER_IN','TRANSFER_RETURN'].includes(row.type)).map(row=>row.sourceId);
+    const receiptIds=rows.filter(row=>row.type==='PURCHASE_RECEIPT').map(row=>row.sourceId);
+    const transfers=await tx.stockTransfer.findMany({where:{businessId,id:{in:transferIds}},select:{id:true,sourceId:true,destinationId:true}});
+    const locations=await tx.location.findMany({
+     where:{businessId,id:{in:transfers.flatMap(doc=>[doc.sourceId,doc.destinationId])},
+      ...(access.permissions['locations.all']?{}:{assignments:{some:{businessId,membershipId:access.membership.id}}})},
+     select:{id:true,name:true},
+    });
+    const receipts=access.permissions['suppliers.view']?await tx.purchaseDocument.findMany({
+     where:{businessId,id:{in:receiptIds}},select:{id:true,supplier:{select:{name:true}}},
+    }):[];
+    const locationNames=new Map(locations.map(location=>[location.id,location.name]));
+    const transferById=new Map(transfers.map(doc=>[doc.id,doc]));
+    const supplierByReceipt=new Map(receipts.map(doc=>[doc.id,doc.supplier.name]));
+    return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(({costAmount,costLayers,...row})=>{
+     const outgoing=row.quantity.isNegative();
+     let from=outgoing?access.location.name:null;
+     let to=outgoing?null:access.location.name;
+     const transfer=['TRANSFER_OUT','TRANSFER_IN','TRANSFER_RETURN'].includes(row.type)?transferById.get(row.sourceId):undefined;
+     if(transfer){
+      const returned=row.type==='TRANSFER_RETURN';
+      from=locationNames.get(returned?transfer.destinationId:transfer.sourceId)??null;
+      to=locationNames.get(returned?transfer.sourceId:transfer.destinationId)??null;
+     }else if(row.type==='PURCHASE_RECEIPT'){
+      from=supplierByReceipt.get(row.sourceId)??null;
+     }
+     return {...row,quantity:row.quantity.toFixed(4),from,to};
+    })};}
    const rows=await tx.stockBalance.findMany({where,include:{product:{select:{name:true,sku:true,barcodes:{select:{value:true}},unit:true,minimumStock:true}}},skip:(page-1)*25,take:25,orderBy:[{product:{name:'asc'}},{productId:'asc'},{locationId:'asc'}]});
    return {page,pageSize:25,total:await tx.stockBalance.count({where}),items:rows.map(r=>({...r,onHand:r.onHand.toFixed(4),reserved:r.reserved.toFixed(4),available:fixed(scaled(r.onHand.toFixed(4))-scaled(r.reserved.toFixed(4))),lowStock:r.onHand.minus(r.reserved).lte(r.product.minimumStock),product:{...r.product,minimumStock:r.product.minimumStock.toFixed(4)}}))};
   });

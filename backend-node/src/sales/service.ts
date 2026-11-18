@@ -36,7 +36,7 @@ export class SalesService{
   if(!access.permissions['sales.create']||(doc.actorId!==access.user.id&&!access.permissions['sales.manage']))fail('FORBIDDEN',403);
   if(doc.status!=='DRAFT')fail('SALE_STATE');if(doc.revision!==revision)fail('REVISION_CONFLICT');
  }
- private async price(tx:Tx,bid:string,input:SalePatch['lines'],access:Access){
+ private async price(tx:Tx,bid:string,input:SalePatch['lines'],access:Access,locationId:string){
   const digits=currencyDigits(access.business.baseCurrency),lines=[],taxRate=access.business.countryCode==='SY'?'0.0000':access.business.salesTaxRate.toFixed(4);let subtotal=0n,discount=0n,tax=0n;
   for(const entry of input){
    const p=await tx.product.findFirst({where:{businessId:bid,id:entry.productId,active:true},include:{barcodes:true,packs:true}});if(!p)fail('PRODUCT_INACTIVE');
@@ -48,11 +48,18 @@ export class SalesService{
    const lineTax=exclusiveTax(checked(scaled(gross)-reduction),taxRate,digits);tax+=scaled(lineTax);
    lines.push({businessId:bid,productId:p.id,packId:entry.packId,unitKey:entry.packId??'BASE',sku:p.sku,name:p.name,unit:p.unit,barcodes:p.barcodes.map(b=>b.value),packName:pack?.name??null,factor,quantity:entry.quantity,baseQuantity,unitPrice:p.sellingPrice.toFixed(4),unitCost:p.purchasePrice.toFixed(4),gross,discount:checked(reduction),discountPercent:entry.discountPercent??null,discountReason:entry.discountReason,tax:lineTax,total:checked(scaled(gross)-reduction+scaled(lineTax))});
   }
+  const requested=new Map<string,bigint>();
+  for(const line of lines)requested.set(line.productId,(requested.get(line.productId)??0n)+scaled(line.baseQuantity));
+  const balances=await tx.stockBalance.findMany({where:{businessId:bid,locationId,productId:{in:[...requested.keys()]}},select:{productId:true,onHand:true,reserved:true}});
+  const available=new Map(balances.map(row=>[row.productId,scaled(row.onHand.toFixed(4))-scaled(row.reserved.toFixed(4))]));
+  for(const [productId,quantity] of requested){
+   if(quantity>(available.get(productId)??0n))fail('INSUFFICIENT_STOCK');
+  }
   return {lines,taxRate,tax:checked(tax),subtotal:checked(subtotal),discount:checked(discount),total:checked(subtotal-discount+tax),currency:access.business.baseCurrency,currencyDigits:digits,expiresAt:new Date(Date.now()+15*60*1000)};
  }
  async products(ctx:AuthContext,bid:string,q:{locationId:string;page:number;search:string;barcode?:string}){
   return this.auth.transaction(async tx=>{
-   const access=await requireLocation(this.auth,tx,ctx,bid,q.locationId,'sales.create');if(access.location.kind!=='SHOP')fail('SHOP_REQUIRED',422);
+   await requireLocation(this.auth,tx,ctx,bid,q.locationId,'sales.create');
    const where={businessId:bid,active:true,...(q.barcode?{barcodes:{some:{value:q.barcode}}}:q.search?{OR:[{name:{contains:q.search,mode:'insensitive' as const}},{sku:{contains:q.search,mode:'insensitive' as const}},{barcodes:{some:{value:q.search}}}]}:{})};
    const products=await tx.product.findMany({where,skip:(q.page-1)*25,take:25,orderBy:[{name:'asc'},{id:'asc'}],select:{id:true,name:true,sku:true,unit:true,sellingPrice:true,barcodes:{select:{value:true}},packs:{where:{retiredAt:null},select:{id:true,name:true,baseQuantity:true}},balances:{where:{locationId:q.locationId},select:{onHand:true,reserved:true}}}});
    return {page:q.page,pageSize:25,total:await tx.product.count({where}),items:products.map(({balances,...p})=>({...p,available:fixed(balances.reduce((sum,b)=>sum+scaled(b.onHand.toFixed(4))-scaled(b.reserved.toFixed(4)),0n))}))};
@@ -73,8 +80,8 @@ export class SalesService{
    await requireBusiness(this.auth,tx,ctx,bid,'sales.view');const access=await requireLocation(this.auth,tx,ctx,bid,input.locationId,'sales.create',false);
    const prior=await tx.sale.findUnique({where:{businessId_clientKey:{businessId:bid,clientKey:input.clientKey}},include}),requestHash=hash(input);
    if(prior){if(prior.actorId!==ctx.user.id&&!access.permissions['sales.manage'])fail('FORBIDDEN',403);if(prior.requestHash!==requestHash)fail('IDEMPOTENCY_CONFLICT');return present(prior,access);}
-   if(access.location.archivedAt)fail('LOCATION_ARCHIVED');if(access.location.kind!=='SHOP')fail('SHOP_REQUIRED',422);await entitled(tx,bid);
-   const {lines,...pricing}=await this.price(tx,bid,input.lines,access),id=randomUUID();
+   if(access.location.archivedAt)fail('LOCATION_ARCHIVED');await entitled(tx,bid);
+   const {lines,...pricing}=await this.price(tx,bid,input.lines,access,input.locationId),id=randomUUID();
    await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:ctx.user.name,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
    await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
    await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.created',targetId:id,changes:{}}});
@@ -83,7 +90,7 @@ export class SalesService{
  }
  async update(ctx:AuthContext,bid:string,id:string,input:SalePatch){return this.auth.transaction(async tx=>{
   const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,input.revision);await requireLocation(this.auth,tx,ctx,bid,doc.locationId,'sales.create');await entitled(tx,bid);
-  const {lines,...pricing}=await this.price(tx,bid,input.lines,access);await tx.saleLine.deleteMany({where:{businessId:bid,saleId:id}});await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
+  const {lines,...pricing}=await this.price(tx,bid,input.lines,access,doc.locationId);await tx.saleLine.deleteMany({where:{businessId:bid,saleId:id}});await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
   await tx.sale.update({where:{id},data:{...pricing,customerName:input.customerName,notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.repriced',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  });}

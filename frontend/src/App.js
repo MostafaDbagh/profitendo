@@ -1,5 +1,4 @@
 import ContactV2 from '@/pages/ContactV2';
-import SaleReceiptV2 from "@/pages/SaleReceiptV2";
 import "@/App.css";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
@@ -73,7 +72,7 @@ function AppRouter() {
     <Route path="/auth" element={<AuthV2/>}/><Route path="/auth-v2" element={<AuthV2/>}/>
     <Route path="/business" element={<BusinessV2/>}/><Route path="/business-v2" element={<BusinessV2/>}/>
     <Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2/>}/><Route path="/platform-v2" element={<PlatformV2/>}/>
-    <Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2/>}/>
+    <Route path="/sales-v2/:businessId/:id/receipt" element={<Navigate to="/business-v2?tab=sales" replace />}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></>;
   // session_id may arrive in the URL fragment OR the query string depending on

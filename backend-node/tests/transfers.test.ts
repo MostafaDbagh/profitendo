@@ -101,7 +101,7 @@ it('prevents concurrent over-dispatch and protects reserved stock',async()=>{
  const rows=await Promise.all([dispatch(a),dispatch(b)]);expect(rows.map(r=>r.status).sort()).toEqual([200,409]);expect(await stock(source,p)).toBe('4.0000');
  const balance=await db.stockBalance.findFirstOrThrow({where:{businessId:business,productId:p,locationId:source}});
  await db.stockBalance.update({where:{id:balance.id},data:{reserved:'3'}});
- expect((await dispatch(await draft({lines:[{productId:p,quantity:'2'}]}))).body.error.code).toBe('INSUFFICIENT_STOCK');
+ expect((await write('',body({lines:[{productId:p,quantity:'2'}]}))).body.error.code).toBe('INSUFFICIENT_STOCK');
  expect(await stock(source,p)).toBe('4.0000');
 });
 it('records partial arrivals with durable retry receipts and prevents concurrent over-receiving',async()=>{
@@ -133,7 +133,8 @@ it('resolves returned and lost goods explicitly, conserves quantities and keeps 
 });
 it('rolls back every source movement if one line lacks stock',async()=>{
  const p=await funded('2'),before=await stock(source);
- const doc=await draft({lines:[{productId:product,quantity:'1'},{productId:p,quantity:'3'}]});
+ const doc=await draft({lines:[{productId:product,quantity:'1'},{productId:p,quantity:'2'}]});
+ await db.stockBalance.updateMany({where:{businessId:business,locationId:source,productId:p},data:{reserved:'1'}});
  expect((await dispatch(doc)).body.error.code).toBe('INSUFFICIENT_STOCK');
  expect(await stock(source)).toBe(before);expect(await stock(source,p)).toBe('2.0000');
  expect(await db.stockMovement.count({where:{sourceId:doc.id}})).toBe(0);expect((await get(`/${doc.id}`)).body.status).toBe('DRAFT');

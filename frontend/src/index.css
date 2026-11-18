@@ -106,3 +106,25 @@ input[type="button"]:disabled {
   cursor: not-allowed !important;
   pointer-events: auto !important;
 }
+
+@media print {
+  body:has([data-print-invoice]) :has([data-print-invoice]) > :not(:has([data-print-invoice])):not([data-print-invoice]) {
+    display: none !important;
+  }
+  body:has([data-print-invoice]),
+  body :has([data-print-invoice]),
+  [data-print-invoice] {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    position: static !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+}

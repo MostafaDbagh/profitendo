@@ -19,6 +19,11 @@ export function transferRouter(auth:AuthService){
   if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');
   res.json(await service.list(ctx(res),bid(req),q.data));
  });
+ router.get('/availability',async(req,res)=>{
+  const q=z.object({locationId:z.uuid(),products:z.string().max(3700).transform(value=>value.split(',')).pipe(z.array(z.uuid()).min(1).max(100))}).strict().safeParse(req.query);
+  if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid stock query');
+  res.json(await service.availability(ctx(res),bid(req),q.data.locationId,q.data.products));
+ });
  router.get('/:id/events',async(req,res)=>{
   const q=z.object({page}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid page');
   res.json(await service.events(ctx(res),bid(req),id(req),q.data.page));

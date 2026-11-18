@@ -19,7 +19,7 @@ export default function LocationForm({ location, path, api, c, lang, close, done
         {!location && <><Field id="location-code" label={c('locationCode')} hint={c('locationCodeHint')} placeholder={c('locationCodePlaceholder')} dir="ltr" value={form.code} onChange={set('code')} minLength={2} maxLength={30} pattern="[A-Za-z0-9][A-Za-z0-9_\-]{1,29}" required /><Select id="location-kind" label={c('locationKind')} value={form.kind} onChange={set('kind')}><option value="WAREHOUSE">{c('WAREHOUSE')}</option><option value="SHOP">{c('SHOP')}</option></Select></>}
         <Field id="location-address" label={c('locationAddress')} placeholder={c('locationAddressPlaceholder')} value={form.address} onChange={set('address')} maxLength={500} />
       </fieldset>
-      <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClass} disabled={busy} onClick={close}>{c('cancel')}</button><button className={primaryClass} disabled={busy || error==='REVISION_CONFLICT'}>{c(busy?'saving':'save')}</button></div>
+      <div className="flex flex-wrap justify-end rtl:justify-start gap-2"><button className={primaryClass} disabled={busy || error==='REVISION_CONFLICT'}>{c(busy?'saving':'save')}</button><button type="button" className={buttonClass} disabled={busy} onClick={close}>{c('cancel')}</button></div>
     </form>
   </Modal>;
 }

@@ -1,30 +1,78 @@
+import { Check } from 'lucide-react';
+import { useResource } from '../business-v2/useBusinessApi';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { percentageRow, discountPayload } from './discount';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { unitLabel } from '../catalogue-v2/units';
-import { useRef,useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { Feedback,Select,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
+import { Feedback,Pager,Select,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
 import RecordPicker from '../operations-v2/RecordPicker';
 const scale=v=>{const [a,b='']=v.split('.');return BigInt(a||0)*10000n+BigInt(b.padEnd(4,'0'));};
 const plusOne=v=>{const n=scale(v)+10000n;return `${n/10000n}.${String(n%10000n).padStart(4,'0')}`;};
 export default function Editor({context,api,c,lang,doc,done,close}){
- const path=`/businesses/${context.business.id}/sales`,[shop,setShop]=useState(doc?{id:doc.locationId,name:doc.locationName}:null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[picker,setPicker]=useState(null),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
+ const path=`/businesses/${context.business.id}/sales`,[shop,setShop]=useState(doc?{id:doc.locationId,name:doc.locationName}:null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[picker,setPicker]=useState(null),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
+ const [shopPage,setShopPage]=useState(1);
+ const shops=useResource(api,`/businesses/${context.business.id}/locations?state=active&page=${shopPage}`);
+ const onlyShop=shops.data?.total===1?shops.data.items[0]:null;
+ useEffect(()=>{
+  if(onlyShop&&!doc&&!rows.length&&!pending)setShop(current=>current??onlyShop);
+ },[onlyShop,doc,rows.length,pending]);
+ const shopLocked=!!doc||rows.length>0||pending>0||busy;
+ const shopOptions=shopLocked&&shop?[shop]:shops.data?.items??[];
  const scanner=useRef(null),queue=useRef(Promise.resolve()),key=useRef(crypto.randomUUID()),request=useRef(null);
- const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(percentageRow));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
+ const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(row=>percentageRow({...row,quantity:formatQuantity(row.quantity)})));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
  const change=(id,patch)=>setRows(old=>old.map(r=>r.key===id?{...r,...patch,...(['discountPercent','quantity','packId'].some(k=>k in patch)?{legacyDiscount:undefined}:{})}:r));
- function add(p){setRows(old=>{const same=old.find(r=>r.productId===p.id&&!r.packId);if(same){if(!/^(0|[1-9]\d{0,12})(\.\d{1,4})?$/.test(same.quantity)){setError('VALIDATION_ERROR');return old;}return old.map(r=>r.key===same.key?{...r,quantity:plusOne(r.quantity),legacyDiscount:undefined}:r);}return [...old,{key:crypto.randomUUID(),productId:p.id,name:p.name,sku:p.sku,unit:p.unit,quantity:'1',packId:null,packs:p.packs,unitPrice:p.sellingPrice,available:p.available,discountPercent:'0',discountReason:''}];});}
+ function add(p){setRows(old=>{const same=old.find(r=>r.productId===p.id&&!r.packId);if(same){if(!/^(0|[1-9]\d{0,12})(\.\d{1,4})?$/.test(same.quantity)){setError('VALIDATION_ERROR');return old;}return old.map(r=>r.key===same.key?{...r,quantity:formatQuantity(plusOne(r.quantity)),legacyDiscount:undefined}:r);}return [...old,{key:crypto.randomUUID(),productId:p.id,name:p.name,sku:p.sku,unit:p.unit,quantity:'1',packId:null,packs:p.packs,unitPrice:p.sellingPrice,available:p.available,discountPercent:'0',discountReason:''}];});}
  function scan(e){e.preventDefault();const value=barcode.trim();if(!value||!shop)return;setBarcode('');setPending(n=>n+1);queue.current=queue.current.then(async()=>{try{const data=await api(`${path}/products?locationId=${shop.id}&barcode=${encodeURIComponent(value)}`);if(!data.items.length)throw new Error('PRODUCT_NOT_FOUND');add(data.items[0]);setError('');}catch(e){setError(e.message);}finally{setPending(n=>n-1);scanner.current?.querySelector("input")?.focus();}});}
- async function save(e){e.preventDefault();setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
+ const requested=new Map();
+ const available=new Map();
+ for(const row of rows){
+  if(row.available!==undefined)available.set(row.productId,row.available);
+  const factor=String(row.packs.find(pack=>pack.id===row.packId)?.baseQuantity??'1');
+  if(/^\d+(\.\d{1,4})?$/.test(row.quantity)){
+   requested.set(row.productId,(requested.get(row.productId)??0n)+scale(row.quantity)*scale(factor));
+  }
+ }
+ const exceedsStock=productId=>available.has(productId)&&(requested.get(productId)??0n)>scale(String(available.get(productId)))*10000n;
+ const insufficientStock=rows.some(row=>exceedsStock(row.productId));
+ async function save(e){e.preventDefault();if(insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
  return <div className="space-y-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-bold">{c(doc?'saleEdit':'newSale')}</h2><button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button></div><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
- <section className={`${panelClass} space-y-4`}><div><p className="text-sm font-medium mb-2">{c('saleShop')}</p><button className={buttonClass} disabled={!!doc||rows.length>0||pending>0} onClick={e=>setPicker({kind:'shop',focus:e.currentTarget})}>{shop?.name||c('chooseShop')}</button></div><p className="text-sm text-slate-500">{c('posHint')}</p>
+ <section className={`${panelClass} space-y-4`}><fieldset className="min-w-0 space-y-2">
+  <legend className="text-sm font-medium">
+   {c('chooseShop')} <span className="ms-1 text-xs text-red-700">{lang==='ar'?'(مطلوب)':'(required)'}</span>
+  </legend>
+  {!shopLocked&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
+  {!shopLocked&&!shops.data&&!shops.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+  {!shopLocked&&shops.data?.total===0&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
+  <div className="flex flex-wrap gap-2">
+   {shopOptions.map(option=>{
+    const selected=option.id===shop?.id;
+    return <button key={option.id} type="button" aria-pressed={selected} disabled={shopLocked}
+     className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+     onClick={()=>setShop(option)}>
+     {selected&&<Check aria-hidden="true" className="h-4 w-4 shrink-0"/>}
+     <bdi>{option.name}</bdi>
+     {option.kind&&<span className="text-xs opacity-75">{option.kind==='WAREHOUSE'?(lang==='ar'?'مستودع':'Warehouse'):(lang==='ar'?'متجر':'Shop')}</span>}
+    </button>;
+   })}
+  </div>
+  {!shopLocked&&shops.data?.total>shops.data?.pageSize&&<Pager data={shops.data} setPage={setShopPage} c={c}/>}
+ </fieldset><p className="text-sm text-slate-500">{c('posHint')}</p>
  <form ref={scanner} onSubmit={scan} className="flex flex-wrap gap-2 items-end"><div className="w-full sm:flex-1 min-w-0"><Field id="pos-barcode" label={c('scanBarcode')} placeholder={c('saleScanPlaceholder')} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100} /></div><button className={buttonClass} disabled={!shop||busy}>{c('saleAddBarcode')}</button><button type="button" className={buttonClass} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}>{c('searchProducts')}</button></form>{pending>0&&<p role="status">{c('loading')}</p>}</section>
  <form onSubmit={save} className="space-y-5"><fieldset disabled={busy||pending>0} className="space-y-4 min-w-0"><legend className="font-semibold mb-3">{c('saleItems')} ({rows.length})</legend>{!rows.length&&<p className={`${panelClass} text-sm text-slate-500`}>{c('saleEmpty')}</p>}
- {rows.map((r,i)=><div key={r.key} className={`${panelClass} space-y-4`}><div className="flex justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold break-words">{r.name}</h3><p className="text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode> · {c('salePrice')}: <bdi>{r.unitPrice} {context.business.baseCurrency}</bdi>{r.available!==undefined&&<> · {c('saleAvailable')}: <bdi>{formatQuantity(r.available)}</bdi></>}</p></div><button type="button" className={buttonClass} aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}>{c('saleRemove')}</button></div>
- <div className="grid sm:grid-cols-2 gap-4"><Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><Field id={`sale-quantity-${i}`} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
+ {rows.map((r,i)=><div key={r.key} className={`${panelClass} space-y-4`}><div className="flex justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold break-words">{r.name}</h3><p className="text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode> · {c('salePrice')}: <bdi>{r.unitPrice} {context.business.baseCurrency}</bdi></p></div><button type="button" className={buttonClass} aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}>{c('saleRemove')}</button></div>
+ <div className="grid sm:grid-cols-2 gap-4"><Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
+ {available.has(r.productId)&&<span className="block text-xs text-slate-600">
+  {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
+ </span>}
+ {exceedsStock(r.productId)&&<p role="alert" className="text-sm text-red-700">
+  {lang==='ar'?'الكمية المطلوبة أكبر من المتاح في هذا الموقع.':'Requested quantity exceeds available stock at this location.'}{' '}
+  {c('saleAvailable')}: <bdi>{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
+ </p>}</div>
  {context.permissions['sales.discount']&&<><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></>}</div></div>)}
- <div className={`${panelClass} grid sm:grid-cols-2 gap-4`}><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></fieldset><button className={primaryClass} disabled={!shop||!rows.length||busy||pending>0}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></form>
- {picker&&<RecordPicker {...{api,c,lang}} path={picker.kind==='shop'?`/businesses/${context.business.id}/locations?state=active&kind=SHOP`:`${path}/products?locationId=${shop.id}`} title={c(picker.kind==='shop'?'chooseShop':'searchProducts')} close={()=>setPicker(null)} returnFocus={picker.focus} onSelect={row=>{if(picker.kind==='shop')setShop(row);else add(row);setPicker(null);}}/>}</div>;
+ <div className={`${panelClass} grid sm:grid-cols-2 gap-4`}><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></fieldset><button className={primaryClass} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></form>
+ {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/products?locationId=${shop.id}`} title={c('searchProducts')} close={()=>setPicker(null)} returnFocus={picker.focus} onSelect={row=>{add(row);setPicker(null);}}/>}</div>;
 }

@@ -1,3 +1,4 @@
+import { ArrowRight } from 'lucide-react';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { unitLabel } from '../catalogue-v2/units';
@@ -10,7 +11,7 @@ export default function TransferDetail({id,context,api,c,lang,close,edit,record,
  const [action,setAction]=useState(''),[busy,setBusy]=useState(false),[failure,setFailure]=useState(''),[message,setMessage]=useState(notice||''),trigger=useRef(null);
  async function change(){if(busy)return;setBusy(true);setFailure('');try{await api(`${path}/status`,{method:'POST',body:{revision:doc.revision,action,confirm:true}});setAction('');setMessage('transferUpdated');reload();}catch(e){setFailure(e.message);}finally{setBusy(false);}}
  function ask(e,value){trigger.current=e.currentTarget;setFailure('');setAction(value);}
- return <section className="space-y-5"><button className={buttonClass} onClick={close}>{c('back')}</button><Feedback {...{error,c}} notice={message} retry={reload}/>{!doc&&!error&&<p role="status">{c('loading')}</p>}
+ return <section className="space-y-5"><button className={buttonClass} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 shrink-0 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><Feedback {...{error,c}} notice={message} retry={reload}/>{!doc&&!error&&<p role="status">{c('loading')}</p>}
  {doc&&<><div className="flex flex-wrap justify-between gap-3 items-start"><div><h2 className="font-bold text-lg">{c('transfers')} · {c(`transferStatus${doc.status}`)}</h2><p className="text-sm text-slate-500" dir="ltr">{doc.reference}</p></div><div className="flex flex-wrap gap-2">
  {doc.capabilities.edit&&<button className={buttonClass} onClick={()=>edit(doc)}>{c('editTransfer')}</button>}
  {doc.capabilities.dispatch&&<button className={primaryClass} onClick={e=>ask(e,'dispatch')}>{c('dispatchTransfer')}</button>}

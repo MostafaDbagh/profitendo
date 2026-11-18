@@ -1,3 +1,5 @@
+import SupplierForm from './SupplierForm';
+import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import ScanModeSelect from './ScanModeSelect';
 import { ArrowRight, ChevronDown } from 'lucide-react';
@@ -15,15 +17,16 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  const cost=context.permissions['catalogue.cost'],root=`/businesses/${context.business.id}`,source=doc||seed;
  const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?{id:source.supplierId,name:source.supplierName}:null);
  const [date,setDate]=useState(doc?.documentDate||new Date().toLocaleDateString('en-CA')),[reference,setReference]=useState(doc?.supplierReference||''),[notes,setNotes]=useState(doc?.notes||'');
- const [lines,setLines]=useState(()=>source?.lines.map(l=>({...l,productId:l.productId,quantity:doc?l.baseQuantity:fixed(scaled(l.baseQuantity)-scaled(l.receivedQuantity)),unitCost:l.unitCost??''})).filter(l=>scaled(l.quantity)>0n)||[]);
+ const [lines,setLines]=useState(()=>source?.lines.map(l=>({...l,productId:l.productId,quantity:formatQuantity(doc?l.baseQuantity:fixed(scaled(l.baseQuantity)-scaled(l.receivedQuantity))),unitCost:l.unitCost??''})).filter(l=>scaled(l.quantity)>0n)||[]);
  const [picker,setPicker]=useState(''),[scan,setScan]=useState(''),[mode,setMode]=useState('once'),[scanning,setScanning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [addingSupplier,setAddingSupplier]=useState(false);
  const [focusProduct,setFocusProduct]=useState('');
  const scanRef=useRef(null),scanLock=useRef(false),scanQueue=useRef([]),trigger=useRef(null),quantityRefs=useRef({});
  useEffect(()=>{if(focusProduct&&quantityRefs.current[focusProduct]){quantityRefs.current[focusProduct].focus();quantityRefs.current[focusProduct].select();setFocusProduct('');}},[focusProduct,lines]);
- const draft=useLocalDraft(`purchase:${kind}:${doc?.id||seed?.id||'new'}:${doc?.revision||0}`,{clientKey,location,supplier,date,reference,notes,lines,scan,mode},saved=>{setClientKey(saved.clientKey);setLocation(saved.location);setSupplier(saved.supplier);setDate(saved.date);setReference(saved.reference);setNotes(saved.notes);setLines(saved.lines);setScan(saved.scan);setMode(saved.mode);});
+ const draft=useLocalDraft(`purchase:${kind}:${doc?.id||seed?.id||'new'}:${doc?.revision||0}`,{clientKey,location,supplier,date,reference,notes,lines,scan,mode},saved=>{setClientKey(saved.clientKey);setLocation(saved.location);setSupplier(saved.supplier);setDate(saved.date);setReference(saved.reference);setNotes(saved.notes);setLines(saved.lines.map(l=>({...l,quantity:formatQuantity(l.quantity)})));setScan(saved.scan);setMode(saved.mode);});
  function add(product,repeated=false){
   setError('');setNotice('lineAdded');
-  setLines(old=>{const exists=old.find(l=>l.productId===product.id);if(exists&&repeated&&!/^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(exists.quantity||'')){setError('INVALID_QUANTITY');return old;}if(exists)return repeated?old.map(l=>l.productId===product.id?{...l,quantity:fixed(scaled(l.quantity||'0')+10000n)}:l):old;
+  setLines(old=>{const exists=old.find(l=>l.productId===product.id);if(exists&&repeated&&!/^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(exists.quantity||'')){setError('INVALID_QUANTITY');return old;}if(exists)return repeated?old.map(l=>l.productId===product.id?{...l,quantity:formatQuantity(fixed(scaled(l.quantity||'0')+10000n))}:l):old;
    return [...old,{productId:product.id,name:product.name,sku:product.sku,unit:product.unit,quantity:'1',unitCost:product.purchasePrice||''}];});
   if(!repeated)setFocusProduct(product.id);
  }
@@ -48,7 +51,12 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  }
  const validNumber='(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
  return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2><p className="text-sm text-slate-500 mt-1">{c(kind==='ORDER'?'orderHint':'documentHint')}</p></div>
- <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><p className="text-sm font-medium mb-2">{c(key==='location'?'selectedLocation':'selectedSupplier')}</p><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||!!source} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
+ <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+ <p className="text-sm font-medium">{c(key==='location'?'selectedLocation':'selectedSupplier')}</p>
+ {key==='supplier'&&!source&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning}
+  className="rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
+  onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}
+ </div><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||!!source} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
  {!seed&&<div className={`${panelClass} space-y-3`}>
  <form onSubmit={lookup} className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)] items-end">
  <ScanModeSelect value={mode} onChange={setMode} disabled={busy||scanning} {...{c,lang}}/>
@@ -63,7 +71,15 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
 
  {!lines.length&&<p className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-center text-slate-500">{c('noLines')}</p>}
  <div><label htmlFor="document-notes" className="block text-sm font-medium mb-1.5">{c('notes')}</label><textarea rows={2} id="document-notes" className={inputClass} placeholder={c('notesPlaceholder')} maxLength={2000} value={notes} disabled={busy} onChange={e=>setNotes(e.target.value)}/></div>
- <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-4"><div>{lines.length>0&&<Totals {...{lines,c,cost}} currency={context.business.baseCurrency}/>}</div><button className={primaryClass} disabled={busy||scanning||!location||!supplier||!lines.length}>{c(busy?'saving':'saveDraft')}</button></div></form>
+ <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-4">
+  <button type="submit" className={primaryClass} disabled={busy||scanning||!location||!supplier||!lines.length}>
+   {c(busy?'saving':'saveDraft')}
+  </button>
+  {lines.length>0&&<Totals {...{lines,c,cost}} currency={context.business.baseCurrency}/>}
+ </div></form>
+ {addingSupplier&&<SupplierForm path={`${root}/operations/suppliers`} {...{api,c,lang}}
+  returnFocus={trigger.current} close={()=>setAddingSupplier(false)}
+  done={saved=>{setSupplier(saved);setAddingSupplier(false);}}/>}
  {picker&&<RecordPicker {...{api,c,lang}} path={picker==='location'?`${root}/locations?state=active`:picker==='supplier'?`${root}/operations/suppliers?state=active`:`${root}/products?state=active`} emptyHelp={picker==='product'?<ProductEntryHelp lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>:null} title={c(picker==='location'?'chooseLocation':picker==='supplier'?'chooseSupplier':'selectProduct')} returnFocus={trigger.current} close={()=>setPicker('')} onSelect={row=>{if(picker==='location')setLocation(row);else if(picker==='supplier')setSupplier(row);else add(row);setPicker('');}}/>}
  </section>;
 }

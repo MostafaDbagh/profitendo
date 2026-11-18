@@ -23,11 +23,24 @@ export class TransferService{
   if(lock){await tx.$queryRaw`SELECT id FROM stock_transfers WHERE business_id=${businessId}::uuid AND id=${id}::uuid FOR UPDATE`;doc=await tx.stockTransfer.findUniqueOrThrow({where:{id},include:{lines:true}});}
   return {doc,access};
  }
- private async lines(tx:Tx,businessId:string,input:TransferInput['lines']){
+ private async balances(tx:Tx,businessId:string,locationId:string,productIds:string[]){
+  const rows=await tx.stockBalance.findMany({where:{businessId,locationId,productId:{in:productIds}}});
+  return new Map(rows.map(row=>[row.productId,scaled(row.onHand.toFixed(4))-scaled(row.reserved.toFixed(4))]));
+ }
+ async availability(ctx:AuthContext,businessId:string,locationId:string,productIds:string[]){
+  return this.auth.transaction(async tx=>{
+   await requireLocation(this.auth,tx,ctx,businessId,locationId,'transfers.create');
+   const balances=await this.balances(tx,businessId,locationId,productIds);
+   return Object.fromEntries(productIds.map(id=>[id,fixed(balances.get(id)??0n)]));
+  });
+ }
+ private async lines(tx:Tx,businessId:string,input:TransferInput['lines'],locationId:string){
   const result=[];
+  const balances=await this.balances(tx,businessId,locationId,input.map(line=>line.productId));
   for(const line of input){
    const p=await tx.product.findFirst({where:{businessId,id:line.productId,active:true},include:{barcodes:true}});
    if(!p)throw new ApiError(409,'PRODUCT_INACTIVE','Choose active products from this business');
+   if(scaled(line.quantity)>(balances.get(p.id)??0n))throw new ApiError(409,'INSUFFICIENT_STOCK','Insufficient available stock');
    result.push({businessId,productId:p.id,name:p.name,sku:p.sku,unit:p.unit,barcodes:p.barcodes.map(b=>b.value),quantity:line.quantity});
   }return result;
  }
@@ -60,7 +73,7 @@ export class TransferService{
    const requestHash=hash(input),prior=await tx.stockTransfer.findUnique({where:{businessId_clientKey:{businessId,clientKey:input.clientKey}},include:{lines:true}});
    if(prior){if(prior.requestHash!==requestHash)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','Request key used with different data');return present(prior,access);}
    if(source.location.archivedAt||destination.location.archivedAt)throw new ApiError(409,'LOCATION_ARCHIVED','Choose active locations');
-   await entitled(tx,businessId);const lines=await this.lines(tx,businessId,input.lines),id=randomUUID();
+   await entitled(tx,businessId);const lines=await this.lines(tx,businessId,input.lines,input.sourceId),id=randomUUID();
    await tx.stockTransfer.create({data:{id,businessId,sourceId:input.sourceId,destinationId:input.destinationId,sourceName:source.location.name,destinationName:destination.location.name,
     clientKey:input.clientKey,requestHash,reference:`TR-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${id.slice(0,8).toUpperCase()}`,notes:input.notes,actorId:ctx.user.id,actorName:ctx.user.name}});
    await tx.transferLine.createMany({data:lines.map(l=>({...l,transferId:id}))});
@@ -74,7 +87,7 @@ export class TransferService{
    await requireLocation(this.auth,tx,ctx,businessId,doc.sourceId,'transfers.create');
    await requireLocation(this.auth,tx,ctx,businessId,doc.destinationId,'transfers.create');
    if(doc.revision!==input.revision)throw conflict();if(doc.status!=='DRAFT')throw invalidState();
-   await entitled(tx,businessId);const lines=await this.lines(tx,businessId,input.lines);
+   await entitled(tx,businessId);const lines=await this.lines(tx,businessId,input.lines,doc.sourceId);
    await tx.transferLine.deleteMany({where:{businessId,transferId:id}});
    await tx.transferLine.createMany({data:lines.map(l=>({...l,transferId:id}))});
    await tx.stockTransfer.update({where:{id},data:{notes:input.notes,revision:{increment:1}}});

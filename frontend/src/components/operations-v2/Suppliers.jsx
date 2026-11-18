@@ -1,25 +1,11 @@
 import { ArrowRight } from 'lucide-react';
-import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
+import SupplierForm from './SupplierForm';
 import Adjustments from '../completion-v2/Adjustments';
 import { useRef, useState } from 'react';
-import { Field, inputClass } from '../auth-v2/Fields';
+import { Field } from '../auth-v2/Fields';
 import { useResource } from '../business-v2/useBusinessApi';
-import { Modal, Feedback, Pager, Select, Table, buttonClass, primaryClass } from '../business-v2/UI';
+import { Feedback, Pager, Select, Table, buttonClass, primaryClass } from '../business-v2/UI';
 import Purchases from './Purchases';
-function SupplierForm({canDelete,row,path,api,c,lang,close,done,returnFocus}){
- const [value,setValue]=useState(row||{code:'',name:'',contact:'',phone:'',email:'',address:'',notes:'',active:true}),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const draft=useLocalDraft(`supplier:${row?.id||'new'}:${row?.revision||0}`,{value},saved=>{setValue(saved.value);});
- const field=(key)=>({value:value[key],onChange:e=>setValue(v=>({...v,[key]:e.target.value}))});
- async function save(e){e.preventDefault();if(busy)return;setBusy(true);setError('');try{const {code,name,contact,phone,email,address,notes,active,revision}=value;await api(row?`${path}/${row.id}`:path,{method:row?'PATCH':'POST',body:row?{name,contact,phone,email,address,notes,active,revision}:{code,name,contact,phone,email,address,notes}});draft.clear();done();}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <Modal {...{c,lang,close,busy,returnFocus}} title={c(row?'editSupplier':'addSupplier')} description={c('supplierFormHint')}><form onSubmit={save} className="space-y-4"><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{error,c}}/>
-  <Field id="supplier-code" label={c('supplierCode')} placeholder="SUP-001" required maxLength={40} disabled={!!row||busy} {...field('code')}/>
-  <Field id="supplier-name" label={c('supplierName')} placeholder={c('supplierNamePlaceholder')} required minLength={2} maxLength={160} disabled={busy} {...field('name')}/>
-  {['contact','phone','email','address'].map(key=><Field key={key} id={`supplier-${key}`} label={c(key)} placeholder={c(`${key}Placeholder`)} type={key==='email'?'email':key==='phone'?'tel':'text'} maxLength={{contact:160,phone:40,email:254,address:500}[key]} disabled={busy} {...field(key)}/>)}
-  <label className="block text-sm font-medium" htmlFor="supplier-notes">{c('notes')}</label><textarea id="supplier-notes" className={inputClass} placeholder={c('notesPlaceholder')} maxLength={2000} disabled={busy} {...field('notes')}/>
-  {row&&<label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={value.active} disabled={busy || (row.active && !canDelete)} onChange={e=>setValue(v=>({...v,active:e.target.checked}))}/>{c('active')}</label>}
-  <div className="flex flex-wrap gap-2"><button className={primaryClass} disabled={busy}>{c(busy?'saving':'save')}</button><button type="button" className={buttonClass} disabled={busy} onClick={close}>{c('cancel')}</button></div>
- </form></Modal>;
-}
 export default function Suppliers({context,api,c,lang}){
  const path=`/businesses/${context.business.id}/operations/suppliers`,manage=context.permissions['suppliers.edit'],create=context.permissions['suppliers.create'];
  const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[edit,setEdit]=useState(null),[history,setHistory]=useState(null),[historyView,setHistoryView]=useState('purchases'),[notice,setNotice]=useState('');

@@ -55,13 +55,20 @@ afterAll(async()=>{
  await db.stockBalance.deleteMany({where:{businessId:{in:bids}}});await db.locationAssignment.deleteMany({where:{businessId:{in:bids}}});await db.location.deleteMany({where:{businessId:{in:bids}}});await db.product.deleteMany({where:{businessId:{in:bids}}});
  await db.authAudit.deleteMany({where:{businessId:{in:bids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.delete({where:{id:planId}});await db.$disconnect();
 });
-it('enforces tenant, assignment, CSRF, shop-only access and hides purchase costs',async()=>{
+it('enforces tenant, assignment, CSRF and location access and hides purchase costs',async()=>{
  const d=await draft();for(const who of [admin,foreign])expect((await get('',who)).status).toBe(403);
  expect((await get(`/${d.id}`,unassigned)).status).toBe(404);expect((await get(`/${d.id}`,foreign,other)).status).toBe(404);
  expect((await write('',body(),unassigned)).status).toBe(404);
  expect((await request(app).post(`/api/businesses/${business}/sales`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).send(body())).status).toBe(403);
  const warehouse=await db.location.create({data:{businessId:business,code:'WAREHOUSE',name:'Warehouse',kind:'WAREHOUSE'}});
- expect((await write('',body({locationId:warehouse.id}))).body.error.code).toBe('SHOP_REQUIRED');
+ await db.stockBalance.create({data:{businessId:business,locationId:warehouse.id,productId:product,onHand:'5'}});
+ expect((await get(`/products?locationId=${warehouse.id}`,cashier)).status).toBe(404);
+ const warehouseProducts=await get(`/products?locationId=${warehouse.id}`);
+ expect(warehouseProducts.body.items.find((item:{id:string})=>item.id===product)?.available).toBe('5.0000');
+ const warehouseSale=await write('',body({locationId:warehouse.id}));
+ expect(warehouseSale.status,warehouseSale.text).toBe(201);
+ expect((await checkout(warehouseSale.body)).status).toBe(200);
+ expect(await stock(warehouse.id)).toBe('3.0000');
  for(const response of [await get(`/${d.id}`,cashier),await get(`/products?locationId=${source}`,cashier)]){expect(response.status).toBe(200);expect(response.text).not.toContain('unitCost');expect(response.text).not.toContain('purchasePrice');expect(response.text).not.toContain('9.8765');}
 });
 it('quotes idempotently without stock and restricts edits to creator or manager',async()=>{
