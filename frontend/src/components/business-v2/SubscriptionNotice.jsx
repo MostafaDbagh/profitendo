@@ -29,8 +29,17 @@ export default function SubscriptionNotice({context, api, lang, section, onSecti
     return () => clearTimeout(timer);
   }, [access, now]);
   const ended = access?.status === 'EXPIRED' || (access?.active && access.endsAt && new Date(access.endsAt).getTime() <= now);
-  if (!ended && access?.status !== 'REVIEW') return null;
   const ar = lang === 'ar', owner = context.permissions['billing.manage'];
+  if (!ended && access?.active && access.status === 'TRIAL' && context.role === 'OWNER') {
+    const endDate = new Intl.DateTimeFormat(ar ? 'ar' : 'en', {
+      dateStyle: 'long', timeZone: context.business.timezone,
+    }).format(new Date(access.endsAt));
+    return <aside role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5 text-emerald-950">
+      <h2 className="font-semibold">{ar ? 'بدأت تجربتك المجانية' : 'Your free trial has started'}</h2>
+      <p className="mt-2 text-sm">{ar ? `تنتهي التجربة في ${endDate}.` : `Your trial ends on ${endDate}.`}</p>
+    </aside>;
+  }
+  if (!ended && access?.status !== 'REVIEW') return null;
   return <aside data-testid="subscription-notice" aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4">
     <div className="flex-1 min-w-0">
       <h2 className="font-semibold text-amber-950">{access.status === 'REVIEW' ? (ar ? 'الدفع قيد المراجعة' : 'Payment under review') : access.paid ? (ar ? 'انتهت فترة اشتراكك' : 'Your subscription period has ended') : (ar ? 'انتهت تجربتك المجانية' : 'Your free trial has ended')}</h2>

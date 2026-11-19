@@ -1,3 +1,4 @@
+import { BillingService } from '../billing/service.js';
 import {ContactVerification} from './verification.js';
 import QRCode from 'qrcode';
 import { MockEmailOtp, otpCode, otpPurpose } from './mock-otp.js';
@@ -18,7 +19,9 @@ export function authRouter(auth: AuthService) {
   const cookieOptions = { httpOnly: true, secure: auth.settings.secure, sameSite: 'lax' as const, path: '/' };
   const { getToken, ctx, attach, csrf, full, origin } = authHttp(auth);
   const signedWrite = [attach, csrf, full];
+  const billing = new BillingService(auth);
   const sendSession = async (res: Response, context: AuthContext, extras = {}) => {
+    await billing.startTrialsAfterSignIn(context);
     res.cookie(auth.settings.cookieName, context.token, { ...cookieOptions, maxAge: context.session.expiresAt.getTime() - Date.now() });
     res.json({ ...await auth.sessionResult(context), ...extras });
   };

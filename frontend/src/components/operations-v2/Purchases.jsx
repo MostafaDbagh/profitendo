@@ -1,3 +1,4 @@
+import SupplierForm from './SupplierForm';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useRef, useState } from 'react';
@@ -26,6 +27,7 @@ function PurchaseAction({label,hint,className,onClick,lang}){
 }
 export default function Purchases({context,api,c,lang,initialSupplier}){
  const [kind,setKind]=useState('RECEIPT'),[page,setPage]=useState(1),[supplier,setSupplier]=useState(initialSupplier||null),[picker,setPicker]=useState(false),[screen,setScreen]=useState(null),[status,setStatus]=useState(''),trigger=useRef(null);
+ const [addingSupplier,setAddingSupplier]=useState(false);
  const path=`/businesses/${context.business.id}/operations`;
  const {data,error,reload}=useResource(api,`${path}/purchases?kind=${kind}&page=${page}${supplier?`&supplierId=${supplier.id}`:''}${status?`&status=${status}`:''}`);
  function close(){setScreen(null);reload();}
@@ -36,6 +38,8 @@ export default function Purchases({context,api,c,lang,initialSupplier}){
  {!initialSupplier&&context.permissions['suppliers.view']&&<><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setPicker(true);}}>{supplier?.name||c('filterSupplier')}</button>{supplier&&<button className={buttonClass} onClick={()=>{setSupplier(null);setPage(1);}}>{c('clearFilter')}</button>}</>}</div>
  <Feedback {...{error,c}} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
  {data&&<><Table c={c} headers={['reference','selectedSupplier','selectedLocation','documentDate','status','actions']} empty={!data.items.length} tableClassName="min-w-[640px]">{data.items.map(doc=><tr key={doc.id}><td className="px-5 py-3 break-all min-w-48" dir="ltr">{doc.reference}</td><td className="px-5 py-3">{doc.supplierName}</td><td className="px-5 py-3">{doc.locationName}</td><td className="px-5 py-3" dir="ltr">{doc.documentDate}</td><td className="px-5 py-3">{c(doc.status)}</td><td className="px-5 py-3"><button className={buttonClass} onClick={()=>setScreen({type:'detail',id:doc.id})}>{c('openDocument')}</button></td></tr>)}</Table><Pager {...{data,setPage,c}}/></>}
- {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/suppliers?state=all`} title={c('chooseSupplier')} returnFocus={trigger.current} close={()=>setPicker(false)} onSelect={row=>{setSupplier(row);setPage(1);setPicker(false);}}/>}
+ {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/suppliers?state=all`} onAddSupplier={context.permissions['suppliers.create']?()=>{setPicker(false);setAddingSupplier(true);}:undefined} title={c('chooseSupplier')} returnFocus={trigger.current} close={()=>setPicker(false)} onSelect={row=>{setSupplier(row);setPage(1);setPicker(false);}}/>}
+ {addingSupplier&&<SupplierForm {...{api,c,lang}} path={`${path}/suppliers`} returnFocus={trigger.current}
+  close={()=>setAddingSupplier(false)} done={saved=>{setSupplier(saved);setPage(1);setAddingSupplier(false);}}/>}
  </section>;
 }

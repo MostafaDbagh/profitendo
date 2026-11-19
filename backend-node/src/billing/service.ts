@@ -1,13 +1,52 @@
 import { checkoutConfiguration } from './paypal/launch.js';
-import type { AuthContext, AuthService } from '../auth/service.js';
+import type { AuthContext, AuthService, Tx } from '../auth/service.js';
 import { ApiError } from '../errors.js';
 import { requireBusiness } from '../businesses/access.js';
 import { requirePlatform } from '../platform/service.js';
 import { billingState, lockCapacity, memberUsage } from './entitlements.js';
 import { requireBillingOwner } from './access.js';
 export type PlanInput = { code: string; name: string; nameAr: string; priceMinor: number | null; currency: string; interval: string; trialDays: number; maxMembers: number; maxWarehouses: number; maxShops: number };
+async function createTrial(tx: Tx, actorId: string, businessId: string, plan: { id: string; trialDays: number }, automatic = false) {
+  const start = new Date();
+  const end = new Date(start.getTime() + plan.trialDays * 86400000);
+  const data = { businessId, planId: plan.id, trialStartedAt: start, trialEndsAt: end };
+  if (automatic) {
+    const { count } = await tx.businessSubscription.createMany({ data, skipDuplicates: true });
+    if (!count) return;
+  } else {
+    await tx.businessSubscription.create({ data });
+  }
+  await tx.billingAudit.create({
+    data: { actorId, businessId, planId: plan.id, action: 'trial.started', changes: { trialDays: plan.trialDays, endsAt: end.toISOString() } },
+  });
+  return { status: 'TRIAL', trialEndsAt: end };
+}
+
 export class BillingService {
   constructor(readonly auth: AuthService) {}
+  async startTrialsAfterSignIn(ctx: AuthContext) {
+    if (this.auth.stage(ctx) !== 'authenticated') return;
+    await this.auth.transaction(async tx => {
+      const { user, session } = await this.auth.assertSession(tx, ctx);
+      if (await this.auth.requiresMfa(tx, user) && !session.mfaVerified) return;
+      const plan = await tx.billingPlan.findFirst({
+        where: { published: true, priceMinor: null, trialDays: { gt: 0 } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
+      if (!plan) return;
+      const memberships = await tx.membership.findMany({
+        where: { userId: user.id, role: 'OWNER', disabledAt: null, business: { suspendedAt: null } },
+        select: { businessId: true },
+        orderBy: { businessId: 'asc' },
+      });
+      for (const { businessId } of memberships) {
+        await lockCapacity(tx, businessId);
+        if ((await billingState(tx, businessId)).status === 'NOT_STARTED') {
+          await createTrial(tx, user.id, businessId, plan, true);
+        }
+      }
+    });
+  }
   async ownerBusinesses(ctx: AuthContext) {
     return this.auth.transaction(async tx => {
       const { user, session } = await this.auth.assertSession(tx, ctx);
@@ -33,10 +72,7 @@ export class BillingService {
       if (await tx.businessSubscription.findUnique({ where: { businessId } })) throw new ApiError(409, 'TRIAL_ALREADY_USED', 'This business has already started its trial');
       const plan = await tx.billingPlan.findUnique({ where: { id: planId } });
       if (!plan || !plan.published || plan.priceMinor !== null || plan.trialDays <= 0) throw new ApiError(409, 'PLAN_UNAVAILABLE', 'This plan is not available for trial');
-      const start = new Date(), end = new Date(start.getTime() + plan.trialDays * 86400000);
-      const subscription = await tx.businessSubscription.create({ data: { businessId, planId, trialStartedAt: start, trialEndsAt: end } });
-      await tx.billingAudit.create({ data: { actorId: ctx.user.id, businessId, planId, action: 'trial.started', changes: { trialDays: plan.trialDays, endsAt: end.toISOString() } } });
-      return { status: 'TRIAL', trialEndsAt: subscription.trialEndsAt };
+      return createTrial(tx, ctx.user.id, businessId, plan);
     });
   }
   async plans(ctx: AuthContext, page: number) {
