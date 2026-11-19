@@ -195,6 +195,47 @@ describe('tenant authorization', () => {
 });
 
 describe('personal dashboard preferences', () => {
+  it('persists owner cashier mode without changing role, grants or other memberships', async () => {
+    const cashier = await actor('CASHIER');
+    const before = (await get(`/${a}`, ownerA)).body;
+    const enabled = await write(`/${a}/preferences`, {hiddenTabs:['sales'],ownerAsCashier:true}, ownerA);
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.ownerAsCashier).toBe(true);
+    const after = (await get(`/${a}`, ownerA)).body;
+    expect(after.ownerAsCashier).toBe(true);
+    expect(after.role).toBe('OWNER');
+    expect(after.permissions).toEqual(before.permissions);
+    expect(after.permissions['sales.create']).toBe(true);
+    expect(after.permissions['cash.close']).toBe(true);
+    expect((await get(`/${a}`, cashier)).body.ownerAsCashier).toBe(false);
+    expect((await get(`/${b}`, ownerB)).body.ownerAsCashier).toBe(false);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, cashier)).status).toBe(403);
+    expect((await write(`/${b}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, ownerA)).status).toBe(403);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:'true'}, ownerA)).status).toBe(422);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:['sales']}, ownerA)).body.ownerAsCashier).toBe(true);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:['sales'],ownerAsCashier:false}, ownerA)).body.ownerAsCashier).toBe(false);
+    expect((await get(`/${a}`, ownerA)).body.permissions).toEqual(before.permissions);
+  });
+  it('protects cashier preferences with CSRF, membership and owner checks and audits changes once', async () => {
+    for (const role of ['OPERATIONS_MANAGER','SHOP_MANAGER','WAREHOUSE_STAFF','VIEWER'] as const) {
+      const staff = await actor(role);
+      expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, staff)).status).toBe(403);
+    }
+    const platform = await actor(undefined,a,'SUPER_ADMIN');
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, platform)).status).toBe(403);
+    expect((await request(app).patch(`/api/businesses/${a}/preferences`).set('Cookie',ownerA.cookie).set('Origin',settings.appOrigin).send({hiddenTabs:[],ownerAsCashier:true})).status).toBe(403);
+    const before=await db.authAudit.count({where:{businessId:a,action:'membership.owner_cashier_updated'}});
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, ownerA)).status).toBe(200);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:true}, ownerA)).status).toBe(200);
+    expect(await db.authAudit.count({where:{businessId:a,action:'membership.owner_cashier_updated'}})).toBe(before+1);
+    const fresh = await session(ownerA.id);
+    expect((await get(`/${a}`,fresh)).body.ownerAsCashier).toBe(true);
+    await db.membership.update({where:{id:ownerA.membershipId!},data:{disabledAt:new Date()}});
+    try { expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:false}, fresh)).status).toBe(403); }
+    finally { await db.membership.update({where:{id:ownerA.membershipId!},data:{disabledAt:null}}); }
+    expect((await get(`/${a}`,ownerA)).body.ownerAsCashier).toBe(true);
+    expect((await write(`/${a}/preferences`, {hiddenTabs:[],ownerAsCashier:false}, ownerA)).status).toBe(200);
+  });
   it('persists per membership without changing permissions or another user’s preferences', async () => {
     const viewer = await actor('VIEWER', a);
     const before = (await get(`/${a}`, ownerA)).body;

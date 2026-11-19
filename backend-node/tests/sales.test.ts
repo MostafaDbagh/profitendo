@@ -107,11 +107,11 @@ it('reprices expired and changed-price drafts before checkout',async()=>{
  const r=await write(`/${d.id}`,{revision:0,lines:[{productId:p,quantity:'1'}]},owner,'patch');expect(r.status).toBe(200);expect(r.body.total).toBe('15');expect((await checkout(r.body)).status).toBe(200);
 });
 it('rolls back all stock and payment writes when any cart line lacks stock',async()=>{
- const a=await funded('10'),b=await funded('1'),d=await draft({lines:[{productId:a,quantity:'2'},{productId:b,quantity:'2'}]});expect((await checkout(d)).body.error.code).toBe('INSUFFICIENT_STOCK');expect(await stock(source,a)).toBe('10.0000');expect(await stock(source,b)).toBe('1.0000');expect(await db.stockMovement.count({where:{sourceId:d.id}})).toBe(0);expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(0);expect((await get(`/${d.id}`)).body.status).toBe('DRAFT');
+ const a=await funded('10'),b=await funded('2'),d=await draft({lines:[{productId:a,quantity:'2'},{productId:b,quantity:'2'}]});await db.stockBalance.updateMany({where:{productId:b},data:{onHand:'1'}});expect((await checkout(d)).body.error.code).toBe('INSUFFICIENT_STOCK');expect(await stock(source,a)).toBe('10.0000');expect(await stock(source,b)).toBe('1.0000');expect(await db.stockMovement.count({where:{sourceId:d.id}})).toBe(0);expect(await db.salePayment.count({where:{saleId:d.id}})).toBe(0);expect((await get(`/${d.id}`)).body.status).toBe('DRAFT');
 });
 it('prevents concurrent overselling and respects reserved stock',async()=>{
  const p=await funded('1'),a=await draft({lines:[{productId:p,quantity:'1'}]}),b=await draft({lines:[{productId:p,quantity:'1'}]});const rows=await Promise.all([checkout(a),checkout(b)]);expect(rows.map(r=>r.status).sort()).toEqual([200,409]);expect(await stock(source,p)).toBe('0.0000');
- const q=await funded('2');await db.stockBalance.updateMany({where:{productId:q},data:{reserved:'2'}});const d=await draft({lines:[{productId:q,quantity:'1'}]});expect((await checkout(d)).body.error.code).toBe('INSUFFICIENT_STOCK');
+ const q=await funded('2');const d=await draft({lines:[{productId:q,quantity:'1'}]});await db.stockBalance.updateMany({where:{productId:q},data:{reserved:'2'}});expect((await checkout(d)).body.error.code).toBe('INSUFFICIENT_STOCK');
 });
 it('completed receipt snapshots and payments are immutable',async()=>{
  const p=await funded(),d=await draft({lines:[{productId:p,quantity:'1'}]});const done=await checkout(d);expect(done.status).toBe(200);
@@ -145,7 +145,7 @@ it('rolls back payment, sale status and stock when the final audit write fails',
  }finally{await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${fn} ON auth_audit`);await db.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${fn}()`);}
 });
 it('blocks archiving a shop while its price quote is active',async()=>{
- const shop=await db.location.create({data:{businessId:business,code:'EMPTY-POS',name:'Empty shop',kind:'SHOP'}}),d=await draft({locationId:shop.id});
+ const shop=await db.location.create({data:{businessId:business,code:'EMPTY-POS',name:'Empty shop',kind:'SHOP'}});await db.stockBalance.create({data:{businessId:business,locationId:shop.id,productId:product,onHand:'2'}});const d=await draft({locationId:shop.id});await db.stockBalance.updateMany({where:{locationId:shop.id},data:{onHand:'0'}});
  const archive=()=>request(app).patch(`/api/businesses/${business}/locations/${shop.id}`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:0,active:false});
  expect((await archive()).body.error.code).toBe('LOCATION_OPEN_SALES');await db.sale.update({where:{id:d.id},data:{expiresAt:new Date(0)}});expect((await archive()).status).toBe(200);expect((await checkout(d)).body.error.code).toBe('LOCATION_ARCHIVED');
 });

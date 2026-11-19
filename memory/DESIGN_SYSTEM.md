@@ -925,3 +925,32 @@ rounding. Applied to inventory, sales/receipts, purchasing, transfers, adjustmen
 opening previews, packs, FIFO, reports and legacy quantity views. Editable strings,
 stored precision and money formatting are unchanged. Seven precision cases pass;
 frontend build and AR/EN inventory browser checks pass.
+
+### Owner also works as cashier — 19 November 2026
+
+Settings → Customize my dashboard tabs now includes an owner-only bilingual
+checkbox for using the same account as owner and cashier. Saving pins sales,
+products, returns, locations, treasury/cash closing and reports in navigation.
+The existing owner permissions already cover cashier actions; role and server
+permissions remain intact. The preference is stored per membership, audited,
+and rejected for non-owners. Disabling restores saved tab visibility preferences.
+Existing white/slate panels, emerald checkbox, RTL and tab ordering are preserved.
+An additive membership-column migration is required before deploying the API.
+Validation: 27 business integration tests, backend application/test typechecks,
+frontend production build/prerender, mocked-API browser checks in AR/EN at
+320/390/768/1024/1440, keyboard, save/reload and disable behavior. Screenshots:
+`tmp/owner-cashier/` (baseline and updated settings).
+
+Additional owner/cashier verification: 122 distinct integration cases passed
+across businesses, sales, completion, locations and billing (121-case run plus
+an added security case in a 28-case business rerun). Real database lifecycle:
+one owner, no location assignment or new employee, cash sale/change, duplicate
+checkout, personal daily totals, return/restocked quantity, cash close and report.
+Additional security covers all staff roles, platform-only admin, CSRF, disabled
+membership, fresh session persistence and idempotent audit logging. Mocked-API
+browser checks cover unsaved state, failed save/retry, pending controls, business
+switching, reload, disabling/restoring hidden tabs and non-owner visibility;
+no browser page errors. Updated three old sales fixtures to create valid stocked
+quotes before simulating stock loss/reservation or empty-shop archiving. All
+original rollback/overselling/archive assertions remain. Typechecks pass.
+Logs and browser harnesses: `tmp/owner-cashier/`.

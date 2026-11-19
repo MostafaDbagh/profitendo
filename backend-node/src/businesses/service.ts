@@ -27,14 +27,16 @@ export class BusinessService {
       const access = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
       const state = await billingState(tx, businessId);
       const subscriptionAccess = { active: state.active, status: state.status, endsAt: state.subscription?.trialEndsAt ?? null, paid: !!state.paidUntil };
-      return { subscriptionAccess, business: access.business, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
+      return { subscriptionAccess, business: access.business, ownerAsCashier: access.membership.role === 'OWNER' && access.membership.ownerAsCashier, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
     });
   }
-  async preferences(ctx: AuthContext, businessId: string, hiddenTabs: string[], tabOrder?: string[]) {
+  async preferences(ctx: AuthContext, businessId: string, hiddenTabs: string[], tabOrder?: string[], ownerAsCashier?: boolean) {
     return this.auth.transaction(async tx => {
       const { membership } = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
-      const updated = await tx.membership.update({ where: { id: membership.id }, data: { hiddenTabs: [...new Set(hiddenTabs)], ...(tabOrder !== undefined ? { tabOrder } : {}) } });
-      return { hiddenTabs: updated.hiddenTabs, tabOrder: updated.tabOrder };
+      if (ownerAsCashier !== undefined && membership.role !== 'OWNER') throw new ApiError(403, 'FORBIDDEN', 'Only the business owner can enable owner cashier mode');
+      const updated = await tx.membership.update({ where: { id: membership.id }, data: { ...(ownerAsCashier !== undefined ? { ownerAsCashier } : {}), hiddenTabs: [...new Set(hiddenTabs)], ...(tabOrder !== undefined ? { tabOrder } : {}) } });
+      if (ownerAsCashier !== undefined && ownerAsCashier !== membership.ownerAsCashier) await tx.authAudit.create({ data: { userId: ctx.user.id, businessId, action: 'membership.owner_cashier_updated', targetId: membership.id, changes: { before: membership.ownerAsCashier, after: ownerAsCashier } } });
+      return { ownerAsCashier: updated.ownerAsCashier, hiddenTabs: updated.hiddenTabs, tabOrder: updated.tabOrder };
     });
   }
   async update(ctx: AuthContext, businessId: string, patch: BusinessPatch) {

@@ -97,6 +97,7 @@ model Membership {
   customRole BusinessRole? @relation(fields: [businessId, customRoleId], references: [businessId, id], onDelete: NoAction, map: "memberships_custom_role_fkey")
   permissionOverrides Json @default("{}") @map("permission_overrides")
   tabOrder String[] @default([]) @map("tab_order")
+  ownerAsCashier Boolean @default(false) @map("owner_as_cashier")
   hiddenTabs String[] @default([]) @map("hidden_tabs")
   revision   Int @default(0)
   disabledAt DateTime? @map("disabled_at") @db.Timestamptz(3)
