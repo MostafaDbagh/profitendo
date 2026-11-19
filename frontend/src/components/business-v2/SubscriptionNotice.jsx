@@ -1,5 +1,34 @@
+import {X} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {primaryClass} from './UI';
+
+function TrialStartedNotice({storageKey, ar, endsAt, timezone}) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(storageKey) === endsAt; }
+    catch { return false; }
+  });
+  if (dismissed) return null;
+
+  function dismiss() {
+    setDismissed(true);
+    try { localStorage.setItem(storageKey, endsAt); }
+    catch { /* The banner remains dismissed while this workspace is open. */ }
+  }
+
+  const endDate = new Intl.DateTimeFormat(ar ? 'ar' : 'en', {
+    dateStyle: 'long', timeZone: timezone,
+  }).format(new Date(endsAt));
+
+  return <aside className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 sm:p-5">
+    <div role="status">
+      <h2 className="font-semibold">{ar ? 'بدأت تجربتك المجانية' : 'Your free trial has started'}</h2>
+      <p className="mt-2 text-sm">{ar ? `تنتهي التجربة في ${endDate}.` : `Your trial ends on ${endDate}.`}</p>
+    </div>
+    <button type="button" onClick={dismiss} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+      <X className="h-4 w-4" aria-hidden="true" />{ar ? 'إخفاء' : 'Hide'}
+    </button>
+  </aside>;
+}
 
 // Keep an open workspace aware of expiry and externally confirmed renewals.
 // This is explanatory UI only; the server checks entitlement on every write.
@@ -31,13 +60,9 @@ export default function SubscriptionNotice({context, api, lang, section, onSecti
   const ended = access?.status === 'EXPIRED' || (access?.active && access.endsAt && new Date(access.endsAt).getTime() <= now);
   const ar = lang === 'ar', owner = context.permissions['billing.manage'];
   if (!ended && access?.active && access.status === 'TRIAL' && context.role === 'OWNER') {
-    const endDate = new Intl.DateTimeFormat(ar ? 'ar' : 'en', {
-      dateStyle: 'long', timeZone: context.business.timezone,
-    }).format(new Date(access.endsAt));
-    return <aside role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5 text-emerald-950">
-      <h2 className="font-semibold">{ar ? 'بدأت تجربتك المجانية' : 'Your free trial has started'}</h2>
-      <p className="mt-2 text-sm">{ar ? `تنتهي التجربة في ${endDate}.` : `Your trial ends on ${endDate}.`}</p>
-    </aside>;
+    const storageKey = `profitlens:trial-notice:${context.business.id}:${context.membershipId}`;
+    return <TrialStartedNotice key={JSON.stringify([storageKey, access.endsAt])}
+      {...{storageKey, ar}} endsAt={access.endsAt} timezone={context.business.timezone} />;
   }
   if (!ended && access?.status !== 'REVIEW') return null;
   return <aside data-testid="subscription-notice" aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4">

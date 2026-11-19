@@ -1,16 +1,37 @@
-import { Building2, CheckCircle2, MessageCircle, Package } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { buttonClass, panelClass } from './UI';
+import { ArrowRight, Building2, CheckCircle2, ChevronDown, Layers, Package, Settings, Truck } from 'lucide-react';
+import { useState } from 'react';
+import SupportInbox, { TicketForm } from '../support-v2/Support';
+import { panelClass, primaryClass } from './UI';
 import { useResource } from './useBusinessApi';
 
 const copy = {
   en: {
     title: 'Get started with ProfitLens',
-    intro: 'Set up your first location and product so you can start tracking stock.',
+    intro: 'Follow these five steps to set up your business and get ready to track stock.',
     done: 'Complete',
+    step: 'Step',
+    example: 'Example',
     steps: [
-      ['Add your first shop or warehouse', 'Create a location for the place where you sell or store stock. Choose Shop or Warehouse and give it a name you’ll recognize.', 'Go to Locations'],
-      ['Add your first product', 'Enter the product name and code in Products. Once your location is ready, you can receive stock there.', 'Go to Products'],
+      ['Set up your account', 'Choose how ProfitLens works for your business.', 'Open Settings', [
+        'Choose your country, then select the currency you use for your business records.',
+        'Save your business settings. Scroll to the tab preferences, use the arrows to reorder tabs, and keep the ones you need visible. Save the tab preferences.',
+      ], 'For a shop in Syria, choose Syria and select SYP if you keep your records in Syrian pounds.'],
+      ['Add your first shop or warehouse', 'Tell ProfitLens where you sell or store stock.', 'Go to Locations', [
+        'Open Locations and choose Add location.',
+        'Choose Shop or Warehouse, enter a name and code, then save.',
+      ], 'Name: Main shop · Code: SHOP-01'],
+      ['Add your first supplier', 'Save who you buy from so you can find them when recording a purchase.', 'Go to Suppliers', [
+        'Open Suppliers and choose Add supplier.',
+        'Enter the supplier’s name and code. Add contact details if you have them, then save.',
+      ], 'Name: Al Noor Dairy · Code: SUP-01'],
+      ['Create product categories', 'Group similar products so they’re easy to find.', 'Go to Products', [
+        'Open Products, then select Categories & units.',
+        'Add a category with a clear name and code, then save.',
+      ], 'Name: Dairy · Code: DAIRY'],
+      ['Add your first product', 'Create a product you can use in purchases and sales.', 'Go to Products', [
+        'In Products, choose Add product and enter the product name and SKU.',
+        'Choose the category and unit, fill in the required prices, then save.',
+      ], 'Product: Whole milk 1 L · SKU: MILK-1L · Category: Dairy'],
     ],
     faq: 'Frequently asked questions',
     questions: [
@@ -23,11 +44,31 @@ const copy = {
   },
   ar: {
     title: 'ابدأ مع ProfitLens',
-    intro: 'أضف موقعك ومنتجك الأول لتتمكن من متابعة المخزون.',
+    intro: 'اتبع هذه الخطوات الخمس لتجهيز نشاطك والبدء بمتابعة المخزون.',
     done: 'مكتملة',
+    step: 'الخطوة',
+    example: 'مثال',
     steps: [
-      ['أضف أول متجر أو مستودع', 'أنشئ موقعًا للمكان الذي تبيع فيه أو تخزّن البضائع فيه. اختر متجرًا أو مستودعًا وأدخل اسمًا يسهل عليك تمييزه.', 'انتقل إلى المواقع'],
-      ['أضف منتجك الأول', 'أدخل اسم المنتج ورمزه في تبويب المنتجات. بعد تجهيز الموقع يمكنك استلام المخزون فيه.', 'انتقل إلى المنتجات'],
+      ['اضبط إعدادات حسابك', 'جهّز ProfitLens ليتناسب مع طريقة عملك.', 'افتح الإعدادات', [
+        'اختر دولة نشاطك، ثم اختر العملة التي تستخدمها لتسجيل معاملاتك.',
+        'احفظ إعدادات النشاط. انتقل إلى تفضيلات التبويبات، واستخدم الأسهم لترتيبها وأبقِ التبويبات التي تحتاجها ظاهرة، ثم احفظ الترتيب.',
+      ], 'إذا كان متجرك في سوريا وتسجّل معاملاتك بالليرة السورية، اختر سوريا والعملة SYP.'],
+      ['أضف أول متجر أو مستودع', 'حدّد أين تبيع بضائعك أو تخزّنها.', 'انتقل إلى المواقع', [
+        'افتح تبويب المواقع واضغط «إضافة موقع».',
+        'اختر متجرًا أو مستودعًا، ثم أدخل اسم الموقع ورمزه واحفظه.',
+      ], 'الاسم: المتجر الرئيسي · الرمز: SHOP-01'],
+      ['أضف أول مورد', 'احفظ بيانات المورد لتتمكن من اختياره عند تسجيل مشترياتك.', 'انتقل إلى الموردين', [
+        'افتح تبويب الموردين واضغط «إضافة مورد».',
+        'أدخل اسم المورد ورمزه. أضف بيانات التواصل إن توفّرت، ثم احفظه.',
+      ], 'الاسم: ألبان النور · الرمز: SUP-01'],
+      ['أنشئ فئات المنتجات', 'اجمع المنتجات المتشابهة ليسهل العثور عليها.', 'انتقل إلى المنتجات', [
+        'افتح تبويب المنتجات، ثم اضغط «الفئات والوحدات».',
+        'أضف فئة باسم واضح ورمز، ثم احفظها.',
+      ], 'الاسم: الألبان · الرمز: DAIRY'],
+      ['أضف منتجك الأول', 'أضف منتجًا لتتمكن من استخدامه في المشتريات والمبيعات.', 'انتقل إلى المنتجات', [
+        'من تبويب المنتجات، اضغط «إضافة منتج» وأدخل اسم المنتج ورمزه (SKU).',
+        'اختر الفئة والوحدة، وأدخل الأسعار المطلوبة، ثم احفظ المنتج.',
+      ], 'المنتج: حليب كامل الدسم ١ لتر · الرمز: MILK-1L · الفئة: الألبان'],
     ],
     faq: 'أسئلة شائعة',
     questions: [
@@ -40,44 +81,73 @@ const copy = {
   },
 };
 
-function SetupStep({ api, path, tab, text, Icon, labels, onSection }) {
+function StepProgress({ api, path, category, label }) {
   const { data } = useResource(api, path);
-  const complete = data?.total > 0;
-  const [title, description, action] = text;
-  return <li className="rounded-lg border border-slate-200 p-4">
-    <div className="flex items-start gap-3">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
-      <div className="space-y-2">
-        <h4 className="font-semibold text-slate-900">{title}</h4>
-        <p className="text-sm leading-relaxed text-slate-600">{description}</p>
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className={buttonClass} onClick={() => onSection(tab)}>{action}</button>
-          {complete && <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />{labels.done}
-          </span>}
-        </div>
-      </div>
+  const complete = category ? data?.items.some(item => item.kind === 'CATEGORY') : data?.total > 0;
+  return complete ? <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
+    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />{label}
+  </span> : null;
+}
+
+function SetupStep({ api, path, category, tab, number, text, Icon, labels, lang, onSection, expanded, onToggle }) {
+  const [title, description, action, instructions, example] = text;
+  const id = `guidance-step-${number}`;
+  const stepNumber = new Intl.NumberFormat(lang).format(number);
+  return <li className={`rounded-xl border bg-white ${expanded ? 'border-emerald-200' : 'border-slate-200'}`}>
+    <button type="button" id={`${id}-title`} aria-expanded={expanded} aria-controls={id} onClick={onToggle}
+      className="flex w-full items-start gap-3 rounded-xl p-4 text-start hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 sm:p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold text-emerald-700">{labels.step} {stepNumber}</span>
+        <span className="mt-1 block font-semibold text-slate-900">{title}</span>
+        <span className="mt-1 block text-sm leading-relaxed text-slate-600">{description}</span>
+      </span>
+      <ChevronDown className={`mt-2 h-5 w-5 shrink-0 text-slate-500 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+    </button>
+    <div id={id} role="region" aria-labelledby={`${id}-title`} hidden={!expanded} className="space-y-4 border-t border-emerald-100 px-4 py-5 sm:px-5">
+      <ol className="list-decimal space-y-2 ps-5 text-sm leading-relaxed text-slate-700">
+        {instructions.map(instruction => <li key={instruction}>{instruction}</li>)}
+      </ol>
+      <p className="rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+        <strong className="me-2 text-slate-900">{labels.example}</strong>{example}
+      </p>
+      <button type="button" className={primaryClass} onClick={() => onSection(tab)}>
+        {action}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+      </button>
     </div>
+    {path && <div className="px-4 empty:hidden sm:px-5 [&:has(span)]:pb-4">
+      <StepProgress {...{ api, path, category }} label={labels.done} />
+    </div>}
   </li>;
 }
 
 export default function GettingStarted({ context, api, lang, onSection, visibleTabs }) {
-  if (context.role !== 'OWNER') return null;
+  const [version, setVersion] = useState(0);
+  const [sent, setSent] = useState(false);
+  const [openStep, setOpenStep] = useState(undefined);
   const labels = copy[lang === 'ar' ? 'ar' : 'en'];
   const base = `/businesses/${context.business.id}`;
   const steps = [
+    { tab: 'settings', permissions: ['business.edit'], Icon: Settings },
     { tab: 'locations', permissions: ['locations.manage'], path: `${base}/locations`, Icon: Building2 },
+    { tab: 'suppliers', permissions: ['suppliers.create'], path: `${base}/operations/suppliers`, Icon: Truck },
+    { tab: 'catalogue', permissions: ['catalogue.manage'], path: `${base}/products/references`, category: true, Icon: Layers },
     { tab: 'catalogue', permissions: ['catalogue.create', 'catalogue.cost'], path: `${base}/products`, Icon: Package },
-  ].map((step, index) => ({ ...step, text: labels.steps[index] }))
-    .filter(({ tab, permissions }) => visibleTabs?.includes(tab) && permissions.every(permission => context.permissions[permission]));
+  ].map((step, index) => ({ ...step, number: index + 1, text: labels.steps[index] }))
+    .filter(({ tab, permissions }) => context.role === 'OWNER' && visibleTabs?.includes(tab) && permissions.every(permission => context.permissions[permission]));
 
-  return <section className={`${panelClass} space-y-4`} aria-labelledby="getting-started-title">
+  const expandedStep = openStep === undefined ? steps[0]?.number : openStep;
+
+  return <div className="space-y-6"><section className={`${panelClass} space-y-4`} aria-labelledby="getting-started-title">
     <div>
-      <h3 id="getting-started-title" className="font-semibold text-slate-900">{labels.title}</h3>
-      <p className="mt-1 text-sm text-slate-600">{labels.intro}</p>
+      <h3 id="getting-started-title" className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{labels.title}</h3>
+      {steps.length > 0 && <p className="mt-1 text-sm text-slate-600">{labels.intro}</p>}
     </div>
-    {steps.length > 0 && <ol className="grid gap-3 md:grid-cols-2">
-      {steps.map(({ permissions, ...step }) => <SetupStep key={step.tab} {...step} {...{ api, labels, onSection }} />)}
+    {steps.length > 0 && <ol className="space-y-3">
+      {steps.map(({ permissions, ...step }) => <SetupStep key={step.number} {...step} {...{ api, labels, lang, onSection }}
+        expanded={expandedStep === step.number} onToggle={() => setOpenStep(expandedStep === step.number ? null : step.number)} />)}
     </ol>}
     <details className="rounded-lg border border-slate-200 p-4">
       <summary className="cursor-pointer text-sm font-semibold text-slate-900">{labels.faq}</summary>
@@ -88,11 +158,16 @@ export default function GettingStarted({ context, api, lang, onSection, visibleT
         </div>)}
       </dl>
     </details>
-    <div className="flex flex-wrap items-center gap-3">
-      <Link to="/contact" className={buttonClass}>
-        <MessageCircle className="me-2 inline h-4 w-4" aria-hidden="true" />{labels.support}
-      </Link>
+  </section>
+    <section className="space-y-3" aria-labelledby="guidance-support">
+      <h3 id="guidance-support" className="text-lg font-semibold">{labels.support}</h3>
       <p className="text-sm text-slate-600">{labels.reply}</p>
-    </div>
-  </section>;
+      {sent && <p role="status" className="text-sm font-medium text-emerald-700">
+        {lang === 'ar' ? 'تم إرسال سؤالك.' : 'Your question was sent.'}
+      </p>}
+      <TicketForm key={`form-${version}`} {...{api, lang}} session fixedBusinessId={context.business.id}
+        onCreated={() => { setSent(true); setVersion(value => value + 1); }} />
+      <SupportInbox key={`inbox-${version}`} {...{api, lang}} businessId={context.business.id} />
+    </section>
+  </div>;
 }
