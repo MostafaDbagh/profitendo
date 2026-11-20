@@ -59,7 +59,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     <form className={panelClass} onSubmit={save}>
       <fieldset disabled={busy} className="min-w-0 space-y-5">
         {form.items.map((item,index)=><div key={item.key} className="grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_auto]">
-          <Field id={`planned-name-${index}`} label={ar?'اسم الصنف':'Item name'} placeholder={ar?'مثال: عطور فرنسية':'e.g. French perfumes'}
+          <Field id={`planned-name-${index}`} label={ar?'اسم الصنف':'Item name'}
             value={item.name} onChange={event=>editItem(item.key,'name',event.target.value)} required maxLength={160}/>
           <Field id={`planned-quantity-${index}`} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
             value={item.quantity} onChange={event=>editItem(item.key,'quantity',event.target.value)} required/>
