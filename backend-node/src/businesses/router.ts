@@ -1,4 +1,4 @@
-import { configureOwnerPin, unlockOwnerPin } from './owner-pin.js';
+import { configureOwnerPin, ownerPinDeviceCookie, rememberOwnerPinDevice, unlockOwnerPin } from './owner-pin.js';
 import { chartAccountsRouter } from './chart-accounts.js';
 import { partnerRouter } from './partners.js';
 import { exportBusinessBackup } from './backup.js';
@@ -43,6 +43,11 @@ export function businessRouter(auth: AuthService) {
   const pin = z.string().regex(/^[0-9]{4,8}$/);
   router.put('/:businessId/owner-pin', validateBody(z.object({pin: pin.nullable(), password: z.string().min(1).max(128)}).strict()), async (req,res) => {
     res.json(await configureOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.password, req.body.pin));
+  });
+  router.post('/:businessId/owner-pin/device', validateBody(z.object({password:z.string().min(1).max(128)}).strict()), async (req,res) => {
+    const token = await rememberOwnerPinDevice(auth, ctx(res), String(req.params.businessId), req.body.password);
+    const cookie = ownerPinDeviceCookie(auth);
+    res.cookie(cookie.name, token, cookie.options).json({ok:true});
   });
   router.post('/:businessId/owner-pin/unlock', validateBody(z.object({pin}).strict()), async (req,res) => {
     res.json(await unlockOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.pin));

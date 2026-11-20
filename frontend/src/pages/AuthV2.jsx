@@ -24,7 +24,7 @@ export default function AuthV2() {
   const [emailRequired,setEmailRequired]=useState(false),[phoneRequired,setPhoneRequired]=useState(false);
   const [initialFailed, setInitialFailed] = useState(false), [checkAttempt, setCheckAttempt] = useState(0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [form, setForm] = useState({ phone: '', email: '', password: '', confirmPassword:'', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
+  const [form, setForm] = useState({ phone: '', email: '', pin: '', password: '', confirmPassword:'', name: '', businessName: '', code: '', currentPassword: '', businessId: '', role: 'CASHIER', inviteEmail: '' });
   const [qrCode,setQrCode]=useState('');
   const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]);
   const statusRef = useRef(null);
@@ -62,8 +62,8 @@ export default function AuthV2() {
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
   useEffect(()=>{if(!emailChallenge)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[emailChallenge]);
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
-  const switchMode = next => { if(busy)return;setEmailChallenge(null);setRecoveryMode(false);setMode(next); setError(''); setNotice(''); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
-  const clear = () => { setEmailChallenge(null);setRecoveryMode(false);csrf.current = ''; setSession(null); setSecret(''); setQrCode(''); setRecovery([]); setMode('login'); setForm(f => ({ ...f, password: '', confirmPassword:'', currentPassword: '', code: '' })); };
+  const switchMode = next => { if(busy)return;setEmailChallenge(null);setRecoveryMode(false);setMode(next); setError(''); setNotice(''); setForm(f => ({ ...f, pin: '', password: '', confirmPassword:'', currentPassword: '', code: '' })); };
+  const clear = () => { setEmailChallenge(null);setRecoveryMode(false);csrf.current = ''; setSession(null); setSecret(''); setQrCode(''); setRecovery([]); setMode('login'); setForm(f => ({ ...f, pin: '', password: '', confirmPassword:'', currentPassword: '', code: '' })); };
   const run = async work => {
     setBusy(true); setError(''); setNotice('');
     try { await work(); }
@@ -90,6 +90,10 @@ export default function AuthV2() {
       else { const data = await call('/mfa/confirm', { code: form.code }); const { recoveryCodes, ...safeSession } = data; setSession(safeSession); setRecovery(recoveryCodes); setSecret(''); setQrCode(''); setForm(f => ({ ...f, code: '' })); }
     } else if (session?.stage === 'mfa_required') { setSession(await call('/mfa/verify', { code: form.code })); setForm(f => ({ ...f, code: '' })); }
     else if (mode === 'login') { setSession(await call('/login', { email: form.email, password: form.password })); setForm(f => ({ ...f, password: '' })); }
+    else if (mode === 'pinLogin') {
+      setSession(await call('/login/pin', {email:form.email,pin:form.pin}));
+      setForm(f=>({...f,pin:''}));
+    }
     else if (mode === 'register') { const result=await call('/register', { email: form.email, password: form.password, name: form.name, businessName: form.businessName,phone:form.phone,language:lang }); if(!result.emailRequired){setSession(await call('/login',{email:form.email,password:form.password}));}else if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else setNotice('checkEmail'); setForm(f => ({ ...f, password: '',confirmPassword:'' })); }
     else if (mode === 'forgot') { if(mockOtp)await startEmailCode('PASSWORD_RESET');else{await call('/forgot-password', { email: form.email }); setNotice('checkEmail');} }
   }); };
@@ -115,7 +119,7 @@ export default function AuthV2() {
       <div className="w-full max-w-md fade-up"><MobileLogo t={t} /><Link to="/contact" className={`${linkClass} block mb-4`}>{lang==='ar'?'تواصل معنا':'Contact Us'}</Link>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
           <h1 className="text-2xl font-bold text-slate-900">{c(title)}</h1>
-          {!phone&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? (emailRequired?'registerHint':'registerHintDirect') : 'loginHint')}</p>}
+          {!phone&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? (emailRequired?'registerHint':'registerHintDirect') : mode === 'pinLogin' ? 'pinLoginHint' : 'loginHint')}</p>}
           {(error || notice) && <div ref={statusRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`text-sm p-3 rounded-lg border mb-5 ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{c(error || notice)}</div>}
           {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : initialFailed ? <button type="button" className={linkClass} onClick={() => setCheckAttempt(value => value + 1)}>{c('retryConnection')}</button> : recovery.length ? <div className="space-y-5">
             <div dir="ltr" className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs tabular p-3 bg-slate-50 border border-slate-200 rounded-lg">{recovery.map(code => <code key={code} className="break-all select-all">{code}</code>)}</div>
@@ -125,17 +129,21 @@ export default function AuthV2() {
               {mode==='emailCode'?<><p className="text-sm text-slate-600">{c('emailCodeHint')} <bdi>{form.email}</bdi></p>{otp}</>:setup ? secret ? <><p className="text-sm text-slate-600">{c('qrHint')}</p><img data-testid="mfa-qr" src={qrCode} alt={c('qrAlt')} width={256} height={256} className="mx-auto block w-full max-w-64 h-auto bg-white" /><p className="text-sm text-slate-600">{c('secretHint')}</p><label htmlFor="v2-secret" className="text-sm font-medium text-slate-700 block">{c('secretLabel')}</label><input id="v2-secret" readOnly dir="ltr" value={secret} className={`${inputClass} font-mono text-xs`} />{otp}</> : field('password', 'currentPassword', { type: 'password', autoComplete: 'current-password', maxLength: 128 }) : challenge ? <>{recoveryMode?field('code','recoveryCode',{placeholder:c('recoveryPlaceholder'),autoComplete:'off',dir:'ltr',minLength:24,maxLength:24,pattern:'[a-f0-9]{24}'}):otp}<button type="button" disabled={busy} className={linkClass} onClick={()=>{setRecoveryMode(v=>!v);setForm(f=>({...f,code:''}));setError('');}}>{c(recoveryMode?'useAuthenticator':'useRecovery')}</button></> : <>
                 {(mode === 'register' || (mode === 'invite' && session?.stage !== 'authenticated')) && field('name', 'name', { autoComplete: 'name', required: mode !== 'invite', minLength: 2, maxLength: 100 })}
                 {mode === 'register' && field('businessName', 'business', { autoComplete: 'organization', minLength: 2, maxLength: 120 })}
-                {['login', 'register', 'forgot'].includes(mode) && field('email', 'email', { type: 'email', autoComplete: 'email', dir: 'ltr', maxLength: 254 })}
+                {['login', 'pinLogin', 'register', 'forgot'].includes(mode) && field('email', 'email', { type: 'email', autoComplete: 'email', dir: 'ltr', maxLength: 254 })}
+                {mode === 'pinLogin' && field('pin','ownerPin',{
+                  type:'password',showPasswordStrength:false,dir:'ltr',inputMode:'numeric',autoComplete:'off',
+                  pattern:'[0-9]{4,8}',minLength:4,maxLength:8,placeholder:c('ownerPinPlaceholder'),
+                })}
                 {mode === 'register' && <PhoneInput verificationRequired={phoneRequired} id="v2-register-phone" label={c('phoneNumber')} value={form.phone} onChange={phone=>setForm(f=>({...f,phone}))} disabled={busy}/> }
                 {(['login', 'register', 'reset'].includes(mode) || (mode === 'invite' && session?.stage !== 'authenticated')) && field('password', mode === 'reset' ? 'newPassword' : 'password', { required: mode !== 'invite', type: 'password', autoComplete: mode === 'login' ? 'current-password' : 'new-password', minLength: mode === 'login' ? 1 : 8, maxLength: 128, hint: mode === 'login' ? undefined : c('passwordHint') })}
                 {['register','reset'].includes(mode)&&field('confirmPassword','confirmPassword',{type:'password',autoComplete:'new-password',minLength:8,maxLength:128,hint:mode==='register'&&form.confirmPassword&&form.password!==form.confirmPassword?c('PASSWORD_MISMATCH'):undefined,placeholder:c('confirmPasswordPlaceholder')})}
                 {mode === 'invite' && session?.stage !== 'authenticated' && <p className="text-sm text-slate-500">{lang === 'ar' ? 'اترك الاسم وكلمة المرور فارغين لاستخدام البيانات التي حددها مسؤول الدعوة، أو أدخل بياناتك الخاصة.' : 'Leave name and password blank to use the details supplied by the inviter, or enter your own.'}</p>}
                 {mode === 'invite' && <p className="text-sm text-slate-500">{c(session?.stage === 'authenticated' ? 'inviteSignedIn' : 'inviteExisting')}</p>}
               </>}
-              <Submit busy={busy} disabled={mode === 'register' && !registrationReady}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
+              <Submit busy={busy} disabled={(mode === 'register' && !registrationReady) || (mode === 'pinLogin' && (!form.email.trim() || !/^[0-9]{4,8}$/.test(form.pin)))}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
             </form>
             {mode==='emailCode'&&<button type="button" className={`${linkClass} mt-4`} disabled={busy||now<resendAt} onClick={()=>run(()=>startEmailCode(emailChallenge.purpose))}>{now<resendAt?`${c('resendIn')} ${Math.max(0,Math.ceil((resendAt-now)/1000))}`:c('resendCode')}</button>}
-            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}
+            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('pinLogin')}>{c('pinLogin')}</button><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c(mode === 'pinLogin' ? 'passwordLogin' : 'back')}</button>}</div>}
             {(setup || challenge) && <button type="button" disabled={busy} className={`${linkClass} mt-5`} onClick={() => signOut()}>{c('logout')}</button>}
           </>}
         </div>

@@ -694,3 +694,32 @@ it('allows only an owner to configure and unlock sensitive sections with a sessi
     await db.authUser.update({where:{id:ownerA.id},data:{ownerPinHash:null}});
   }
 });
+
+it('allows owner PIN sign-in only on an enabled browser and preserves MFA and device revocation', async () => {
+  const owner = await actor('OWNER', a);
+  const { email } = await db.authUser.findUniqueOrThrow({ where: { id: owner.id }, select: { email: true } });
+  const password = 'Integration test passphrase 142!', pin = '068912';
+  const authHeaders = { Origin: settings.appOrigin, Cookie: owner.cookie, 'X-CSRF-Token': owner.csrf };
+  const setPin = await request(app).put(`/api/businesses/${a}/owner-pin`).set(authHeaders).send({ pin, password });
+  expect(setPin.status).toBe(200);
+  const signIn = (cookie = '', input = { email, pin }) => request(app).post('/api/auth/login/pin')
+    .set('Origin', settings.appOrigin).set('Cookie', cookie).send(input);
+  expect((await signIn()).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
+
+  const remember = await write(`/${a}/owner-pin/device`, { password }, owner, 'post');
+  expect(remember.status).toBe(200);
+  expect(remember.body).toEqual({ ok: true });
+  const deviceHeader = (remember.headers['set-cookie'] as unknown as string[])[0]!;
+  expect(deviceHeader).toMatch(/HttpOnly/);
+  const device = deviceHeader.split(';')[0]!;
+  expect((await signIn(device + 'x')).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
+  expect((await signIn(device, { email, pin: '011111' })).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
+  const signedIn = await signIn(device);
+  expect(signedIn.status).toBe(200);
+  expect(signedIn.body.stage).toBe('mfa_required');
+  const pending = (signedIn.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
+  expect((await get(`/${a}/partners`, {cookie:pending,id:owner.id,csrf:signedIn.body.csrfToken})).body.error.code).toBe('MFA_REQUIRED');
+
+  expect((await request(app).post('/api/auth/sessions/revoke').set(authHeaders).send({})).status).toBe(200);
+  expect((await signIn(device)).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
+});

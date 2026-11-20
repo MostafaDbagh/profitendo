@@ -6,9 +6,9 @@ import { Field } from '../auth-v2/Fields';
 import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Pager, Select, Table, buttonClass, primaryClass } from '../business-v2/UI';
 import Purchases from './Purchases';
-export default function Suppliers({context,api,c,lang}){
+export default function Suppliers({context,api,c,lang,initialAction}){
  const path=`/businesses/${context.business.id}/operations/suppliers`,manage=context.permissions['suppliers.edit'],create=context.permissions['suppliers.create'];
- const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[edit,setEdit]=useState(null),[history,setHistory]=useState(null),[historyView,setHistoryView]=useState('purchases'),[notice,setNotice]=useState('');
+ const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[edit,setEdit]=useState(() => initialAction === 'new' && create ? {row:null} : null),[history,setHistory]=useState(null),[historyView,setHistoryView]=useState('purchases'),[notice,setNotice]=useState('');
  const trigger=useRef(null),{data,error,reload}=useResource(api,`${path}?page=${page}&state=${state}&search=${encodeURIComponent(query)}`);
  if(history)return <div className="space-y-4"><button className={buttonClass} onClick={()=>setHistory(null)}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><h2 className="font-bold">{history.name} · {c('history')}</h2>{context.permissions['returns.view']&&<div className="flex flex-wrap gap-2"><button className={buttonClass} onClick={()=>setHistoryView('purchases')}>{c('purchases')}</button><button className={buttonClass} onClick={()=>setHistoryView('returns')}>{c('SUPPLIER_RETURN')}</button></div>}{historyView==='returns'&&context.permissions['returns.view']?<Adjustments {...{context,api,c,lang}} initialSupplier={history}/>:<Purchases {...{context,api,c,lang}} initialSupplier={history}/>}</div>;
  return <section className="space-y-5">

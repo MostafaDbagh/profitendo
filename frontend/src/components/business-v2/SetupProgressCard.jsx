@@ -1,8 +1,31 @@
-import { ArrowRight, ListChecks } from 'lucide-react';
-import { panelClass, primaryClass } from './UI';
+import { ArrowRight, ListChecks, X } from 'lucide-react';
+import { useState } from 'react';
+import { buttonClass, panelClass, primaryClass } from './UI';
 import { useWorkspaceSetup } from './workspaceSetup';
 
-export default function SetupProgressCard({ context, api, lang, onSection, visibleTabs }) {
+export default function SetupProgressCard(props) {
+  const {business, membershipId} = props.context;
+  const storageKey = `profitlens:hide-workspace-setup:${business.id}:${membershipId}`;
+  return <DismissibleSetupCard key={storageKey} {...props} storageKey={storageKey} />;
+}
+
+function DismissibleSetupCard({storageKey, ...props}) {
+  const [hidden, setHidden] = useState(() => {
+    try { return localStorage.getItem(storageKey) === '1'; }
+    catch { return false; }
+  });
+  if (hidden) return null;
+
+  function hide() {
+    setHidden(true);
+    try { localStorage.setItem(storageKey, '1'); }
+    catch { /* Dismissal still applies in this view. */ }
+  }
+
+  return <SetupCard {...props} onHide={hide} />;
+}
+
+function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
   const steps = useWorkspaceSetup(context, api, visibleTabs);
   const completed = steps.filter(step => step.complete).length;
   const progressKnown = steps.every(step => step.complete !== null);
@@ -24,10 +47,15 @@ export default function SetupProgressCard({ context, api, lang, onSection, visib
           </p>
         </div>
       </div>
-      <button type="button" className={`${primaryClass} w-full sm:w-auto`} onClick={() => onSection('guidance')}>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      <button type="button" className={primaryClass} onClick={() => onSection('guidance')}>
         {ar ? 'استئناف الإعداد' : 'Continue setup'}
         <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
       </button>
+      <button type="button" className={buttonClass} onClick={onHide}>
+        <X className="h-4 w-4" aria-hidden="true" />{ar ? 'إخفاء' : 'Hide'}
+      </button>
+      </div>
     </div>
     {progressKnown && <div className="space-y-2">
       <p id="workspace-setup-count" className="text-sm font-medium text-emerald-800">

@@ -218,6 +218,7 @@ export class AuthService {
     await this.transaction(async tx => {
       await this.assertSession(tx, ctx);
       await tx.authSession.deleteMany({ where: { userId: ctx.user.id, ...(sessionId ? { id: sessionId } : {}) } });
+      if (!sessionId) await tx.authUser.update({ where: { id: ctx.user.id }, data: { securityVersion: { increment: 1 } } });
       await this.audit(tx, sessionId ? 'session.revoked' : 'sessions.revoked', ctx.user.id);
     });
   }

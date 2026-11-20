@@ -86,9 +86,9 @@ export default function DangerZone({context, api, c, lang, reload}) {
           hint={confirmation} autoComplete="off" value={phrase} onChange={event => setPhrase(event.target.value)} required disabled={busy} />
         <Field id="reset-password" type="password" label={labels.password} autoComplete="current-password"
           value={password} onChange={event => setPassword(event.target.value)} required maxLength={128} disabled={busy} />
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2 rtl:justify-start">
           <button type="button" className={buttonClass} onClick={close} disabled={busy}>{c('cancel')}</button>
-          <button type="submit" className={destructiveClass} disabled={busy || phrase !== confirmation || !password}>
+          <button type="submit" className={`${destructiveClass} rtl:order-first`} disabled={busy || phrase !== confirmation || !password}>
             {busy ? c('saving') : labels.action}
           </button>
         </div>

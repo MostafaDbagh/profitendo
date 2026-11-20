@@ -11,6 +11,9 @@ export const authCopy = {
 
     SUBSCRIPTION_REQUIRED: 'Start your trial in business management before inviting team members.', MEMBER_LIMIT_REACHED: 'Your plan’s team limit is reached, including pending invitations.',
     manageBusiness: 'Manage businesses and team', platform: 'Platform administration',
+    pinLogin:'Sign in with owner PIN', passwordLogin:'Sign in with password', ownerPin:'Owner PIN', ownerPinPlaceholder:'Enter your 4–8 digit PIN',
+    pinLoginHint:'PIN sign-in works on a browser you’ve enabled in Business Settings.',
+    OWNER_PIN_LOGIN_FAILED:'Check your email and PIN, or sign in with your password if this browser isn’t enabled.',
     login: 'Sign in', register: 'Create business account', forgot: 'Reset password', reset: 'Choose a new password', verify: 'Verify your email', invite: 'Join your team',
     loginHint: 'Sign in to manage your business securely.', registerHintDirect:'Create an account to start managing your business.', registerHint: 'Create an account for your business. Verify your email to continue.',
     email: 'Email', password: 'Password', name: 'Your name', business: 'Business name', newPassword: 'New password', currentPassword: 'Current password',
@@ -48,6 +51,9 @@ export const authCopy = {
 
     SUBSCRIPTION_REQUIRED: 'ابدأ التجربة من إدارة النشاط قبل دعوة أعضاء للفريق.', MEMBER_LIMIT_REACHED: 'وصلت إلى حد أعضاء الفريق بما يشمل الدعوات المعلّقة.',
     manageBusiness: 'إدارة الأنشطة والفريق', platform: 'إدارة المنصة',
+    pinLogin:'تسجيل الدخول برمز المالك', passwordLogin:'تسجيل الدخول بكلمة المرور', ownerPin:'رمز المالك PIN', ownerPinPlaceholder:'أدخل رمز PIN من ٤ إلى ٨ أرقام',
+    pinLoginHint:'يعمل تسجيل الدخول بالرمز في المتصفح الذي فعّلته من إعدادات النشاط.',
+    OWNER_PIN_LOGIN_FAILED:'تحقق من البريد والرمز، أو سجّل الدخول بكلمة المرور إذا لم تفعّل هذا المتصفح.',
     login: 'تسجيل الدخول', register: 'إنشاء حساب نشاط تجاري', forgot: 'استعادة كلمة المرور', reset: 'اختيار كلمة مرور جديدة', verify: 'تأكيد البريد الإلكتروني', invite: 'الانضمام إلى فريقك',
     loginHint: 'سجّل الدخول لإدارة نشاطك التجاري بأمان.', registerHintDirect:'أنشئ حسابًا وابدأ بإدارة نشاطك التجاري.', registerHint: 'أنشئ حسابًا لنشاطك التجاري ثم أكّد بريدك الإلكتروني للمتابعة.',
     email: 'البريد الإلكتروني', password: 'كلمة المرور', name: 'اسمك', business: 'اسم النشاط التجاري', newPassword: 'كلمة المرور الجديدة', currentPassword: 'كلمة المرور الحالية',

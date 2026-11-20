@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Eye, EyeOff, Loader2, Mail, Lock, User, Building2, ShieldCheck } from 'lucide-react';
 export const inputClass = 'w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm placeholder:text-slate-500 placeholder:opacity-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors';
-export function Field({ label, id, hint, ...props }) {
+export function Field({ label, id, hint, showPasswordStrength = true, ...props }) {
   const [visible, setVisible] = useState(false);
   const { lang } = useLanguage();
   const password = props.type === 'password';
   const numeric = ['number', 'tel'].includes(props.type) || ['numeric', 'decimal'].includes(props.inputMode);
-  const strength=password&&props.autoComplete==='new-password'&&!/confirm/i.test(id);
+  const strength=showPasswordStrength&&password&&props.autoComplete==='new-password'&&!/confirm/i.test(id);
   const describedBy=[props['aria-describedby'],hint?`${id}-hint`:null,numeric?`${id}-digits`:null,strength?`${id}-strength`:null].filter(Boolean).join(' ')||undefined;
   const visibilityLabel = lang === 'ar' ? (visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور') : (visible ? 'Hide password' : 'Show password');
   const Icon = ({ 'v2-email': Mail, 'v2-inviteEmail': Mail, 'v2-password': Lock, 'v2-currentPassword': Lock, 'v2-name': User, 'v2-businessName': Building2, 'v2-code': ShieldCheck })[id];
