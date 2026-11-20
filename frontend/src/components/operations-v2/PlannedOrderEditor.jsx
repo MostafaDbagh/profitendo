@@ -46,7 +46,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     finally{setBusy(false);}
   }
 
-  return <section className="max-w-3xl space-y-5">
+  return <section className="max-w-2xl space-y-5">
     <button type="button" className={buttonClass} disabled={busy} onClick={close}>
       <ArrowRight aria-hidden="true" className="h-4 w-4 ltr:rotate-180"/>{c('back')}
     </button>
@@ -58,16 +58,18 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     <Feedback {...{error,c}}/>
     <form className={panelClass} onSubmit={save}>
       <fieldset disabled={busy} className="min-w-0 space-y-5">
-        {form.items.map((item,index)=><div key={item.key} className="grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_auto]">
-          <Field id={`planned-name-${index}`} label={ar?'اسم الصنف':'Item name'}
+        {form.items.map((item,index)=><div key={item.key} className="grid items-start gap-4 sm:grid-cols-2">
+          <Field id={`planned-name-${index}`} label={ar?'اسم المنتج':'Product name'} placeholder={ar?'اكتب اسم المنتج':'Enter product name'}
             value={item.name} onChange={event=>editItem(item.key,'name',event.target.value)} required maxLength={160}/>
-          <Field id={`planned-quantity-${index}`} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
-            value={item.quantity} onChange={event=>editItem(item.key,'quantity',event.target.value)} required/>
-          {form.items.length>1&&<button type="button" className={`${buttonClass} sm:mt-6`} aria-label={`${c('remove')} ${index+1}`}
+          <div className="flex items-start gap-2">
+           <div className="min-w-0 flex-1"><Field id={`planned-quantity-${index}`} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
+            value={item.quantity} onChange={event=>editItem(item.key,'quantity',event.target.value)} required/></div>
+          {form.items.length>1&&<button type="button" className={`${buttonClass} mt-6 shrink-0`} aria-label={`${c('remove')} ${index+1}`}
             onClick={()=>change({items:form.items.filter(row=>row.key!==item.key)})}><X aria-hidden="true" className="h-4 w-4"/></button>}
+          </div>
         </div>)}
         <button type="button" className={buttonClass} disabled={form.items.length>=100} onClick={()=>change({items:[...form.items,newItem()]})}>
-          <Plus className="h-4 w-4" aria-hidden="true"/>{ar?'إضافة صنف':'Add item'}
+          <Plus className="h-4 w-4" aria-hidden="true"/>{ar?'إضافة منتج آخر':'Add another product'}
         </button>
         <div className="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
           <Field id="planned-order-date" label={ar?'تاريخ طلب الشراء':'Purchase request date'} type="date" value={form.documentDate}
