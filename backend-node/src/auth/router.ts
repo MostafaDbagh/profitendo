@@ -1,4 +1,4 @@
-import { loginWithOwnerPin, ownerPinDeviceCookie } from '../businesses/owner-pin.js';
+import { loginWithOwnerPin, ownerPinDeviceToken } from '../businesses/owner-pin.js';
 import { BillingService } from '../billing/service.js';
 import {ContactVerification} from './verification.js';
 import QRCode from 'qrcode';
@@ -69,8 +69,7 @@ export function authRouter(auth: AuthService) {
   });
   router.post('/login/pin', validateBody(z.object({email,pin:z.string().regex(/^[0-9]{4,8}$/)}).strict()), async (req,res) => {
     await auth.limit('owner-pin-login-ip', req.ip ?? '', 20);
-    const {name} = ownerPinDeviceCookie(auth);
-    const token = req.headers.cookie?.split(';').map(pair => pair.trim()).find(pair => pair.startsWith(name + '='))?.slice(name.length + 1);
+    const token = ownerPinDeviceToken(auth, req.headers.cookie);
     await sendSession(res, await loginWithOwnerPin(auth, req.body.email, req.body.pin, token));
   });
   for (const [path, kind] of [['/forgot-password', 'PASSWORD_RESET'], ['/verification/request', 'VERIFY_EMAIL']] as const) {

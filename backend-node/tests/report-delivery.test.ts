@@ -174,9 +174,10 @@ it('revokes profit-report access before preparation and after snapshot creation 
 
 it('sends separate copies to active partner recipients and skips removed recipients at dispatch',async()=>{
  const actorOwner=await actor('OWNER');
- const [partner,foreignPartner]=await Promise.all([business,other].map(businessId=>db.partner.create({
+ const createPartner=(businessId:string)=>db.partner.create({
   data:{businessId,name:'Report partner',ownership:10,capital:0,currency:'USD',notes:''},
- })));
+ });
+ const [partner,foreignPartner]=await Promise.all([createPartner(business),createPartner(other)]);
  const input={revision:0,enabled:false,reportTypes:['SALES'],language:'en'};
  const recipients=[{partnerId:partner.id,email:'partner@example.test'}];
  expect((await put({...input,partnerRecipients:[{...recipients[0],partnerId:foreignPartner.id}]},actorOwner)).status).toBe(422);

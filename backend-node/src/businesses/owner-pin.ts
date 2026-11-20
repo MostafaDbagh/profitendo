@@ -62,6 +62,21 @@ export function ownerPinDeviceCookie(auth: AuthService) {
   };
 }
 
+export function ownerPinDeviceToken(auth: AuthService, cookieHeader: string | undefined) {
+  const {name} = ownerPinDeviceCookie(auth);
+  return cookieHeader?.split(';').map(pair => pair.trim()).find(pair => pair.startsWith(name + '='))?.slice(name.length + 1);
+}
+
+export async function ownerPinDeviceStatus(auth: AuthService, ctx: AuthContext, businessId: string, token: string | undefined) {
+  return auth.transaction(async tx => {
+    const {user} = await requireOwner(auth, tx, ctx, businessId);
+    const device = readOwnerDevice(auth, token);
+    return {enabled: Boolean(device && device.expiresAt > Date.now() && device.userId === user.id
+      && user.platformRole === 'USER' && user.securityVersion === device.securityVersion
+      && user.ownerPinHash && equal(digest(user.ownerPinHash), device.pinBinding))};
+  });
+}
+
 export async function rememberOwnerPinDevice(auth: AuthService, ctx: AuthContext, businessId: string, password: string) {
   await auth.limit('owner-pin-device-settings', ctx.user.id, 5, 900);
   return auth.transaction(async tx => {

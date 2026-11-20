@@ -1,4 +1,4 @@
-import { configureOwnerPin, ownerPinDeviceCookie, rememberOwnerPinDevice, unlockOwnerPin } from './owner-pin.js';
+import { configureOwnerPin, ownerPinDeviceCookie, ownerPinDeviceStatus, ownerPinDeviceToken, rememberOwnerPinDevice, unlockOwnerPin } from './owner-pin.js';
 import { chartAccountsRouter } from './chart-accounts.js';
 import { partnerRouter } from './partners.js';
 import { exportBusinessBackup } from './backup.js';
@@ -47,6 +47,9 @@ export function businessRouter(auth: AuthService) {
     if (token) res.cookie(name, token, {...options, maxAge});
     else if (!status.enabled) res.clearCookie(name, options);
     res.json({...status, browserSignInEnabled: Boolean(token)});
+  });
+  router.get('/:businessId/owner-pin/device', async (req,res) => {
+    res.json(await ownerPinDeviceStatus(auth, ctx(res), String(req.params.businessId), ownerPinDeviceToken(auth, req.headers.cookie)));
   });
   router.delete('/:businessId/owner-pin/device', async (_req,res) => {
     const {name, options: {maxAge: _maxAge, ...options}} = ownerPinDeviceCookie(auth);
