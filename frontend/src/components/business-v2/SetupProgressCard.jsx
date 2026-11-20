@@ -34,12 +34,26 @@ function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
   const ar = lang === 'ar';
   const title = ar ? 'إعداد مساحة العمل' : 'Set up your workspace';
   const format = new Intl.NumberFormat(lang);
-  return <section dir={ar ? 'rtl' : 'ltr'} aria-labelledby="workspace-setup-title" className={`${panelClass} space-y-4 border-emerald-200`}>
+  const progressLabel = ar
+    ? `اكتملت ${format.format(completed)} من ${format.format(steps.length)} خطوات`
+    : `${completed} of ${steps.length} steps complete`;
+  return <section dir={ar ? 'rtl' : 'ltr'} aria-labelledby="workspace-setup-title" className={`${panelClass} border-emerald-200`}>
     <div className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-          <ListChecks className="h-5 w-5" aria-hidden="true" />
-        </span>
+      <div className="flex min-w-0 items-center gap-3">
+        {progressKnown ? (
+          <div role="progressbar" aria-labelledby="workspace-setup-title" aria-valuemin={0}
+            aria-valuemax={steps.length} aria-valuenow={completed} aria-valuetext={progressLabel}
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-full"
+            style={{background: `conic-gradient(hsl(var(--primary)) ${completed / steps.length * 100}%, hsl(var(--accent)) 0)`}}>
+            <bdi aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full bg-white text-xs font-semibold tabular-nums text-emerald-800">
+              {format.format(completed)}/{format.format(steps.length)}
+            </bdi>
+          </div>
+        ) : (
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+            <ListChecks className="h-5 w-5" aria-hidden="true" />
+          </span>
+        )}
         <div>
           <h3 id="workspace-setup-title" className="font-bold text-slate-900">{title}</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
@@ -57,14 +71,5 @@ function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
       </button>
       </div>
     </div>
-    {progressKnown && <div className="space-y-2">
-      <p id="workspace-setup-count" className="text-sm font-medium text-emerald-800">
-        {ar ? `اكتملت ${format.format(completed)} من ${format.format(steps.length)} خطوات` : `${completed} of ${steps.length} steps complete`}
-      </p>
-      <div role="progressbar" aria-labelledby="workspace-setup-title" aria-valuemin={0} aria-valuemax={steps.length}
-        aria-valuenow={completed} aria-describedby="workspace-setup-count" className="h-2 overflow-hidden rounded-full bg-emerald-100">
-        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${completed / steps.length * 100}%` }} />
-      </div>
-    </div>}
   </section>;
 }
