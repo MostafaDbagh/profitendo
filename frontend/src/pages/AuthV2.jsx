@@ -71,7 +71,15 @@ export default function AuthV2() {
     finally { setBusy(false); }
   };
   async function startEmailCode(purpose){const realVerify=emailOtp&&purpose==='VERIFY_EMAIL';const data=await call(realVerify?'/email-code/request':'/mock-code/request',realVerify?{email:form.email}:{email:form.email,purpose});setEmailChallenge({...data,purpose,realVerify});setResendAt(Date.now()+30000);setNow(Date.now());setMode('emailCode');setForm(f=>({...f,code:'',password:'',confirmPassword:''}));}
-  const submit = e => { e.preventDefault(); run(async () => {
+  const registrationReady =
+    form.name.trim().length >= 2 && form.name.trim().length <= 100 &&
+    form.businessName.trim().length >= 2 && form.businessName.trim().length <= 120 &&
+    form.email.trim().length <= 254 &&
+    /^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/.test(form.email.trim()) &&
+    /^\+[1-9][0-9]{6,14}$/.test(form.phone) &&
+    form.password.length >= 8 && form.password.length <= 128 &&
+    form.password === form.confirmPassword;
+  const submit = e => { e.preventDefault(); if (mode === 'register' && !registrationReady) return; run(async () => {
     if(['register','reset'].includes(mode)&&form.password!==form.confirmPassword)throw new Error('PASSWORD_MISMATCH');
     if(mode==='emailCode'){const data=await call(emailChallenge.realVerify?'/email-code/confirm':'/mock-code/confirm',{challenge:emailChallenge.challenge,...(emailChallenge.realVerify?{}:{purpose:emailChallenge.purpose}),code:form.code});setEmailChallenge(null);setForm(f=>({...f,code:''}));if(data.resetToken){linkToken.current=data.resetToken;setMode('reset');}else{setSession(data);setMode('login');setNotice('');}}
     else if (mode === 'verify') { await call('/verification/confirm', { token: linkToken.current }); linkToken.current = ''; setMode('login'); setNotice('verified'); }
@@ -120,11 +128,11 @@ export default function AuthV2() {
                 {['login', 'register', 'forgot'].includes(mode) && field('email', 'email', { type: 'email', autoComplete: 'email', dir: 'ltr', maxLength: 254 })}
                 {mode === 'register' && <PhoneInput verificationRequired={phoneRequired} id="v2-register-phone" label={c('phoneNumber')} value={form.phone} onChange={phone=>setForm(f=>({...f,phone}))} disabled={busy}/> }
                 {(['login', 'register', 'reset'].includes(mode) || (mode === 'invite' && session?.stage !== 'authenticated')) && field('password', mode === 'reset' ? 'newPassword' : 'password', { required: mode !== 'invite', type: 'password', autoComplete: mode === 'login' ? 'current-password' : 'new-password', minLength: mode === 'login' ? 1 : 8, maxLength: 128, hint: mode === 'login' ? undefined : c('passwordHint') })}
-                {['register','reset'].includes(mode)&&field('confirmPassword','confirmPassword',{type:'password',autoComplete:'new-password',minLength:8,maxLength:128,placeholder:c('confirmPasswordPlaceholder')})}
+                {['register','reset'].includes(mode)&&field('confirmPassword','confirmPassword',{type:'password',autoComplete:'new-password',minLength:8,maxLength:128,hint:mode==='register'&&form.confirmPassword&&form.password!==form.confirmPassword?c('PASSWORD_MISMATCH'):undefined,placeholder:c('confirmPasswordPlaceholder')})}
                 {mode === 'invite' && session?.stage !== 'authenticated' && <p className="text-sm text-slate-500">{lang === 'ar' ? 'اترك الاسم وكلمة المرور فارغين لاستخدام البيانات التي حددها مسؤول الدعوة، أو أدخل بياناتك الخاصة.' : 'Leave name and password blank to use the details supplied by the inviter, or enter your own.'}</p>}
                 {mode === 'invite' && <p className="text-sm text-slate-500">{c(session?.stage === 'authenticated' ? 'inviteSignedIn' : 'inviteExisting')}</p>}
               </>}
-              <Submit busy={busy}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
+              <Submit busy={busy} disabled={mode === 'register' && !registrationReady}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
             </form>
             {mode==='emailCode'&&<button type="button" className={`${linkClass} mt-4`} disabled={busy||now<resendAt} onClick={()=>run(()=>startEmailCode(emailChallenge.purpose))}>{now<resendAt?`${c('resendIn')} ${Math.max(0,Math.ceil((resendAt-now)/1000))}`:c('resendCode')}</button>}
             {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>}</div>}

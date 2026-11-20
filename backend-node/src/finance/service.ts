@@ -22,7 +22,7 @@ export class FinanceService{
   if(kind==='SUPPLIER'){const b=await supplierBalance(tx,bid,id),a=await requireLocation(this.auth,tx,ctx,bid,b.doc.locationId,'payments.view',false);if(!a.permissions['catalogue.cost']||!a.permissions['purchasing.view'])fail('FORBIDDEN',403);return {id,locationId:b.doc.locationId,reference:b.doc.reference,currency:b.doc.currency,currencyDigits:currencyDigits(b.doc.currency),gross:checked(b.gross),credit:checked(b.credits),paid:checked(b.paid),refunded:checked(b.refunded),outstanding:checked(b.outstanding),refundDue:checked(b.refundDue)};}
   const b=await refundBalance(tx,bid,id);await requireLocation(this.auth,tx,ctx,bid,b.doc.locationId,'payments.view',false);return {id,locationId:b.doc.locationId,reference:b.doc.reference,currency:b.doc.currency,currencyDigits:b.doc.currencyDigits,total:b.doc.total,paid:checked(b.paid),outstanding:checked(b.remaining)};
  });}
- async list(ctx:AuthContext,bid:string,page:number,locationId?:string,kind?:'EXPENSE'){return this.auth.transaction(async tx=>{
+ async list(ctx:AuthContext,bid:string,page:number,locationId?:string,kind?:'EXPENSE'|'CASH_OUT'){return this.auth.transaction(async tx=>{
   const {where,access}=await locationScope(this.auth,tx,ctx,bid,'payments.view');if(locationId)await requireLocation(this.auth,tx,ctx,bid,locationId,'payments.view',false);
   const filter={...where,...(kind?{kind}:{}),...(locationId?{locationId}:{}),...(!kind&&(!access.permissions['catalogue.cost']||!access.permissions['purchasing.view'])?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
   return {page,pageSize:25,total:await tx.moneyEntry.count({where:filter}),items:(await tx.moneyEntry.findMany({where:filter,skip:(page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],include:{location:{select:{name:true}},reversedBy:{select:{id:true,reason:true,actorName:true,createdAt:true}},reversalOf:{select:{id:true,reason:true,actorName:true,createdAt:true}}}})).map(({clientKey,requestHash,...e})=>e)};
@@ -56,16 +56,36 @@ export class FinanceService{
  });}catch(e){if(retry&&(e as {code?:string}).code==='P2002')return this.reverse(ctx,bid,id,input,false);throw e;}}
  async cashTotals(tx:Tx,bid:string,locationId:string,day:string){
   // SQL uses the business timezone, including DST, and includes all cash sources.
-  const rows=await tx.$queryRaw<{inflow:string;outflow:string}[]>`
-   SELECT COALESCE(SUM(inflow),0)::text AS inflow,COALESCE(SUM(outflow),0)::text AS outflow FROM (
-    SELECT p.amount AS inflow,0::numeric AS outflow FROM sale_payments p JOIN sales s ON s.id=p.sale_id AND s.business_id=p.business_id JOIN businesses b ON b.id=s.business_id WHERE s.business_id=${bid}::uuid AND s.location_id=${locationId}::uuid AND p.method='CASH' AND to_char(p.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
-    UNION ALL SELECT GREATEST(CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN e.amount ELSE -e.amount END,0),GREATEST(CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN -e.amount ELSE e.amount END,0) FROM money_entries e JOIN businesses b ON b.id=e.business_id WHERE e.business_id=${bid}::uuid AND e.location_id=${locationId}::uuid AND e.method='CASH' AND to_char(e.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
-   ) flows`;
-  return {inflow:scaled(rows[0]!.inflow),outflow:scaled(rows[0]!.outflow)};
+  const rows=await tx.$queryRaw<{kind:string;amount:string;inflow:string;outflow:string}[]>`
+   SELECT kind,SUM(amount)::text AS amount,
+     SUM(GREATEST(flow,0))::text AS inflow,SUM(GREATEST(-flow,0))::text AS outflow
+   FROM (
+    SELECT 'SALE' AS kind,p.amount,p.amount AS flow
+    FROM sale_payments p JOIN sales s ON s.id=p.sale_id AND s.business_id=p.business_id JOIN businesses b ON b.id=s.business_id
+    WHERE s.business_id=${bid}::uuid AND s.location_id=${locationId}::uuid AND p.method='CASH' AND to_char(p.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
+    UNION ALL
+    SELECT e.kind,e.amount,CASE WHEN e.kind IN ('SUPPLIER_REFUND','CASH_IN') THEN e.amount ELSE -e.amount END
+    FROM money_entries e JOIN businesses b ON b.id=e.business_id
+    WHERE e.business_id=${bid}::uuid AND e.location_id=${locationId}::uuid AND e.method='CASH' AND to_char(e.created_at AT TIME ZONE b.timezone,'YYYY-MM-DD')=${day}
+   ) flows GROUP BY kind`;
+  const amounts = new Map(rows.map(row => [row.kind, scaled(row.amount)]));
+  const inflow = rows.reduce((sum,row)=>sum+scaled(row.inflow),0n),outflow = rows.reduce((sum,row)=>sum+scaled(row.outflow),0n);
+  const sales = amounts.get('SALE') ?? 0n, refunds = amounts.get('CUSTOMER_REFUND') ?? 0n;
+  const expenses = amounts.get('EXPENSE') ?? 0n, withdrawals = amounts.get('CASH_OUT') ?? 0n;
+  return {inflow,outflow,sales,refunds,expenses,withdrawals};
  }
  async cash(ctx:AuthContext,bid:string,locationId:string,day:string){return this.auth.transaction(async tx=>{
   const a=await requireLocation(this.auth,tx,ctx,bid,locationId,'cash.close',false);
-  const totals=await this.cashTotals(tx,bid,locationId,day),closed=await tx.cashClose.findUnique({where:{businessId_locationId_day:{businessId:bid,locationId,day}}});return {day,today:businessDay(new Date(),a.business.timezone),currency:a.business.baseCurrency,currencyDigits:currencyDigits(a.business.baseCurrency),inflow:checked(totals.inflow),outflow:checked(totals.outflow),closed};
+  const totals=await this.cashTotals(tx,bid,locationId,day),closed=await tx.cashClose.findUnique({where:{businessId_locationId_day:{businessId:bid,locationId,day}}});
+  const {inflow,outflow,sales,refunds,expenses,withdrawals} = totals;
+  return {day,today:businessDay(new Date(),a.business.timezone),currency:a.business.baseCurrency,currencyDigits:currencyDigits(a.business.baseCurrency),inflow:checked(inflow),outflow:checked(outflow),closed,
+    breakdown:{sales:fixed(sales),refunds:fixed(refunds),expenses:fixed(expenses),withdrawals:fixed(withdrawals),other:fixed(inflow-outflow-sales+refunds+expenses+withdrawals)}};
+ });}
+ async cashHistory(ctx:AuthContext,bid:string,locationId:string,page:number){return this.auth.transaction(async tx=>{
+  await requireLocation(this.auth,tx,ctx,bid,locationId,'cash.close',false);
+  const where={businessId:bid,locationId};
+  return {page,pageSize:25,total:await tx.cashClose.count({where}),
+    items:await tx.cashClose.findMany({where,skip:(page-1)*25,take:25,orderBy:{day:'desc'}})};
  });}
  async close(ctx:AuthContext,bid:string,input:CloseInput){return this.auth.transaction(async tx=>{
   const a=await requireLocation(this.auth,tx,ctx,bid,input.locationId,'cash.close',false);

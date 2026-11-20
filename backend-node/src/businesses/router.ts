@@ -1,3 +1,8 @@
+import { configureOwnerPin, unlockOwnerPin } from './owner-pin.js';
+import { chartAccountsRouter } from './chart-accounts.js';
+import { partnerRouter } from './partners.js';
+import { exportBusinessBackup } from './backup.js';
+import { resetOperationalData } from './reset.js';
 import {createMember} from './create-member.js';
 import { countryCurrencies } from './countries.js';
 import { Router } from 'express';
@@ -33,8 +38,33 @@ export function businessRouter(auth: AuthService) {
   const paging = (query: unknown) => { const p = pageSchema.safeParse(query); if (!p.success) throw new ApiError(422, 'VALIDATION_ERROR', 'Invalid pagination'); return p.data; };
   router.get('/', async (_req, res) => { res.json(await service.list(ctx(res))); });
   router.get('/:businessId', async (req, res) => { res.json(await service.get(ctx(res), String(req.params.businessId))); });
-  router.patch('/:businessId/preferences', validateBody(z.object({ ownerAsCashier: z.boolean().optional(), hiddenTabs: z.array(z.enum(['expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit'])).max(19), tabOrder: z.array(z.enum(['dashboard','security','settings','expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit'])).max(22).refine(v => new Set(v).size === v.length).optional() }).strict()), async (req, res) => { res.json(await service.preferences(ctx(res), String(req.params.businessId), req.body.hiddenTabs, req.body.tabOrder, req.body.ownerAsCashier)); });
+  router.patch('/:businessId/preferences', validateBody(z.object({ ownerAsCashier: z.boolean().optional(), hiddenTabs: z.array(z.enum(['expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit','partners','accounts'])).max(21), tabOrder: z.array(z.enum(['dashboard','security','settings','expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit','partners','accounts'])).max(24).refine(v => new Set(v).size === v.length).optional() }).strict()), async (req, res) => { res.json(await service.preferences(ctx(res), String(req.params.businessId), req.body.hiddenTabs, req.body.tabOrder, req.body.ownerAsCashier)); });
   router.patch('/:businessId', validateBody(businessPatch), async (req, res) => { res.json(await service.update(ctx(res), String(req.params.businessId), req.body)); });
+  const pin = z.string().regex(/^[0-9]{4,8}$/);
+  router.put('/:businessId/owner-pin', validateBody(z.object({pin: pin.nullable(), password: z.string().min(1).max(128)}).strict()), async (req,res) => {
+    res.json(await configureOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.password, req.body.pin));
+  });
+  router.post('/:businessId/owner-pin/unlock', validateBody(z.object({pin}).strict()), async (req,res) => {
+    res.json(await unlockOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.pin));
+  });
+  router.get('/:businessId/backup', async (req, res) => {
+    const query = z.object({ format: z.enum(['json', 'xlsx']) }).strict().safeParse(req.query);
+    if (!query.success) throw new ApiError(422, 'VALIDATION_ERROR', 'Choose JSON or Excel');
+    await auth.limit('business-backup', ctx(res).user.id, 10, 900);
+    const { format } = query.data;
+    const file = await exportBusinessBackup(auth, ctx(res), String(req.params.businessId), format);
+    const day = new Date().toISOString().slice(0, 10);
+    res.attachment(`profitlens-backup-${day}.${format}`).send(file);
+  });
+  router.delete('/:businessId/operational-data', validateBody(z.object({
+    confirmation: z.literal('DELETE ALL DATA'), password: z.string().min(1).max(128),
+  }).strict()), async (req, res) => {
+    await auth.limit('business-data-reset', ctx(res).user.id, 5, 900);
+    await resetOperationalData(auth, ctx(res), String(req.params.businessId), req.body.password);
+    res.status(200).json({ ok: true });
+  });
+  router.use('/:businessId/accounts', chartAccountsRouter(auth));
+  router.use('/:businessId/partners', partnerRouter(auth));
   router.get('/:businessId/roles', async (req, res) => { res.json(await service.roles(ctx(res), String(req.params.businessId))); });
   router.post('/:businessId/roles', validateBody(z.object({ name: z.string().trim().min(2).max(80), permissions: overrides }).strict()), async (req, res) => { res.status(201).json(await service.createRole(ctx(res), String(req.params.businessId), req.body)); });
   router.post('/:businessId/members', validateBody(z.object({name:z.string().trim().min(2).max(100),email:z.string().trim().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(128),role:z.enum(staffRoles).optional(),customRoleId:z.string().uuid().optional(),locationIds:z.array(z.string().uuid()).max(100)}).strict().refine(v=>Boolean(v.role)!==Boolean(v.customRoleId))),async(req,res)=>{await auth.limit('create-member',ctx(res).user.id,20);res.status(201).json(await createMember(auth,ctx(res),{...req.body,businessId:String(req.params.businessId)}));});

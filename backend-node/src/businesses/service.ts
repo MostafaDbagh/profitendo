@@ -4,7 +4,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import type { AuthService, AuthContext } from '../auth/service.js';
 import { billingState, requireMemberCapacity } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
-import { requireBusiness } from './access.js';
+import { ownerPinStatus, requireBusiness } from './access.js';
 import { effectivePermissions, PERMISSIONS, permissionKeys, roleCatalog, type Permission } from './permissions.js';
 export type Page = { page: number; pageSize: number };
 export type BusinessPatch = { revision: number; countryCode?: string | null; salesTaxRate?: string; name?: string; baseCurrency?: string; timezone?: string; dateFormat?: string; numberFormat?: string };
@@ -27,7 +27,7 @@ export class BusinessService {
       const access = await requireBusiness(this.auth, tx, ctx, businessId, 'business.view');
       const state = await billingState(tx, businessId);
       const subscriptionAccess = { active: state.active, status: state.status, endsAt: state.subscription?.trialEndsAt ?? null, paid: !!state.paidUntil };
-      return { subscriptionAccess, business: access.business, ownerAsCashier: access.membership.role === 'OWNER' && access.membership.ownerAsCashier, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
+      return { subscriptionAccess, ownerPin: ownerPinStatus(access), business: access.business, ownerAsCashier: access.membership.role === 'OWNER' && access.membership.ownerAsCashier, hiddenTabs: access.membership.hiddenTabs, tabOrder: access.membership.tabOrder, membershipId: access.membership.id, role: access.membership.role, permissions: access.permissions };
     });
   }
   async preferences(ctx: AuthContext, businessId: string, hiddenTabs: string[], tabOrder?: string[], ownerAsCashier?: boolean) {
@@ -53,7 +53,7 @@ export class BusinessService {
       if (countryCode && ![countryCurrencies[countryCode], 'USD'].includes(patch.baseCurrency ?? business.baseCurrency)) {
         throw new ApiError(422, 'COUNTRY_CURRENCY_REQUIRED', 'Choose the local currency or USD');
       }
-      const updated = await tx.business.updateMany({ where: { id: businessId, revision }, data: { ...data, revision: { increment: 1 } } });
+      const updated = await tx.business.updateMany({ where: { id: businessId, revision }, data: { ...data, ...(business.initialSetupPending && patch.countryCode && { initialSetupPending: false }), revision: { increment: 1 } } });
       if (!updated.count) throw conflict();
       const changes = Object.fromEntries(Object.entries(data).map(([key, after]) => [key, { before: business[key as keyof typeof data], after }]));
       await tx.authAudit.create({ data: { userId: ctx.user.id, businessId, action: 'business.updated', targetId: businessId, changes } });

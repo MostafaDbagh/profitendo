@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 export function useBusinessApi() {
   const csrf = useRef(''), navigate = useNavigate();
-  return useCallback(async (path, { method = 'GET', body, signal } = {}) => {
+  return useCallback(async (path, { method = 'GET', body, signal, download = false } = {}) => {
     const timeout = AbortSignal.timeout(30000);
     const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     let response;
@@ -12,6 +12,7 @@ export function useBusinessApi() {
       if (signal?.aborted) throw error;
       throw new Error(timeout.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR');
     }
+    if (download && response.ok) return response.blob();
     const data = await response.json().catch(() => { throw new Error('INVALID_SERVER_RESPONSE'); });
     if (response.status === 401 || ['MFA_REQUIRED','PHONE_UNVERIFIED'].includes(data.error?.code)) navigate('/auth-v2', { replace: true });
     if (!response.ok) throw new Error(data.error?.code || 'failed');
@@ -22,6 +23,7 @@ export function useBusinessApi() {
 export function useResource(api, path) {
   const [state, setState] = useState({ path: null, data: null, error: '' }), [version, refresh] = useState(0);
   useEffect(() => {
+    if (path === null) return;
     const controller = new AbortController();
     setState({ path, data: null, error: '' });
     api(path, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setState({ path, data, error: '' }); }).catch(e => { if (!controller.signal.aborted) setState({ path, data: null, error: e.message }); });

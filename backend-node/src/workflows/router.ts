@@ -28,13 +28,14 @@ export function completionRouter(auth:AuthService){
  r.get('/adjustments/:id',async(req,res)=>res.json(await workflow.read(ctx(res),bid(req),id(req))));
  r.post('/adjustments',validateBody(adjustmentSchema),async(req,res)=>res.status(201).json(await workflow.create(ctx(res),bid(req),req.body)));
  r.post('/adjustments/:id/status',validateBody(adjustmentAction),async(req,res)=>res.json(await workflow.transition(ctx(res),bid(req),id(req),req.body)));
- r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional(),kind:z.literal('EXPENSE').optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId,q.kind));});
+ r.get('/payments',async(req,res)=>{const q=query(z.object({page,locationId:z.uuid().optional(),kind:z.enum(['EXPENSE','CASH_OUT']).optional()}).strict(),req.query);res.json(await finance.list(ctx(res),bid(req),q.page,q.locationId,q.kind));});
  r.post('/payments',validateBody(paymentSchema),async(req,res)=>res.status(201).json(await finance.create(ctx(res),bid(req),req.body)));
  r.post('/payments/:id/reverse',validateBody(reversalSchema),async(req,res)=>res.status(201).json(await finance.reverse(ctx(res),bid(req),id(req),req.body)));
  r.get('/balances/:id',async(req,res)=>{const q=query(z.object({kind:z.enum(['SUPPLIER','CUSTOMER'])}).strict(),req.query);res.json(await finance.balance(ctx(res),bid(req),q.kind,id(req)));});
  r.get('/cash',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),day:z.iso.date()}).strict(),req.query);res.json(await finance.cash(ctx(res),bid(req),q.locationId,q.day));});
+ r.get('/cash/history',async(req,res)=>{const q=query(z.object({locationId:z.uuid(),page}).strict(),req.query);res.json(await finance.cashHistory(ctx(res),bid(req),q.locationId,q.page));});
  r.post('/cash',validateBody(closeSchema),async(req,res)=>res.json(await finance.close(ctx(res),bid(req),req.body)));
- r.get('/reports',async(req,res)=>{const q=query(z.object({page,from:z.iso.date(),to:z.iso.date(),locationId:z.uuid().optional(),view:z.enum(['summary','stock','sales','purchases','returns','payments','balances','refunds']).default('summary'),lowStock:z.enum(['true','false']).default('false').transform(v=>v==='true'),export:z.enum(['true','false']).default('false').transform(v=>v==='true')}).strict(),req.query);res.json(await reports.read(ctx(res),bid(req),q));});
+ r.get('/reports',async(req,res)=>{const q=query(z.object({page,from:z.iso.date(),to:z.iso.date(),locationId:z.uuid().optional(),view:z.enum(['summary','stock','sales','purchases','returns','payments','expenses','profit','cash','balances','refunds']).default('summary'),lowStock:z.enum(['true','false']).default('false').transform(v=>v==='true'),export:z.enum(['true','false']).default('false').transform(v=>v==='true')}).strict(),req.query);res.json(await reports.read(ctx(res),bid(req),q));});
  r.get('/migration',async(req,res)=>res.json(await migration.readiness(ctx(res),bid(req))));
  r.post('/migration/preview',validateBody(previewSchema),async(req,res)=>res.status(201).json(await migration.preview(ctx(res),bid(req),req.body)));
  r.post('/migration/:id/confirm',validateBody(z.object({confirm:z.literal(true)}).strict()),async(req,res)=>res.json(await migration.confirm(ctx(res),bid(req),id(req))));return r;

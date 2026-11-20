@@ -10,9 +10,9 @@ import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 import ProductForm from './ProductForm';
 import ProductImport from './ProductImport';
-export default function Catalogue({context,api,c,lang,reload:refreshContext}){
+export default function Catalogue({context,api,c,lang,reload:refreshContext,initialAction}){
   const path=`/businesses/${context.business.id}/products`,cost=context.permissions['catalogue.cost'],manage=context.permissions['catalogue.edit'],create=context.permissions['catalogue.create'];
-  const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[scan,setScan]=useState(''),[found,setFound]=useState(null),[scanError,setScanError]=useState(''),[scanning,setScanning]=useState(false),[edit,setEdit]=useState(null),[importing,setImporting]=useState(false),[notice,setNotice]=useState('');
+  const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[scan,setScan]=useState(''),[found,setFound]=useState(null),[scanError,setScanError]=useState(''),[scanning,setScanning]=useState(false),[edit,setEdit]=useState(() => initialAction === 'new' && create && cost ? {product:null} : null),[importing,setImporting]=useState(false),[notice,setNotice]=useState('');
   const [filter,setFilter]=useState('all'),[exporting,setExporting]=useState(false),[exportError,setExportError]=useState('');
   const stock=context.permissions['inventory.view']&&context.permissions['locations.view'],sales=context.permissions['sales.view']&&context.permissions['locations.view'];
   const quantity=value=>new Intl.NumberFormat(lang==='ar'?'ar-u-nu-latn':'en',{maximumFractionDigits:4}).format(Number(value??0));

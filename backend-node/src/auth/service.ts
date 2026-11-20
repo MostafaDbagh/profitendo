@@ -74,7 +74,7 @@ export class AuthService {
       await this.transaction(async tx => {
         if (await tx.authUser.findUnique({ where: { email: input.email } })) return;
         const user = await tx.authUser.create({ data: { email: input.email, name: input.name, passwordHash: hash, language:input.language??'en', pendingPhone:phone?encrypt(this.settings.key,phone,'registration-phone'):null } });
-        const business = await tx.business.create({ data: { name: input.businessName } });
+        const business = await tx.business.create({ data: { name: input.businessName, initialSetupPending: true } });
         await tx.membership.create({ data: { userId: user.id, businessId: business.id, role: 'OWNER' } });
         if((await this.policy(tx)).emailRequired&&!this.settings.emailOtp)await this.issueToken(tx, user, 'VERIFY_EMAIL');
         await this.audit(tx, 'account.registered', user.id, business.id);

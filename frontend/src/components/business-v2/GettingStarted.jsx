@@ -1,8 +1,8 @@
-import { ArrowRight, Building2, CheckCircle2, ChevronDown, Layers, Package, Settings, Truck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import SupportInbox, { TicketForm } from '../support-v2/Support';
 import { panelClass, primaryClass } from './UI';
-import { useResource } from './useBusinessApi';
+import { useWorkspaceSetup } from './workspaceSetup';
 
 const copy = {
   en: {
@@ -81,15 +81,7 @@ const copy = {
   },
 };
 
-function StepProgress({ api, path, category, label }) {
-  const { data } = useResource(api, path);
-  const complete = category ? data?.items.some(item => item.kind === 'CATEGORY') : data?.total > 0;
-  return complete ? <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
-    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />{label}
-  </span> : null;
-}
-
-function SetupStep({ api, path, category, tab, number, text, Icon, labels, lang, onSection, expanded, onToggle }) {
+function SetupStep({ complete, tab, number, text, Icon, labels, lang, onSection, expanded, onToggle }) {
   const [title, description, action, instructions, example] = text;
   const id = `guidance-step-${number}`;
   const stepNumber = new Intl.NumberFormat(lang).format(number);
@@ -117,9 +109,9 @@ function SetupStep({ api, path, category, tab, number, text, Icon, labels, lang,
         {action}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
       </button>
     </div>
-    {path && <div className="px-4 empty:hidden sm:px-5 [&:has(span)]:pb-4">
-      <StepProgress {...{ api, path, category }} label={labels.done} />
-    </div>}
+    {complete && <p className="flex items-center gap-1 px-4 pb-4 text-sm font-medium text-emerald-700 sm:px-5">
+      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />{labels.done}
+    </p>}
   </li>;
 }
 
@@ -128,17 +120,9 @@ export default function GettingStarted({ context, api, lang, onSection, visibleT
   const [sent, setSent] = useState(false);
   const [openStep, setOpenStep] = useState(undefined);
   const labels = copy[lang === 'ar' ? 'ar' : 'en'];
-  const base = `/businesses/${context.business.id}`;
-  const steps = [
-    { tab: 'settings', permissions: ['business.edit'], Icon: Settings },
-    { tab: 'locations', permissions: ['locations.manage'], path: `${base}/locations`, Icon: Building2 },
-    { tab: 'suppliers', permissions: ['suppliers.create'], path: `${base}/operations/suppliers`, Icon: Truck },
-    { tab: 'catalogue', permissions: ['catalogue.manage'], path: `${base}/products/references`, category: true, Icon: Layers },
-    { tab: 'catalogue', permissions: ['catalogue.create', 'catalogue.cost'], path: `${base}/products`, Icon: Package },
-  ].map((step, index) => ({ ...step, number: index + 1, text: labels.steps[index] }))
-    .filter(({ tab, permissions }) => context.role === 'OWNER' && visibleTabs?.includes(tab) && permissions.every(permission => context.permissions[permission]));
-
-  const expandedStep = openStep === undefined ? steps[0]?.number : openStep;
+  const steps = useWorkspaceSetup(context, api, visibleTabs);
+  const nextStep = steps.find(step => step.complete !== true) ?? steps[0];
+  const expandedStep = openStep === undefined ? nextStep?.number : openStep;
 
   return <div className="space-y-6"><section className={`${panelClass} space-y-4`} aria-labelledby="getting-started-title">
     <div>
@@ -146,7 +130,7 @@ export default function GettingStarted({ context, api, lang, onSection, visibleT
       {steps.length > 0 && <p className="mt-1 text-sm text-slate-600">{labels.intro}</p>}
     </div>
     {steps.length > 0 && <ol className="space-y-3">
-      {steps.map(({ permissions, ...step }) => <SetupStep key={step.number} {...step} {...{ api, labels, lang, onSection }}
+      {steps.map(step => <SetupStep key={step.number} text={labels.steps[step.number - 1]} {...step} {...{ labels, lang, onSection }}
         expanded={expandedStep === step.number} onToggle={() => setOpenStep(expandedStep === step.number ? null : step.number)} />)}
     </ol>}
     <details className="rounded-lg border border-slate-200 p-4">

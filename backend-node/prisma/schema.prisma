@@ -36,6 +36,7 @@ model AuthUser {
   email           String @unique
   name            String
   passwordHash    String @map("password_hash")
+  ownerPinHash    String? @map("owner_pin_hash")
   platformRole    PlatformRole @default(USER) @map("platform_role")
   pendingPhone String? @map("pending_phone")
   phone String? @unique
@@ -62,6 +63,7 @@ model Business {
   manualPayments ManualSubscriptionPayment[]
   id           String @id @default(uuid()) @db.Uuid
   name         String
+  initialSetupPending Boolean @default(false) @map("initial_setup_pending")
   countryCode String? @map("country_code") @db.VarChar(2)
   salesTaxRate Decimal @default(0) @map("sales_tax_rate") @db.Decimal(7,4)
   baseCurrency String @default("USD") @map("base_currency")
@@ -83,6 +85,8 @@ model Business {
   locations Location[]
   products Product[]
   productImports ProductImport[]
+  chartAccounts ChartAccount[]
+  partners Partner[]
   suppliers Supplier[]
   paidApprovals PaidApproval[]
   supportTickets SupportTicket[]
@@ -155,6 +159,7 @@ model AuthSession {
   tokenHash        String @unique @map("token_hash")
   userId           String @map("user_id") @db.Uuid
   securityVersion  Int @map("security_version")
+  ownerPinUnlockedUntil DateTime? @map("owner_pin_unlocked_until") @db.Timestamptz(3)
   mfaVerified      Boolean @default(false) @map("mfa_verified")
   pendingMfaSecret String? @map("pending_mfa_secret")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1058,4 +1063,49 @@ model FifoLayer {
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
  @@index([businessId,locationId,productId,acquiredAt,originOrder,id])
  @@map("fifo_layers")
+}
+
+model Partner {
+  id           String @id @default(uuid()) @db.Uuid
+  businessId   String @map("business_id") @db.Uuid
+  name         String
+  ownership    Decimal @db.Decimal(7,4)
+  capital      Decimal @db.Decimal(18,4)
+  currency     String
+  notes        String
+  active       Boolean @default(true)
+  revision     Int @default(0)
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions PartnerTransaction[]
+  @@unique([businessId,id])
+  @@map("partners")
+}
+
+model PartnerTransaction {
+  id         String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  partnerId  String @map("partner_id") @db.Uuid
+  kind       String
+  amount     Decimal @db.Decimal(18,4)
+  day        String
+  notes      String
+  clientKey  String @map("client_key") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  partner    Partner @relation(fields: [businessId,partnerId], references: [businessId,id], onDelete: Cascade)
+  @@unique([businessId,partnerId,clientKey])
+  @@index([businessId,partnerId,day,id])
+  @@map("partner_transactions")
+}
+
+model ChartAccount {
+  businessId String @map("business_id") @db.Uuid
+  code       String
+  name       String
+  category   String
+  nature     String
+  active     Boolean @default(true)
+  revision   Int @default(0)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@id([businessId,code])
+  @@map("chart_accounts")
 }

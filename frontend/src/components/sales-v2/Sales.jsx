@@ -16,8 +16,8 @@ function SaleDetail({doc,setDoc,path,api,c,lang,edit,close}){
  <div className="flex flex-wrap gap-2">{doc.capabilities.edit&&<button className={buttonClass} disabled={busy} onClick={edit}>{c('saleEdit')}</button>}{doc.capabilities.cancel&&<button className={buttonClass} disabled={busy} onClick={e=>setCancel(e.currentTarget)}>{c('saleCancel')}</button>}</div></div></div>
  {cancel&&<Modal {...{c,lang,busy}} title={c('saleConfirmCancel')} description={c('saleConfirmCancelHint')} returnFocus={cancel} close={()=>setCancel(null)}><div className="flex gap-2"><button className={buttonClass} disabled={busy} onClick={()=>setCancel(null)}>{c('close')}</button><button className={primaryClass} disabled={busy} onClick={cancelDraft}>{c('confirm')}</button></div></Modal>}</div>;
 }
-export default function Sales({context,api,c,lang}){
- const path=`/businesses/${context.business.id}/sales`,[page,setPage]=useState(1),[status,setStatus]=useState(''),[doc,setDoc]=useState(null),[editing,setEditing]=useState(false),[error,setError]=useState(''),[loading,setLoading]=useState(false);
+export default function Sales({context,api,c,lang,initialAction}){
+ const path=`/businesses/${context.business.id}/sales`,[page,setPage]=useState(1),[status,setStatus]=useState(''),[doc,setDoc]=useState(null),[editing,setEditing]=useState(initialAction === 'new' && !!context.permissions['sales.create']),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const resource=useResource(api,`${path}?page=${page}${status?`&status=${status}`:''}`);
  const close=()=>{setEditing(false);setDoc(null);setError('');resource.reload();};
  async function open(id){setLoading(true);setError('');try{setDoc(await api(`${path}/${id}`));}catch(e){setError(e.message);}finally{setLoading(false);}}

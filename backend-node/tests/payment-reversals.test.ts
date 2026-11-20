@@ -133,3 +133,23 @@ it('serializes cash reversal against closing without changing a closed snapshot'
  if(correction.status===201){expect(closing.status).toBe(409);expect(closing.body.error.code).toBe('CASH_TOTAL_CHANGED');expect((await get(`/cash?locationId=${location.id}&day=${day()}`)).body.closed).toBeNull();}
  else{expect(closing.status,closing.text).toBe(200);expect(correction.body.error.code).toBe('CASH_DAY_CLOSED');expect(await db.moneyEntry.count({where:{reversalOfId:p.body.id}})).toBe(0);}
 });
+
+it('requires an unlocked owner PIN before reversing a posted payment', async () => {
+ const entry = await write('/payments',{clientKey:randomUUID(),locationId:destination,kind:'EXPENSE',
+  method:'CARD',amount:'2',reference:'PIN test',reason:'Owner PIN regression',confirm:true});
+ expect(entry.status).toBe(201);
+ const path=`/payments/${entry.body.id}/reverse`;
+ const reversal={clientKey:randomUUID(),reason:'Owner PIN regression',confirm:true};
+ await db.authUser.update({where:{id:owner.user.id},data:{ownerPinHash:'test-pin-enabled'}});
+ try {
+  const locked=await write(path,reversal);
+  expect(locked.status).toBe(403);
+  expect(locked.body.error.code).toBe('OWNER_PIN_REQUIRED');
+  expect(await db.moneyEntry.count({where:{reversalOfId:entry.body.id}})).toBe(0);
+  await db.authSession.update({where:{id:owner.session.id},data:{ownerPinUnlockedUntil:new Date(Date.now()+60_000)}});
+  expect((await write(path,reversal)).status).toBe(201);
+ } finally {
+  await db.authUser.update({where:{id:owner.user.id},data:{ownerPinHash:null}});
+  await db.authSession.update({where:{id:owner.session.id},data:{ownerPinUnlockedUntil:null}});
+ }
+});

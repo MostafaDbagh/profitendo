@@ -1,3 +1,4 @@
+import { ownerPinStatus, requireOwnerPin } from '../businesses/access.js';
 import {costOf,type CostSlice} from '../operations/fifo.js';
 import type {Prisma} from '../generated/prisma/client.js';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
@@ -6,27 +7,46 @@ import {locationScope,fail} from '../workflows/shared.js';
 import {credit} from '../workflows/service.js';
 import {fixed,scaled} from '../operations/decimal.js';
 import {currencyDigits,lineGross} from '../sales/money.js';
-export type ReportQuery={from:string;to:string;locationId?:string;view:'summary'|'stock'|'sales'|'purchases'|'returns'|'payments'|'balances'|'refunds';page:number;lowStock:boolean;export:boolean};
+export type ReportQuery={from:string;to:string;locationId?:string;view:'summary'|'stock'|'sales'|'purchases'|'returns'|'payments'|'expenses'|'profit'|'cash'|'balances'|'refunds';page:number;lowStock:boolean;export:boolean};
 export function csvCell(v:unknown){let s=v==null?'':String(v);if(/^[\s]*[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
 export class ReportService{
  constructor(readonly auth:AuthService){}
  async read(ctx:AuthContext,bid:string,q:ReportQuery){return this.auth.transaction(async tx=>{
   const {where,access}=await locationScope(this.auth,tx,ctx,bid,'reports.view');if(q.locationId)await requireLocation(this.auth,tx,ctx,bid,q.locationId,'reports.view',false);
   const scoped={...where,...(q.locationId?{locationId:q.locationId}:{})},cost=access.permissions['catalogue.cost'],purchase=cost&&access.permissions['purchasing.view'],currency=access.business.baseCurrency,digits=currencyDigits(currency);
+  if (['profit','payments','expenses','cash','balances','refunds'].includes(q.view)) requireOwnerPin(access);
+  const pin = ownerPinStatus(access);
+  const financeVisible = !pin.enabled || Boolean(pin.unlockedUntil && pin.unlockedUntil.getTime() > Date.now());
   const calendarDays=(new Date(q.to).getTime()-new Date(q.from).getTime())/86400000+1;
   if(calendarDays<1||calendarDays>366)fail('REPORT_RANGE',422);
   const bounds=await tx.$queryRaw<{start:Date;end:Date}[]>`SELECT (${q.from}::date)::timestamp AT TIME ZONE ${access.business.timezone} AS start,(${q.to}::date+1)::timestamp AT TIME ZONE ${access.business.timezone} AS end`;
   const range={gte:bounds[0]!.start,lt:bounds[0]!.end};
   const base={currency,currencyDigits:digits,from:q.from,to:q.to,timeBasis:access.business.timezone};
   const limit=10000;
+  if (q.view === 'profit') {
+   if (!cost || !access.permissions['payments.view']) fail('FORBIDDEN',403);
+   const totals = await summaryTotals(tx,bid,range,scoped,digits);
+   const { sales, customerReturns, netSales, expenses, grossProfit, estimatedProfit, estimatedCost,
+     damageCost, transferLossCost, supplierReturnAdjustment, countAdjustmentValue, unvaluedTransferLosses } = totals;
+   const metrics = {sales, customerReturns, netSales, expenses, grossProfit, estimatedProfit, estimatedCost,
+     damageCost, transferLossCost, supplierReturnAdjustment, countAdjustmentValue};
+   if (q.export) {
+    const csv = ['"metric","amount","currency"', ...Object.entries(metrics).map(([key,value]) =>
+      [key,value,currency].map(csvCell).join(','))].join('\r\n');
+    await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'report.exported',changes:{view:q.view,rowCount:Object.keys(metrics).length}}});
+    return {...base,filename:`profit-${q.from}-${q.to}.csv`,csv,total:Object.keys(metrics).length};
+   }
+   return {...base,...metrics,unvaluedTransferLosses};
+  }
   if(q.view==='summary'){
    const totals=await summaryTotals(tx,bid,range,{...(q.locationId?{locationId:q.locationId}:{}),...(where.location?{location:where.location}:{})},digits);
    const {expenses,estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue,...publicTotals}=totals;
    const received=purchase?await tx.purchaseDocument.findMany({where:{...scoped,kind:'RECEIPT',status:'COMPLETED',completedAt:range},include:{lines:true},take:limit+1}):null;
    if(received&&received.length>limit)fail('REPORT_TOO_LARGE',422);
-   return {...base,...publicTotals,...(received?{purchases:fixed(received.reduce((sum,r)=>sum+r.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n))}:{}),...(access.permissions['payments.view']?{expenses}:{}),...(cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue}:{})};
+   return {...base,...publicTotals,...(received?{purchases:fixed(received.reduce((sum,r)=>sum+r.lines.reduce((a,l)=>a+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n),0n))}:{}),...(financeVisible&&access.permissions['payments.view']?{expenses}:{}),...(financeVisible&&cost&&access.permissions['payments.view']?{estimatedProfit,grossProfit,netTax,transferLossCost,unvaluedTransferLosses,estimatedCost,damageCost,supplierReturnAdjustment,countAdjustmentValue}:{})};
   }
-  if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if((q.view==='payments'||q.view==='refunds')&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
+  if((q.view==='purchases'||q.view==='balances')&&!purchase)fail('FORBIDDEN',403);if(['payments','expenses','refunds','cash'].includes(q.view)&&!access.permissions['payments.view'])fail('FORBIDDEN',403);
+  if(q.view==='cash'&&!access.permissions['cash.close'])fail('FORBIDDEN',403);
   let rows:Record<string,unknown>[]=[];
   let pagedTotal:number|undefined;
   const paging={skip:q.export?0:(q.page-1)*25,take:q.export?limit+1:25};
@@ -48,10 +68,22 @@ export class ReportService{
    const where={...scoped,status:'COMPLETED',completedAt:range,kind:{in:purchase?['CUSTOMER_RETURN','SUPPLIER_RETURN']:['CUSTOMER_RETURN']}};
    if(!q.export)pagedTotal=await tx.adjustment.count({where});
    rows=(await tx.adjustment.findMany({where,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,location:r.locationName,kind:r.kind,source:r.sourceReference,date:r.completedAt?.toISOString(),credit:r.total.toFixed(digits),currency:r.currency}));
-  }else if(q.view==='payments'){
-   const where={...scoped,createdAt:range,...(!purchase?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
-   if(!q.export)pagedTotal=await tx.moneyEntry.count({where});
-   rows=(await tx.moneyEntry.findMany({where,orderBy:[{createdAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,kind:r.kind,reversalOfId:r.reversalOfId??'',method:r.method,date:r.createdAt.toISOString(),amount:r.amount.toFixed(digits),currency:r.currency,reason:r.reason}));
+  } else if (q.view === 'cash') {
+   const where = {...scoped,day:{gte:q.from,lte:q.to}};
+   if (!q.export) pagedTotal = await tx.cashClose.count({where});
+   const closes = await tx.cashClose.findMany({where,include:{location:{select:{name:true}}},orderBy:[{day:'desc'},{id:'asc'}],...paging});
+   rows = closes.map(r => {
+    const precision = currencyDigits(r.currency);
+    return {day:r.day,location:r.location.name,opening:r.opening.toFixed(precision),inflow:r.inflow.toFixed(precision),
+     outflow:r.outflow.toFixed(precision),expected:r.expected.toFixed(precision),counted:r.counted.toFixed(precision),
+     variance:r.variance.toFixed(precision),currency:r.currency,reason:r.reason};
+   });
+  } else if (q.view === 'payments' || q.view === 'expenses') {
+   const where = {...scoped,createdAt:range,...(q.view==='expenses'?{kind:'EXPENSE'}:!purchase?{kind:{notIn:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}:{})};
+   if (!q.export) pagedTotal = await tx.moneyEntry.count({where});
+   const entries = await tx.moneyEntry.findMany({where,include:{location:{select:{name:true}}},orderBy:[{createdAt:'desc'},{id:'asc'}],...paging});
+   rows = entries.map(r => ({reference:r.reference,location:r.location.name,kind:r.kind,reversalOfId:r.reversalOfId??'',
+    method:r.method,date:r.createdAt.toISOString(),amount:r.amount.toFixed(currencyDigits(r.currency)),currency:r.currency,reason:r.reason}));
   }
   else if(q.view==='refunds'){
    const refundWhere={...scoped,kind:'CUSTOMER_RETURN',status:'COMPLETED'};

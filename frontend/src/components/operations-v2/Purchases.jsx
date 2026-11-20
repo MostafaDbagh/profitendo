@@ -25,8 +25,8 @@ function PurchaseAction({label,hint,className,onClick,lang}){
   </TooltipProvider>
  );
 }
-export default function Purchases({context,api,c,lang,initialSupplier}){
- const [kind,setKind]=useState('RECEIPT'),[page,setPage]=useState(1),[supplier,setSupplier]=useState(initialSupplier||null),[picker,setPicker]=useState(false),[screen,setScreen]=useState(null),[status,setStatus]=useState(''),trigger=useRef(null);
+export default function Purchases({context,api,c,lang,initialSupplier,initialAction}){
+ const [kind,setKind]=useState('RECEIPT'),[page,setPage]=useState(1),[supplier,setSupplier]=useState(initialSupplier||null),[picker,setPicker]=useState(false),[screen,setScreen]=useState(() => initialAction === 'new' && context.permissions['receiving.create'] ? {type:'edit',kind:'RECEIPT'} : null),[status,setStatus]=useState(''),trigger=useRef(null);
  const [addingSupplier,setAddingSupplier]=useState(false);
  const path=`/businesses/${context.business.id}/operations`;
  const {data,error,reload}=useResource(api,`${path}/purchases?kind=${kind}&page=${page}${supplier?`&supplierId=${supplier.id}`:''}${status?`&status=${status}`:''}`);

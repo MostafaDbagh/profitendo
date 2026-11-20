@@ -24,8 +24,8 @@ export function Field({ label, id, hint, ...props }) {
     {numeric && <span id={`${id}-digits`} className="block text-xs text-slate-500 mt-1.5">{lang === 'ar' ? <>استخدم الأرقام <bdi dir="ltr">0–9</bdi> فقط</> : 'Use 0–9 only'}</span>}
     {strength&&<PasswordStrength id={`${id}-strength`} value={props.value} lang={lang}/>}</div>;
 }
-export function Submit({ busy, children }) {
-  return <button type="submit" disabled={busy} className="w-full py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
+export function Submit({ busy, disabled = false, children }) {
+  return <button type="submit" disabled={busy || disabled} className="w-full py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
     {busy && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}{children}</button>;
 }
 export const linkClass = 'text-sm text-emerald-600 font-semibold hover:text-emerald-700 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-sm';

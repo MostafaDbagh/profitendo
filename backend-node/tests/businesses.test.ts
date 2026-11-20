@@ -9,7 +9,7 @@ import { createDatabase } from '../src/database.js';
 import { createApp } from '../src/app.js';
 import { AuthService } from '../src/auth/service.js';
 import { readAuthSettings } from '../src/auth/settings.js';
-import { passwordMatches, passwordHash, csrfFor, encrypt, randomToken, digest } from '../src/auth/crypto.js';
+import { passwordMatches, passwordHash, csrfFor, encrypt, randomToken, digest, totp } from '../src/auth/crypto.js';
 import type { MembershipRole, PlatformRole } from '../src/generated/prisma/client.js';
 import { effectivePermissions, permissionKeys } from '../src/businesses/permissions.js';
 const url = process.env.TEST_DATABASE_URL;
@@ -485,4 +485,212 @@ it('security round: direct member creation rejects foreign locations, staff esca
   expect((await write(`/${a}/members`,{...body,role:'OWNER'},ownerA,'post')).status).toBe(422);
   expect(await db.authUser.findUnique({where:{email:body.email}})).toBeNull();
  }finally{await db.location.delete({where:{id:location.id}});}
+});
+
+it('resets only the confirmed owner’s operational rows and preserves business settings', async () => {
+  const location = await db.location.create({ data: { businessId: a, code: 'RESET', name: 'Reset test shop', kind: 'SHOP' } });
+  const cash = await db.cashClose.create({ data: {
+    businessId: a, locationId: location.id, day: '2026-11-20', opening: 0, inflow: 0, outflow: 0,
+    expected: 0, counted: 0, variance: 0, reason: '', currency: 'USD', actorId: ownerA.id, actorName: 'Test owner',
+  } });
+  const createSupplier = (businessId: string) =>
+    db.supplier.create({ data: { businessId, code: 'RESET-SUP', name: 'Reset test supplier' } });
+  const [supplierA, supplierB] = await Promise.all([createSupplier(a), createSupplier(b)]);
+  const reset = (businessId: string, user: Actor, password: string, csrf = user.csrf) =>
+    request(app).delete(`/api/businesses/${businessId}/operational-data`)
+      .set('Origin', settings.appOrigin).set('Cookie', user.cookie).set('X-CSRF-Token', csrf)
+      .send({ confirmation: 'DELETE ALL DATA', password });
+  const password = 'Integration test passphrase 142!';
+  try {
+    await expect(db.cashClose.delete({ where: { id: cash.id } })).rejects.toThrow();
+    expect((await reset(a, ownerA, password, '')).status).toBe(403);
+    expect((await reset(a, ownerB, password)).status).toBe(403);
+    expect((await reset(a, ownerA, 'incorrect password')).body.error.code).toBe('RESET_PASSWORD_INCORRECT');
+    expect(await db.cashClose.count({ where: { id: cash.id } })).toBe(1);
+
+    expect((await reset(a, ownerA, password)).status).toBe(200);
+    expect(await db.cashClose.count({ where: { id: cash.id } })).toBe(0);
+    expect(await db.supplier.count({ where: { businessId: a } })).toBe(0);
+    expect(await db.supplier.count({ where: { id: supplierB.id } })).toBe(1);
+    expect(await db.location.count({ where: { id: location.id } })).toBe(1);
+    expect(await db.membership.count({ where: { id: ownerA.membershipId } })).toBe(1);
+    expect(await db.businessSubscription.count({ where: { businessId: a } })).toBe(1);
+    expect(await db.authAudit.count({ where: { businessId: a, action: 'business.operational_data_reset' } })).toBe(1);
+  } finally {
+    await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT set_config('profitlens.reset_business', ${a}, true)`;
+      await tx.cashClose.deleteMany({ where: { id: cash.id } });
+      await tx.location.delete({ where: { id: location.id } });
+      await tx.supplier.deleteMany({ where: { id: { in: [supplierA.id, supplierB.id] } } });
+    });
+  }
+});
+
+it('downloads operational backups for the selected owner tenant only', async () => {
+  const [first, second] = await Promise.all([
+    db.supplier.create({ data: { businessId: a, code: 'BACKUP-SUP', name: 'Alpha export supplier' } }),
+    db.supplier.create({ data: { businessId: b, code: 'BACKUP-SUP', name: 'Beta private supplier' } }),
+  ]);
+  try {
+    const path = `/${a}/backup`;
+    expect((await get(`${path}?format=json`, ownerB)).status).toBe(403);
+    const staff = await actor('VIEWER', a);
+    expect((await get(`${path}?format=json`, staff)).status).toBe(403);
+    const json = await get(`${path}?format=json`, ownerA);
+    expect(json.status).toBe(200);
+    expect(json.headers['content-disposition']).toMatch(/\.json/);
+    expect(json.body.business.id).toBe(a);
+    expect(json.body.tables.Suppliers.map((row: { id: string }) => row.id)).toEqual([first.id]);
+    const xlsx = await get(`${path}?format=xlsx`, ownerA);
+    expect(xlsx.status).toBe(200);
+    expect(xlsx.headers['content-type']).toContain('spreadsheetml.sheet');
+    expect(xlsx.headers['content-disposition']).toMatch(/\.xlsx/);
+    expect(Number(xlsx.headers['content-length'])).toBeGreaterThan(100);
+  } finally {
+    await db.supplier.deleteMany({ where: { id: { in: [first.id, second.id] } } });
+  }
+});
+
+it('keeps partner ledgers tenant scoped and records retry-safe transactions', async () => {
+  const path = `/${a}/partners`;
+  const fields = { name: 'Partner test', ownership: '25', capital: '100', currency: 'USD', notes: '', active: true };
+  const partner = await write(path, fields, ownerA, 'post');
+  expect(partner.status).toBe(201);
+  const history = `${path}/${partner.body.id}/transactions`;
+  try {
+    expect((await get(history, ownerB)).status).toBe(403);
+    expect((await get(`/${b}/partners/${partner.body.id}/transactions`, ownerB)).status).toBe(404);
+    const contribution = {kind: 'CONTRIBUTION', amount: '25.25', day: '2026-11-20', notes: '', clientKey: randomUUID()};
+    const first = await write(history, contribution, ownerA, 'post');
+    const retry = await write(history, contribution, ownerA, 'post');
+    expect(first.status).toBe(201);
+    expect(retry.body.id).toBe(first.body.id);
+    expect((await write(history, {...contribution, kind: 'WITHDRAWAL', amount: '5', clientKey: randomUUID()}, ownerA, 'post')).status).toBe(201);
+    const result = await get(history, ownerA);
+    expect(result.body).toMatchObject({ balance: '20.2500', total: 2 });
+    expect((await write(`${path}/${partner.body.id}`, {...fields, currency: 'SYP', revision: result.body.partner.revision}, ownerA)).body.error.code).toBe('PARTNER_CURRENCY_LOCKED');
+  } finally {
+    await db.partner.deleteMany({ where: { businessId: a } });
+  }
+});
+
+it('serves all seven interactive report views and scopes finance reports to the business and dates', async () => {
+  const createShop = (businessId: string) => db.location.create({
+    data: { businessId, code: 'REPORTS', name: 'Report shop', kind: 'SHOP' },
+  });
+  const [shop, otherShop] = await Promise.all([createShop(a), createShop(b)]);
+  const day = '2026-11-20';
+  try {
+    for (const [location, id] of [[shop, ownerA.id], [otherShop, ownerB.id]] as const) {
+      for (const kind of ['EXPENSE', 'CASH_IN', 'CASH_OUT']) {
+        await db.moneyEntry.create({data: {
+          businessId: location.businessId, locationId: location.id, actorId: id, actorName: 'Report owner',
+          kind, clientKey: randomUUID(), requestHash: 'test', method: 'CASH', amount: 12, currency: 'USD',
+          reason: 'Report test entry', reference: '', createdAt: new Date(`${day}T10:00:00Z`),
+        }});
+      }
+      await db.cashClose.create({data: {
+        businessId: location.businessId, locationId: location.id, day, opening: 30, inflow: 12, outflow: 12,
+        expected: 30, counted: 28, variance: -2, reason: 'Report test closing', currency: 'USD',
+        actorId: id, actorName: 'Report owner',
+      }});
+    }
+    const report = (view: string, date = day, extra = '') =>
+      get(`/${a}/workflows/reports?view=${view}&from=${date}&to=${date}${extra}`, ownerA);
+    for (const view of ['sales','purchases','stock','returns']) expect((await report(view)).status).toBe(200);
+    expect((await report('expenses')).body).toMatchObject({total:1,items:[{kind:'EXPENSE',amount:'12.00'}]});
+    expect((await report('profit')).body).toMatchObject({estimatedProfit:'-12.0000'});
+    expect((await report('profit', day, '&export=true')).body.csv).toContain('estimatedProfit');
+    expect((await report('cash')).body).toMatchObject({total:1,items:[{day,counted:'28.00',variance:'-2.00'}]});
+    expect((await report('cash', '2026-11-19')).body.total).toBe(0);
+    expect((await report('cash', day, `&locationId=${otherShop.id}`)).status).toBe(404);
+    const cash = await get(`/${a}/workflows/cash?locationId=${shop.id}&day=${day}`, ownerA);
+    expect(cash.body).toMatchObject({inflow:'12.0000',outflow:'24.0000',
+      breakdown:{sales:'0.0000',refunds:'0.0000',expenses:'12.0000',withdrawals:'12.0000',other:'12.0000'}});
+    const history = await get(`/${a}/workflows/cash/history?locationId=${shop.id}`, ownerA);
+    expect(history.body).toMatchObject({total:1,items:[{day,locationId:shop.id}]});
+    expect((await get(`/${a}/workflows/cash/history?locationId=${otherShop.id}`, ownerA)).status).toBe(404);
+    expect((await get(`/${a}/workflows/payments?locationId=${shop.id}&kind=CASH_OUT`, ownerA)).body)
+      .toMatchObject({total:1,items:[{kind:'CASH_OUT',locationId:shop.id}]});
+  } finally {
+    for (const location of [shop, otherShop]) await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT set_config('profitlens.reset_business', ${location.businessId}, true)`;
+      await tx.cashClose.deleteMany({where:{locationId:location.id}});
+      await tx.moneyEntry.deleteMany({where:{locationId:location.id}});
+      await tx.location.delete({where:{id:location.id}});
+    });
+  }
+});
+
+it('provides starter accounts and keeps chart changes tenant scoped', async () => {
+  const path = `/${a}/accounts`;
+  const chart = await get(path, ownerA);
+  expect(chart.status).toBe(200);
+  expect(new Set(chart.body.items.map((account: {category:string}) => account.category)).size).toBe(6);
+  expect((await get(path, ownerB)).status).toBe(403);
+  const fields = {name:'Test utilities',category:'expenses',nature:'debit',active:true};
+  const remove = (code: string, revision: number) =>
+    request(app).delete(`/api/businesses${path}/${code}`).set('Origin', settings.appOrigin)
+      .set('Cookie', ownerA.cookie).set('X-CSRF-Token', ownerA.csrf).send({revision});
+  try {
+    expect((await write(path,{...fields,code:'1000'},ownerA,'post')).status).toBe(409);
+    expect((await write(path,{...fields,code:'6800'},ownerA,'post')).status).toBe(201);
+    expect((await write(`${path}/6800`,{...fields,active:false,revision:0},ownerA)).body.active).toBe(false);
+    expect((await get(`/${b}/accounts`,ownerB)).body.items.some((row:{code:string})=>row.code==='6800')).toBe(false);
+    expect((await remove('1000',0)).status).toBe(409);
+    expect((await remove('6800',1)).status).toBe(200);
+  } finally {
+    await db.chartAccount.deleteMany({where:{businessId:a,code:'6800'}});
+  }
+});
+
+it('allows only an owner to configure and unlock sensitive sections with a session-scoped PIN', async () => {
+  const pin = '048271', password = 'Integration test passphrase 142!';
+  const backup = `/${a}/backup?format=json`;
+  const profit = `/${a}/workflows/reports?view=profit&from=2026-11-20&to=2026-11-20`;
+  const setPin = (pinValue: string | null, user: Actor, currentPassword = password) =>
+    request(app).put(`/api/businesses/${a}/owner-pin`).set('Origin',settings.appOrigin)
+      .set('Cookie',user.cookie).set('X-CSRF-Token',user.csrf).send({pin:pinValue,password:currentPassword});
+  const staff = await actor('VIEWER',a);
+  try {
+    expect((await setPin(pin,staff)).status).toBe(403);
+    expect((await setPin(pin,ownerA,'incorrect')).body.error.code).toBe('OWNER_PIN_PASSWORD_INCORRECT');
+    expect((await setPin(pin,ownerA)).body).toEqual({enabled:true,unlockedUntil:null});
+    for (const path of [backup,profit,`/${a}/partners`,`/${a}/accounts`,`/${a}/workflows/payments`]) {
+      expect((await get(path,ownerA)).body.error.code).toBe('OWNER_PIN_REQUIRED');
+    }
+    const summary = await get(`/${a}/workflows/reports?from=2026-11-20&to=2026-11-20`,ownerA);
+    expect(summary.status).toBe(200);
+    expect(summary.body.estimatedProfit).toBeUndefined();
+    expect(await db.authUser.findUnique({where:{id:ownerA.id},select:{ownerPinHash:true}}))
+      .toMatchObject({ownerPinHash:expect.stringMatching(/^\$argon2id\$/)});
+    expect((await write(`/${a}/owner-pin/unlock`,{pin:'0000'},ownerA,'post')).body.error.code).toBe('OWNER_PIN_INCORRECT');
+    expect((await write(`/${a}/owner-pin/unlock`,{pin},ownerA,'post')).status).toBe(200);
+    expect((await get(backup,ownerA)).status).toBe(200);
+    expect((await get(profit,ownerA)).status).toBe(200);
+    const owner = await db.authUser.findUniqueOrThrow({where:{id:ownerA.id},select:{email:true}});
+    const login = await request(app).post('/api/auth/login').set('Origin',settings.appOrigin)
+      .send({email:owner.email,password});
+    expect(login.body.stage).toBe('mfa_required');
+    function sessionFrom(response: request.Response) {
+      const cookies = response.headers['set-cookie'] as unknown as string[];
+      return {id:ownerA.id,cookie:cookies[0]!.split(';')[0]!,csrf:response.body.csrfToken};
+    }
+    const pending = sessionFrom(login);
+    expect((await write(`/${a}/owner-pin/unlock`,{pin},pending,'post')).body.error.code).toBe('MFA_REQUIRED');
+    const verified = await request(app).post('/api/auth/mfa/verify').set('Origin',settings.appOrigin)
+      .set('Cookie',pending.cookie).set('X-CSRF-Token',pending.csrf)
+      .send({code:totp('JBSWY3DPEHPK3PXP',owner.email).generate()});
+    expect(verified.body.stage).toBe('authenticated');
+    const secondSession = sessionFrom(verified);
+    expect((await get(backup,secondSession)).body.error.code).toBe('OWNER_PIN_REQUIRED');
+    expect((await write(`/${a}/owner-pin/unlock`,{pin},secondSession,'post')).status).toBe(200);
+    expect((await get(backup,secondSession)).status).toBe(200);
+    await db.authSession.updateMany({where:{userId:ownerA.id},data:{ownerPinUnlockedUntil:new Date(0)}});
+    expect((await get(profit,ownerA)).body.error.code).toBe('OWNER_PIN_REQUIRED');
+    expect((await setPin(null,ownerA)).status).toBe(200);
+    expect((await get(backup,ownerA)).status).toBe(200);
+  } finally {
+    await db.authUser.update({where:{id:ownerA.id},data:{ownerPinHash:null}});
+  }
 });
