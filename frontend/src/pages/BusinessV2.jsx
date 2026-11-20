@@ -1,3 +1,4 @@
+import ContactSupport from '../components/business-v2/ContactSupport';
 import { OwnerPinUnlock } from '../components/business-v2/OwnerPin';
 import ChartAccounts from '../components/business-v2/ChartAccounts';
 import Partners from '../components/business-v2/Partners';
@@ -22,7 +23,7 @@ import Suppliers from '../components/operations-v2/Suppliers';
 import Purchases from '../components/operations-v2/Purchases';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Package, ShoppingBag, Boxes, Receipt, Building2, Users, ShieldCheck, LogOut, History, ArrowLeftRight, ShoppingCart, RotateCcw, ClipboardCheck, Wallet, BarChart3, Upload, BookOpen, Menu, X, TrendingUp, Handshake } from 'lucide-react';
+import { Settings as SettingsIcon, Package, ShoppingBag, Boxes, Receipt, Building2, Users, ShieldCheck, LogOut, History, ArrowLeftRight, ShoppingCart, RotateCcw, ClipboardCheck, Wallet, BarChart3, Upload, BookOpen, Menu, X, TrendingUp, Handshake, Headset } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Seo } from '../components/Seo';
 import { businessCopy } from '../components/business-v2/copy';
@@ -34,7 +35,7 @@ import Locations from '../components/business-v2/Locations';
 import Catalogue from '../components/catalogue-v2/Catalogue';
 import Team from '../components/business-v2/Team';
 import { Audit, Roles } from '../components/business-v2/Records';
-const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
+const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['contactSupport',null,Headset], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
 function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls }) {
   const { data: loadedContext, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [pinOverride, setPinStatus] = useState(null);
@@ -87,10 +88,15 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
   const availableTabs = orderedSections.filter(([key, permission]) => (!['partners','accounts'].includes(key) || context.role === 'OWNER') && (!permission || context.permissions[permission]));
   const hiddenTabs = savedPreferences?.hiddenTabs ?? context.hiddenTabs ?? [];
   const ownerAsCashier = context.role === 'OWNER' && (savedPreferences?.ownerAsCashier ?? context.ownerAsCashier ?? false);
-  const visible = availableTabs.filter(([key]) => ['dashboard','guidance','billing','security','settings'].includes(key) || (ownerAsCashier && cashierTabs.includes(key)) || !hiddenTabs.includes(key));
+  const visible = availableTabs.filter(([key]) => ['dashboard','guidance','billing','contactSupport','security','settings'].includes(key) || (ownerAsCashier && cashierTabs.includes(key)) || !hiddenTabs.includes(key));
+  const supportIndex = visible.findIndex(([key]) => key === 'contactSupport');
+  if (supportIndex !== -1) {
+    const [supportTab] = visible.splice(supportIndex, 1);
+    visible.splice(3, 0, supportTab);
+  }
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const initialAction = current === section ? params.get('action') : null;
-  const Component = { dashboard:Dashboard,guidance:GettingStarted,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, partners:Partners, accounts:ChartAccounts, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];
+  const Component = { dashboard:Dashboard,guidance:GettingStarted,contactSupport:ContactSupport,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, partners:Partners, accounts:ChartAccounts, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];
   const ar = lang === 'ar';
   const direction = ar ? 'rtl' : 'ltr';
   const menuLabel = ar ? 'قائمة التنقل' : 'Navigation menu';
@@ -141,7 +147,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
       </nav>
     <main ref={contentRef} tabIndex={-1} className="min-w-0 flex-1 px-3 py-4 outline-none sm:px-5 sm:py-6 xl:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
       ? <OwnerPinUnlock {...{context,api,c,lang}} onPinStatus={setPinStatus} />
-      : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>key!=='guidance')} onTabsSaved={setSavedPreferences}/>}</div></div></main>
+      : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</div></div></main>
   </div></UpgradeContext.Provider></DraftScope.Provider>;
 }
 export default function BusinessV2() {

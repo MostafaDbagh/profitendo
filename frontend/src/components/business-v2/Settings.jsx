@@ -1,7 +1,6 @@
 import { OwnerPinUnlock } from './OwnerPin';
 import BusinessBackup from './BusinessBackup';
 import DangerZone from './DangerZone';
-import ServiceRequests from './ServiceRequests';
 import Select from './SettingsSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
@@ -54,7 +53,7 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
-  </form>{!initialSetup && <ServiceRequests {...{context,api,lang}}/>}{!initialSetup && editable && context.role === 'OWNER' && <>
+  </form>{!initialSetup && editable && context.role === 'OWNER' && <>
       {pinLocked ? <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} /> :
         <><BusinessBackup {...{context,api,c,lang}}/><DangerZone {...{context,api,c,lang,reload}}/></>}
     </>}</div>;
