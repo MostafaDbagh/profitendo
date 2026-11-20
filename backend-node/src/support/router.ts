@@ -1,3 +1,4 @@
+import { readContactSettings } from './contacts.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthService,AuthContext,Tx } from '../auth/service.js';
@@ -34,6 +35,11 @@ export function supportRouter(auth:AuthService){
   res.json(await auth.transaction(async tx=>{const row=await authorize(tx,String(req.params.id),undefined,req.get('X-Support-Token'));await reply(tx,row.id,req.body.body,false);return {ok:true};}));
  });
  router.use(attach,full);router.use((req,res,next)=>req.method==='GET'?next():csrf(req,res,next));
+ router.get('/contacts',async(_req,res)=>res.json(await auth.transaction(async tx=>{
+  await auth.assertSession(tx,ctx(res));
+  const {phone,whatsapp,email}=await readContactSettings(tx);
+  return {phone,whatsapp,email};
+ })));
  async function reply(tx:Tx,id:string,text:string,admin:boolean,authorId?:string){
   if(await tx.supportMessage.count({where:{ticketId:id}})>=200)throw new ApiError(409,'THREAD_FULL','Start a new request');
   await tx.supportMessage.create({data:{ticketId:id,body:text,fromAdmin:admin,authorId}});

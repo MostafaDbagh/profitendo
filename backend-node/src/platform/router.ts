@@ -1,3 +1,4 @@
+import {contactSettingsKey,contactSettingsSchema,readContactSettings} from '../support/contacts.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authHttp } from '../auth/http.js';
@@ -26,6 +27,23 @@ export function platformRouter(auth: AuthService) {
     const after={...req.body,revision:before.revision+1};
     await tx.systemMetadata.upsert({where:{key:policyKey},create:{key:policyKey,value:JSON.stringify(after)},update:{value:JSON.stringify(after)}});
     for(const key of ['emailRequired','ownerPhoneRequired','welcomeEnabled'] as const)if(before[key]!==after[key])await tx.platformAudit.create({data:{actorId:user.id,targetId:user.id,targetType:'onboarding-policy',action:`onboarding.${key}`,reason:'Super Admin updated onboarding settings',beforeActive:before[key],afterActive:after[key]}});
+    return after;
+  })));
+  router.get('/support-contacts',async(_req,res)=>res.json(await auth.transaction(async tx=>{
+    await requirePlatform(auth,tx,ctx(res));
+    return readContactSettings(tx);
+  })));
+  router.patch('/support-contacts',validateBody(contactSettingsSchema),async(req,res)=>res.json(await auth.transaction(async tx=>{
+    const {user}=await requirePlatform(auth,tx,ctx(res));
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(7193022)`;
+    const before=await readContactSettings(tx);
+    if(before.revision!==req.body.revision)throw new ApiError(409,'REVISION_CONFLICT','Reload settings before saving');
+    const after={...req.body,revision:before.revision+1};
+    const value=JSON.stringify(after);
+    await tx.systemMetadata.upsert({where:{key:contactSettingsKey},create:{key:contactSettingsKey,value},update:{value}});
+    const active=(contacts:typeof before)=>Boolean(contacts.phone||contacts.whatsapp||contacts.email);
+    await tx.platformAudit.create({data:{actorId:user.id,targetId:user.id,targetType:'support-contacts',
+      action:'support.contacts_updated',reason:'Super Admin updated support contacts',beforeActive:active(before),afterActive:active(after)}});
     return after;
   })));
   router.get('/overview', async (_req, res) => { res.json(await service.overview(ctx(res))); });

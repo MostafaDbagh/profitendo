@@ -35,7 +35,7 @@ import Locations from '../components/business-v2/Locations';
 import Catalogue from '../components/catalogue-v2/Catalogue';
 import Team from '../components/business-v2/Team';
 import { Audit, Roles } from '../components/business-v2/Records';
-const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['contactSupport',null,Headset], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
+const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['contactSupport',null,Headset], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
 function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls }) {
   const { data: loadedContext, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [pinOverride, setPinStatus] = useState(null);
@@ -84,16 +84,11 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
     </DraftScope.Provider>;
   }
   const tabOrder = savedPreferences?.tabOrder ?? context.tabOrder ?? [];
-  const orderedSections = [...sections].sort((a,b) => {const rank = key => tabOrder.includes(key) ? tabOrder.indexOf(key) : key==='damage'&&tabOrder.includes('counts') ? tabOrder.indexOf('counts')+0.5 : tabOrder.length + sections.findIndex(([id])=>id===key);const bottom = ['security','settings'];if(bottom.includes(a[0])||bottom.includes(b[0]))return (bottom.includes(a[0])?100+bottom.indexOf(a[0]):0)-(bottom.includes(b[0])?100+bottom.indexOf(b[0]):0);return rank(a[0])-rank(b[0]);});
+  const orderedSections = [...sections].sort((a,b) => {const rank = key => tabOrder.includes(key) ? tabOrder.indexOf(key) : key==='damage'&&tabOrder.includes('counts') ? tabOrder.indexOf('counts')+0.5 : tabOrder.length + sections.findIndex(([id])=>id===key);const bottom = ['contactSupport','security','settings'];if(bottom.includes(a[0])||bottom.includes(b[0]))return (bottom.includes(a[0])?100+bottom.indexOf(a[0]):0)-(bottom.includes(b[0])?100+bottom.indexOf(b[0]):0);return rank(a[0])-rank(b[0]);});
   const availableTabs = orderedSections.filter(([key, permission]) => (!['partners','accounts'].includes(key) || context.role === 'OWNER') && (!permission || context.permissions[permission]));
   const hiddenTabs = savedPreferences?.hiddenTabs ?? context.hiddenTabs ?? [];
   const ownerAsCashier = context.role === 'OWNER' && (savedPreferences?.ownerAsCashier ?? context.ownerAsCashier ?? false);
   const visible = availableTabs.filter(([key]) => ['dashboard','guidance','billing','contactSupport','security','settings'].includes(key) || (ownerAsCashier && cashierTabs.includes(key)) || !hiddenTabs.includes(key));
-  const supportIndex = visible.findIndex(([key]) => key === 'contactSupport');
-  if (supportIndex !== -1) {
-    const [supportTab] = visible.splice(supportIndex, 1);
-    visible.splice(3, 0, supportTab);
-  }
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const initialAction = current === section ? params.get('action') : null;
   const Component = { dashboard:Dashboard,guidance:GettingStarted,contactSupport:ContactSupport,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, partners:Partners, accounts:ChartAccounts, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];

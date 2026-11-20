@@ -125,3 +125,28 @@ it('allows platform admins to opt out and to disable previously enabled MFA secu
  const disabled=await mockAuth.disableMfa(verified,'Platform testing password 151!','123456');expect(auth.stage(disabled)).toBe('authenticated');expect(disabled.user.mfaSecret).toBeNull();
  await expect(auth.authenticate(verified.token)).rejects.toThrow();
 });
+
+it('publishes validated support contacts to members and restricts changes to a verified Super Admin', async () => {
+  const path='/support-contacts';
+  const accountContacts=()=>request(app).get('/api/support/contacts').set('Cookie',owner.cookie);
+  const pending=await actor(true,false);
+  const prior=await db.systemMetadata.findUnique({where:{key:'support.contacts'}});
+  try {
+    const {revision}=(await get(path,admin)).body;
+    const input={revision,phone:'+1 (202) 555-0141',whatsapp:'+1 202 555 0142',email:'Support@ProfitLens.Example'};
+    expect((await get(path,owner)).status).toBe(403);
+    expect((await patch(path,input,owner)).status).toBe(403);
+    expect((await patch(path,input,pending)).status).toBe(403);
+    expect((await request(app).get('/api/support/contacts')).status).toBe(401);
+    expect((await patch(path,{...input,phone:'javascript:alert(1)'})).status).toBe(422);
+    expect((await patch(path,{...input,email:'missing-at'})).status).toBe(422);
+    expect((await patch(path,input)).body).toEqual({revision:revision+1,phone:'+12025550141',whatsapp:'+12025550142',email:'support@profitlens.example'});
+    expect((await accountContacts()).body).toEqual({phone:'+12025550141',whatsapp:'+12025550142',email:'support@profitlens.example'});
+    expect((await patch(path,input)).status).toBe(409);
+    expect((await patch(path,{revision:revision+1,phone:'',whatsapp:'',email:''})).status).toBe(200);
+    expect((await accountContacts()).body).toEqual({phone:'',whatsapp:'',email:''});
+  } finally {
+    if(prior)await db.systemMetadata.update({where:{key:prior.key},data:{value:prior.value}});
+    else await db.systemMetadata.deleteMany({where:{key:'support.contacts'}});
+  }
+});
