@@ -211,3 +211,22 @@ it('sends separate copies to active partner recipients and skips removed recipie
  await deliverMailBatch(db,settings,async mail=>{automaticAddresses.push(mail.to);},2);
  expect(automaticAddresses.sort()).toEqual([actorOwner.user.email,recipients[0]!.email].sort());
 });
+
+it('allows owners to send closing reports to two extra addresses without a partner record',async()=>{
+ const reportOwner=await actor('OWNER');
+ const extraEmails=['first-copy@example.test','second-copy@example.test'];
+ const input={revision:0,enabled:false,reportTypes:['SALES'],language:'en'};
+ const delegated=await actor('OWNER');
+ await db.membership.updateMany({where:{businessId:business,userId:delegated.user.id},data:{role:'OPERATIONS_MANAGER'}});
+ expect((await put({...input,extraEmails},delegated)).status).toBe(403);
+ expect((await put({...input,extraEmails:[...extraEmails,'third@example.test']},reportOwner)).status).toBe(422);
+ expect((await put({...input,extraEmails},reportOwner)).status).toBe(200);
+ expect((await get(settingsPath,reportOwner)).body).toMatchObject({canAddRecipients:true,extraEmails});
+ const queued=await send(reportOwner);
+ expect(queued.status).toBe(202);
+ await prepareReportBatch(db,settings);
+ await prioritize(queued.body.id);
+ const addresses:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{addresses.push(mail.to);},3);
+ expect(addresses.sort()).toEqual([reportOwner.user.email,...extraEmails].sort());
+});

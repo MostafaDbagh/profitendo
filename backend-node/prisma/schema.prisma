@@ -223,6 +223,7 @@ model AuthAudit {
 }
 model AuthMail {
   reportId String? @map("report_id") @db.Uuid
+  reportAdditional Boolean @default(false) @map("report_additional")
   reportPartnerId String? @map("report_partner_id") @db.Uuid
   report ReportDelivery? @relation(fields:[reportId],references:[id],onDelete:Cascade)
   id            String @id @default(uuid()) @db.Uuid
@@ -964,6 +965,7 @@ model ReportPreference {
  language String @default("en")
  revision Int @default(0)
  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+ extraEmails String[] @default([]) @map("extra_emails")
  partnerRecipients Json @default("[]") @map("partner_recipients")
  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
@@ -989,6 +991,7 @@ model ReportDelivery {
  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
  failureCode String? @map("failure_code")
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ extraEmails String[] @default([]) @map("extra_emails")
  partnerRecipients Json @default("[]") @map("partner_recipients")
  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)

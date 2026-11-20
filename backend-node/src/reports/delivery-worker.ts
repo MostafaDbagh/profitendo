@@ -39,8 +39,11 @@ export async function prepareReportBatch(db:PrismaClient,settings:AuthSettings,l
    const profit=row.reportTypes.some(t=>['GROSS_PROFIT','NET_PROFIT'].includes(t));
    const snapshot={title:c.title,business:b.name,location:location?.name??c.all,from:row.fromDay,to:row.toDay,timezone:b.timezone,asOf:row.createdAt.toISOString(),language:lang,currency:b.baseCurrency,sections,note:profit?(totals.unvaluedTransferLosses&&row.reportTypes.includes('NET_PROFIT')?`${c.note} ${c.missing}`:c.note):''};
    const text=[`${c.title} — ${b.name}`,snapshot.location,`${c.range}: ${row.fromDay} → ${row.toDay}`,`${c.timezone}: ${b.timezone}`,`${c.asOf}: ${new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:b.timezone}).format(row.createdAt)}`,...sections.flatMap(s=>['',s.title,...s.metrics.map(m=>`${m.label}: ${m.value}`)]),'',snapshot.note,'',c.app,`${settings.appOrigin}/business-v2?tab=reports`].join('\n');
-   const addresses=new Map<string,string|null>([[recipient.user.email.toLowerCase(),null]]);
+   const addresses=new Map<string,string|true|null>([[recipient.user.email.toLowerCase(),null]]);
    if(recipient.role==='OWNER'){
+    for(const email of row.extraEmails){
+     if(pref?.extraEmails.includes(email)&&!addresses.has(email))addresses.set(email,true);
+    }
     const saved=partnerRecipients(pref?.partnerRecipients);
     const requested=partnerRecipients(row.partnerRecipients);
     const activeIds=new Set((await activeReportPartners(tx,row.businessId,requested.map(p=>p.partnerId))).map(p=>p.id));
@@ -50,10 +53,10 @@ export async function prepareReportBatch(db:PrismaClient,settings:AuthSettings,l
      }
     }
    }
-   await tx.authMail.createMany({data:[...addresses].map(([email,reportPartnerId])=>{
+   await tx.authMail.createMany({data:[...addresses].map(([email,recipientType])=>{
     const id=randomUUID();
-    return {id,reportId:row.id,reportPartnerId,payload:encrypt(settings.key,JSON.stringify({
-     to:reportPartnerId?email:recipient.user.email,subject:`${c.title} — ${b.name} — ${row.toDay}`,text,
+    return {id,reportId:row.id,reportPartnerId:typeof recipientType==='string'?recipientType:null,reportAdditional:recipientType===true,payload:encrypt(settings.key,JSON.stringify({
+     to:recipientType?email:recipient.user.email,subject:`${c.title} — ${b.name} — ${row.toDay}`,text,
     }),`mail:${id}`)};
    })});
    await tx.reportDelivery.update({where:{id:row.id},data:{snapshot:encrypt(settings.key,JSON.stringify(snapshot),`report:${row.id}`),failureCode:null}});return true;

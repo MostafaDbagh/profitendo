@@ -8,13 +8,13 @@ import {decrypt} from '../auth/crypto.js';
 import {hash,fail,entitled} from '../workflows/shared.js';
 import {businessDay} from '../finance/cash.js';
 import {activeReportPartners,allowedReportTypes,partnerRecipients,partnerRecipientsSchema,reportRecipient,reportTypes} from './delivery-access.js';
-export const preferenceSchema=z.object({revision:z.number().int().min(0),enabled:z.boolean(),reportTypes:z.array(z.enum(reportTypes)).min(1).max(6).refine(v=>new Set(v).size===v.length),language:z.enum(['en','ar']),partnerRecipients:partnerRecipientsSchema.optional()}).strict();
+export const preferenceSchema=z.object({revision:z.number().int().min(0),enabled:z.boolean(),reportTypes:z.array(z.enum(reportTypes)).min(1).max(6).refine(v=>new Set(v).size===v.length),language:z.enum(['en','ar']),partnerRecipients:partnerRecipientsSchema.optional(),extraEmails:z.array(z.string().trim().email().max(254).transform(email=>email.toLowerCase())).max(2).optional()}).strict();
 export const sendReportSchema=z.object({clientKey:z.uuid(),from:z.iso.date(),to:z.iso.date(),locationId:z.uuid().optional()}).strict();
 export async function queueClosingReports(tx:Tx,close:CashClose){
  const preferences=await tx.reportPreference.findMany({where:{businessId:close.businessId,enabled:true}});
  const data=[];
  for(const p of preferences){if(!await reportRecipient(tx,close.businessId,p.userId,p.reportTypes,close.locationId))continue;
-  data.push({businessId:close.businessId,userId:p.userId,requestKey:`close:${close.id}`,requestHash:hash({closeId:close.id}),automatic:true,closeId:close.id,locationId:close.locationId,fromDay:close.day,toDay:close.day,reportTypes:p.reportTypes,language:p.language,partnerRecipients:partnerRecipients(p.partnerRecipients),createdAt:close.createdAt});
+  data.push({businessId:close.businessId,userId:p.userId,requestKey:`close:${close.id}`,requestHash:hash({closeId:close.id}),automatic:true,closeId:close.id,locationId:close.locationId,fromDay:close.day,toDay:close.day,reportTypes:p.reportTypes,language:p.language,extraEmails:p.extraEmails,partnerRecipients:partnerRecipients(p.partnerRecipients),createdAt:close.createdAt});
  }
  if(data.length)await tx.reportDelivery.createMany({data,skipDuplicates:true});
 }
@@ -26,7 +26,7 @@ export class ReportDeliveryService{
   const partners=a.membership.role==='OWNER'?await activeReportPartners(tx,bid):[];
   const activeIds=new Set(partners.map(partner=>partner.id));
   const recipients=partnerRecipients(row?.partnerRecipients).filter(row=>activeIds.has(row.partnerId));
-  return {partners,partnerRecipients:recipients,emailDeliveryConfigured:emailConfigured(process.env),enabled:row?.enabled??false,revision:row?.revision??0,reportTypes:(row?.reportTypes??allowed).filter(t=>allowed.includes(t as typeof allowed[number])),language:row?.language??'en',allowedTypes:allowed,email:a.user.email};
+  return {partners,canAddRecipients:a.membership.role==='OWNER',extraEmails:a.membership.role==='OWNER'?row?.extraEmails??[]:[],partnerRecipients:recipients,emailDeliveryConfigured:emailConfigured(process.env),enabled:row?.enabled??false,revision:row?.revision??0,reportTypes:(row?.reportTypes??allowed).filter(t=>allowed.includes(t as typeof allowed[number])),language:row?.language??'en',allowedTypes:allowed,email:a.user.email};
  });}
  async save(ctx:AuthContext,bid:string,input:z.infer<typeof preferenceSchema>){try{return await this.auth.transaction(async tx=>{
   const a=await requireBusiness(this.auth,tx,ctx,bid,'reports.deliver');if(!a.permissions['reports.view']||!a.permissions['locations.view'])fail('FORBIDDEN',403);
@@ -39,7 +39,9 @@ export class ReportDeliveryService{
    const active=await activeReportPartners(tx,bid,recipients.map(row=>row.partnerId));
    if(active.length!==recipients.length)fail('REPORT_PARTNER_UNAVAILABLE',422);
   }
-  const data={partnerRecipients:recipients,enabled:input.enabled,reportTypes:input.reportTypes,language:input.language,revision:input.revision+1};
+  if(input.extraEmails?.length&&a.membership.role!=='OWNER')fail('FORBIDDEN',403);
+  const extraEmails=[...new Set(input.extraEmails??prior?.extraEmails??[])];
+  const data={extraEmails,partnerRecipients:recipients,enabled:input.enabled,reportTypes:input.reportTypes,language:input.language,revision:input.revision+1};
   await tx.reportPreference.upsert({where:{businessId_userId:{businessId:bid,userId:ctx.user.id}},create:{businessId:bid,userId:ctx.user.id,...data},update:data});
   if(!input.enabled)await tx.reportDelivery.updateMany({where:{businessId:bid,userId:ctx.user.id,automatic:true,OR:[{mail:{none:{}}},{mail:{some:{deliveredAt:null}}}]},data:{cancelledAt:new Date()}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'reports.preferences_updated',changes:{enabled:input.enabled,reportTypes:input.reportTypes}}});return {ok:true,revision:data.revision};
@@ -51,12 +53,12 @@ export class ReportDeliveryService{
   const pref=await tx.reportPreference.findUnique({where:{businessId_userId:{businessId:bid,userId:ctx.user.id}}});if(!pref)fail('REPORT_SETTINGS_REQUIRED',422);
   if(!await reportRecipient(tx,bid,ctx.user.id,pref.reportTypes,input.locationId??null))fail('FORBIDDEN',403);
   const days=(Date.parse(input.to)-Date.parse(input.from))/86400000+1;if(days<1||days>366||input.to>businessDay(new Date(),a.business.timezone))fail('REPORT_RANGE',422);await entitled(tx,bid);
-  const row=await tx.reportDelivery.create({data:{id:randomUUID(),businessId:bid,userId:ctx.user.id,requestKey:input.clientKey,requestHash,locationId:input.locationId??null,fromDay:input.from,toDay:input.to,reportTypes:pref.reportTypes,language:pref.language,partnerRecipients:a.membership.role==='OWNER'?partnerRecipients(pref.partnerRecipients):[]}});
+  const row=await tx.reportDelivery.create({data:{id:randomUUID(),businessId:bid,userId:ctx.user.id,requestKey:input.clientKey,requestHash,locationId:input.locationId??null,fromDay:input.from,toDay:input.to,reportTypes:pref.reportTypes,language:pref.language,extraEmails:a.membership.role==='OWNER'?pref.extraEmails:[],partnerRecipients:a.membership.role==='OWNER'?partnerRecipients(pref.partnerRecipients):[]}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'reports.manual_requested',targetId:row.id}});return {id:row.id};
  });}catch(error){if(retry&&(error as {code?:string}).code==='P2002')return this.send(ctx,bid,input,false);throw error;}}
  async list(ctx:AuthContext,bid:string){return this.auth.transaction(async tx=>{
   await requireBusiness(this.auth,tx,ctx,bid,'reports.deliver');
-  const rows=await tx.reportDelivery.findMany({where:{businessId:bid,userId:ctx.user.id},orderBy:[{createdAt:'desc'},{id:'desc'}],take:50,include:{mail:{where:{reportPartnerId:null},select:{deliveredAt:true,attempts:true},take:1}}});
+  const rows=await tx.reportDelivery.findMany({where:{businessId:bid,userId:ctx.user.id},orderBy:[{createdAt:'desc'},{id:'desc'}],take:50,include:{mail:{where:{reportPartnerId:null,reportAdditional:false},select:{deliveredAt:true,attempts:true},take:1}}});
   const items=[];for(const row of rows){if(!await reportRecipient(tx,bid,ctx.user.id,row.reportTypes,row.locationId))continue;items.push({id:row.id,from:row.fromDay,to:row.toDay,automatic:row.automatic,createdAt:row.createdAt,reportTypes:row.reportTypes,ready:!!row.snapshot,status:row.cancelledAt?'CANCELLED':row.mail[0]?.deliveredAt?'SENT':(row.mail[0]?.attempts??row.attempts)>=8?'FAILED':row.snapshot?'EMAIL_QUEUED':'PREPARING'});}return {items};
  });}
  async read(ctx:AuthContext,bid:string,id:string){return this.auth.transaction(async tx=>{
