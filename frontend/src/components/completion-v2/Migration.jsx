@@ -1,4 +1,4 @@
-import { ChevronDown, ClipboardCheck, Download, FileUp } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, Download } from 'lucide-react';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
@@ -22,22 +22,16 @@ export default function Migration({context,api,c,lang}){
   </header>
   <Feedback c={c} error={error||loadError} notice={notice} retry={loadError ? reload : undefined} />
   <form className={`${panelClass} max-w-4xl space-y-4`} onSubmit={prepare}>
-   <div className="flex flex-wrap items-center justify-between gap-3">
-    <h3 className="flex items-center gap-2 font-semibold"><FileUp className="h-5 w-5 text-emerald-700" aria-hidden="true" />{c('openingImport')}</h3>
-    <button type="button" className={buttonClass} onClick={()=>downloadCsv({filename:'opening-stock-template.csv',csv:'sku,quantity\r\nMILK-001,100\r\n'})}>
-     <Download className="h-4 w-4" aria-hidden="true" />{c('downloadOpeningTemplate')}
-    </button>
-   </div>
-   <p className="text-sm text-slate-600">{c('openingImportHint')}</p>
    <LocalDraftNotice {...{draft,lang,busy}} />
    <fieldset disabled={busy||!!preview} className="min-w-0 space-y-4">
     <div className="space-y-1.5">
-     <p className="text-sm font-semibold">{ar?'١. اختر المتجر أو المستودع':'1. Choose a shop or warehouse'}</p>
+     <p className="text-sm font-semibold">{ar?'المتجر أو المستودع':'Shop or warehouse'}</p>
      <LocationChoice {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={!!preview||busy} />
     </div>
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-     <p className="text-sm font-semibold">{ar?'٢. أضف كميات المنتجات':'2. Add product quantities'}</p>
-     <p className="text-sm text-slate-600">{ar?'نزّل القالب وأدخل رمز كل منتج وكميته، ثم ارفع الملف هنا.':'Download the template, enter each product code and quantity, then upload the file here.'}</p>
+    <div className="space-y-3 border-t border-slate-200 pt-4">
+     <button type="button" className={buttonClass} onClick={()=>downloadCsv({filename:'opening-stock-template.csv',csv:'sku,quantity\r\nMILK-001,100\r\n'})}>
+      <Download className="h-4 w-4" aria-hidden="true" />{c('downloadOpeningTemplate')}
+     </button>
      <Field id="migration-file" label={c('openingFile')} type="file" accept=".csv,text/csv" onChange={file} />
      {fileName && <p className="break-all text-sm text-emerald-800" role="status"><bdi>{fileName}</bdi></p>}
      <details>
@@ -46,15 +40,15 @@ export default function Migration({context,api,c,lang}){
        placeholder={'sku,quantity\nMILK-001,100\nRICE-002,25.5'} value={text}
        onChange={e=>{setText(e.target.value);setFileName('');}} maxLength={50000} />
      </details>
+     <details>
+      <summary className="cursor-pointer text-sm font-medium text-slate-700">{ar?'شروط الاستيراد':'Import requirements'}</summary>
+      <p className="mt-2 text-sm text-slate-600">{c('openingImportHint')}</p>
+     </details>
     </div>
     <Field id="migration-reason" label={c('recordReason')} placeholder={c('openingReasonExample')} value={reason}
      onChange={e=>setReason(e.target.value)} required minLength={5} maxLength={2000} />
    </fieldset>
-   {!preview && <div className="space-y-2 border-t border-slate-200 pt-4">
-    <p className="text-sm font-semibold">{ar?'٣. راجع الكميات قبل الحفظ':'3. Review quantities before saving'}</p>
-    <p className="text-sm text-slate-600">{ar?'تُضاف الكميات إلى المخزون بعد تأكيدها في شاشة المراجعة.':'Quantities are added to stock when you confirm them on the review screen.'}</p>
-    <button className={primaryClass} disabled={busy||!location||!text.trim()||reason.trim().length<5}>{c('previewOpening')}</button>
-   </div>}
+   {!preview && <button className={primaryClass} disabled={busy||!location||!text.trim()||reason.trim().length<5}>{c('previewOpening')}</button>}
   </form>
  {preview&&<div className="space-y-4"><p className="text-sm text-slate-500">{c('openingPreviewHint')} · {new Date(preview.expiresAt).toLocaleString(lang,{timeZone:context.business.timezone})}</p><Table c={c} headers={['sku','barcodes','quantity']} empty={!rows.length}>{rows.map(r=><tr key={r.sku}><td className="p-4"><CopyableCode>{r.sku}</CopyableCode></td><td className="p-4">{r.barcodes?.length?r.barcodes.map(code=><span className="block" key={code}><CopyableCode kind="barcode">{code}</CopyableCode></span>):'—'}</td><td className="p-4" dir="ltr">{formatQuantity(r.quantity)}</td></tr>)}</Table><div className="flex gap-2"><button className={buttonClass} disabled={busy} onClick={()=>setPreview(null)}>{c('editOpening')}</button><button className={primaryClass} disabled={busy} onClick={e=>setReview(e.currentTarget)}>{c('confirmOpening')}</button></div></div>}
   <details className={`${panelClass} group max-w-4xl !p-0`}>
