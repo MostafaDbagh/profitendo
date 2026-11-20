@@ -1,4 +1,4 @@
-import { OwnerPinSettings, OwnerPinUnlock } from './OwnerPin';
+import { OwnerPinUnlock } from './OwnerPin';
 import BusinessBackup from './BusinessBackup';
 import DangerZone from './DangerZone';
 import ServiceRequests from './ServiceRequests';
@@ -55,7 +55,6 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
   </form>{!initialSetup && <ServiceRequests {...{context,api,lang}}/>}{!initialSetup && editable && context.role === 'OWNER' && <>
-      <OwnerPinSettings {...{context,api,c,lang,onPinStatus}} />
       {pinLocked ? <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} /> :
         <><BusinessBackup {...{context,api,c,lang}}/><DangerZone {...{context,api,c,lang,reload}}/></>}
     </>}</div>;

@@ -53,9 +53,9 @@ function AccountForm({ account, text, lang, c, busy, error, close, save, returnF
           {['debit','credit'].map(nature => <option key={nature} value={nature}>{text[nature]}</option>)}
         </Select>
       </fieldset>
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2 rtl:justify-start">
+        <button type="submit" className={`${primaryClass} order-last rtl:order-first`} disabled={busy}>{c(busy ? 'saving' : 'save')}</button>
         <button type="button" className={buttonClass} onClick={close} disabled={busy}>{c('cancel')}</button>
-        <button type="submit" className={primaryClass} disabled={busy}>{c(busy ? 'saving' : 'save')}</button>
       </div>
     </form>
   </Modal>;

@@ -19,6 +19,16 @@ export default function Migration({context,api,c,lang}){
   <header>
    <h2 className="text-xl font-bold">{c('migration')}</h2>
    <p className="mt-1 text-sm text-slate-600">{c('migrationHint')}</p>
+   <details className="mt-3 max-w-4xl rounded-lg border border-slate-200 bg-white px-4 text-sm">
+    <summary className="cursor-pointer rounded py-2.5 font-medium text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+     {ar?'ما هو الرصيد الافتتاحي؟':'What is opening stock?'}
+    </summary>
+    <div className="space-y-2 pb-3 leading-relaxed text-slate-600">
+     <p>{ar?'استخدم هذه الصفحة لتسجيل البضاعة الموجودة في متجرك أو مستودعك قبل بدء العمل على ProfitLens، حتى يبدأ النظام بتتبّع المخزون من الكمية الصحيحة.':'Use this page to record the stock already in your shop or warehouse when you start using ProfitLens, so inventory tracking starts with the right quantities.'}</p>
+     <p>{ar?'مثال: إذا كان لديك ٥٠ علبة حليب، اختر المستودع وارفع ملفاً فيه رمز المنتج والكمية 50. اكتب سبباً مثل «جرد بداية العمل»، ثم راجع الكمية وأكّدها.':'For example, if you have 50 cartons of milk, select the warehouse and upload a file with the product code and quantity 50. Enter a reason such as “Opening stock count”, then review and confirm the quantity.'}</p>
+     <p>{ar?'سجّل الرصيد الافتتاحي مرة واحدة لكل منتج في كل موقع. سجّل البضاعة التي تصل لاحقاً من المورد في صفحة المشتريات. إذا بدأت بمخزون فارغ، يمكنك تجاوز هذه الصفحة.':'Record opening stock once per product at each location. Use Purchases for stock that arrives from suppliers later. If you start with no stock, you can skip this page.'}</p>
+    </div>
+   </details>
   </header>
   <Feedback c={c} error={error||loadError} notice={notice} retry={loadError ? reload : undefined} />
   <form className={`${panelClass} max-w-4xl space-y-4`} onSubmit={prepare}>

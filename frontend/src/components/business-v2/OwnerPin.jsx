@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { Field } from '../auth-v2/Fields';
+import OwnerPinField from '../auth-v2/OwnerPinField';
 import { Feedback, buttonClass, panelClass, primaryClass } from './UI';
 
 const copy = {
   en: {
-    title:'Owner PIN', hint:'Use a 4–8 digit PIN to protect sensitive sections such as profit, partners, and treasury.',
+    pinHint:'Enter 4–8 digits.', title:'Owner PIN', hint:'Use a 4–8 digit PIN to protect sensitive sections such as profit, partners, and treasury.',
     on:'Enabled', off:'Disabled', pin:'PIN', password:'Current account password', save:'Save PIN', remove:'Disable PIN',
     saved:'Owner PIN settings saved.', remember:'Enable PIN sign-in on this browser',
     disableBrowser:'Turn off PIN sign-in on this browser', browserDisabled:'PIN sign-in is off on this browser.',
@@ -16,7 +17,7 @@ const copy = {
     OWNER_PIN_PASSWORD_INCORRECT:'The account password is incorrect.',
   },
   ar: {
-    title:'رمز المالك PIN', hint:'رمز من ٤ إلى ٨ أرقام لحماية الأقسام الحساسة مثل الأرباح والشركاء والخزينة.',
+    pinHint:'أدخل من ٤ إلى ٨ أرقام.', title:'رمز المالك PIN', hint:'رمز من ٤ إلى ٨ أرقام لحماية الأقسام الحساسة مثل الأرباح والشركاء والخزينة.',
     on:'مفعّل', off:'غير مفعّل', pin:'رمز PIN', password:'كلمة مرور الحساب الحالية', save:'حفظ رمز PIN', remove:'إلغاء تفعيل الرمز',
     saved:'تم حفظ إعدادات رمز المالك.', remember:'تفعيل تسجيل الدخول بالرمز في هذا المتصفح',
     disableBrowser:'إيقاف تسجيل الدخول بالرمز في هذا المتصفح', browserDisabled:'تم إيقاف تسجيل الدخول بالرمز في هذا المتصفح.',
@@ -28,7 +29,6 @@ const copy = {
   },
 };
 
-const pinPattern = '[0-9]{4,8}';
 const isPin = value => /^[0-9]{4,8}$/.test(value);
 
 export function OwnerPinSettings({context, api, c, lang, onPinStatus}) {
@@ -73,8 +73,7 @@ export function OwnerPinSettings({context, api, c, lang, onPinStatus}) {
     {saved && <p role="status" className="text-sm text-emerald-700">{text[saved]}</p>}
     <form className="space-y-4" onSubmit={event=>{event.preventDefault(); if(isPin(pin)) configure(pin);}}>
       <fieldset className="grid gap-3 sm:grid-cols-2" disabled={busy}>
-        <Field id="owner-pin-setting" showPasswordStrength={false} label={text.pin} type="password" dir="ltr" inputMode="numeric" autoComplete="new-password"
-          pattern={pinPattern} maxLength={8} value={pin} onChange={event=>setPin(event.target.value)} required />
+        <OwnerPinField id="owner-pin-setting" label={text.pin} hint={text.pinHint} value={pin} onChange={setPin} disabled={busy} />
         <Field id="owner-pin-password" label={text.password} type="password" autoComplete="current-password" maxLength={128}
           value={password} onChange={event=>setPassword(event.target.value)} required />
       </fieldset>
@@ -108,10 +107,10 @@ export function OwnerPinUnlock({context,api,c,lang,onPinStatus}) {
     <h2 className="flex items-center gap-2 font-bold"><LockKeyhole className="h-5 w-5 text-emerald-700" aria-hidden="true" />{text.locked}</h2>
     <p className="text-sm text-slate-600">{text.unlockHint}</p>
     <Feedback error={error} c={key=>text[key]??c(key)} />
-    <form onSubmit={unlock} className="flex flex-wrap items-end gap-3">
-      <Field id="owner-pin-unlock" label={text.pin} type="password" dir="ltr" inputMode="numeric" autoComplete="off"
-        pattern={pinPattern} maxLength={8} value={pin} onChange={event=>setPin(event.target.value)} required disabled={busy} />
-      <button type="submit" className={primaryClass} disabled={busy||!isPin(pin)}>{text.unlock}</button>
+    <form onSubmit={unlock}>
+      <OwnerPinField id="owner-pin-unlock" label={text.pin} hint={text.pinHint} value={pin} onChange={setPin} disabled={busy}>
+        <button type="submit" className={`${primaryClass} h-11 shrink-0`} disabled={busy||!isPin(pin)}>{text.unlock}</button>
+      </OwnerPinField>
     </form>
   </section>;
 }

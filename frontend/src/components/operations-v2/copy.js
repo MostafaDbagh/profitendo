@@ -21,7 +21,7 @@ export const operationsCopy={
  },
  ar:{recordSearchPlaceholder:'ابحث بالاسم أو الرمز',editDocument:'تعديل المسودة',
  inventory:'المخزون',inventoryHint:'يُتابع المخزون بشكل مستقل لكل مستودع ومتجر. تُضاف الكميات فقط بعد تأكيد الاستلام.',
- suppliers:'الموردون',suppliersHint:'احفظ بيانات الموردين وتابع سجل المشتريات.',purchases:'الشراء والاستلام',purchasesHint:'احفظ مسودة، راجع البضاعة، ثم أكّد الكميات الفعلية مرة واحدة.',
+ suppliers:'الموردون',suppliersHint:'المورد هو الجهة التي تشتري منها البضاعة، مثل شركة أو مندوب شركة. احفظ بيانات التواصل وتابع سجل مشترياتك من كل مورد.',purchases:'الشراء والاستلام',purchasesHint:'احفظ مسودة، راجع البضاعة، ثم أكّد الكميات الفعلية مرة واحدة.',
  'inventory.view':'عرض المخزون والحركات','suppliers.view':'عرض الموردين','suppliers.manage':'إدارة الموردين','purchasing.view':'عرض مستندات الشراء','purchasing.manage':'إدارة أوامر الشراء','receiving.create':'إعداد مستندات الاستلام','receiving.confirm':'تأكيد الاستلام وإضافة المخزون',
  supplierName:'اسم المورد',supplierCode:'رمز المورد',contact:'مسؤول التواصل',phone:'الهاتف',email:'البريد الإلكتروني',address:'العنوان',notes:'ملاحظات',supplierReference:'رقم فاتورة المورد / المرجع',
  supplierNamePlaceholder:'مثال: الخليج للمواد الغذائية',contactPlaceholder:'مثال: أحمد — مسؤول التوصيل',phonePlaceholder:'+971 50 123 4567',emailPlaceholder:'orders@example.com',addressPlaceholder:'المبنى والشارع والمدينة',notesPlaceholder:'تعليمات التسليم أو تفاصيل مفيدة',supplierReferencePlaceholder:'مثال: INV-2026-1042',
