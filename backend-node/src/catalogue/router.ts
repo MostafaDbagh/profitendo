@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {productInsights} from './insights.js';
 import { ReferenceService, referenceSchema } from './references.js';
 import { PackService, packSchema, conversionSchema } from './packs.js';
@@ -8,6 +9,10 @@ import { authHttp } from '../auth/http.js';
 import { ApiError, validateBody } from '../errors.js';
 import { CatalogueService } from './service.js';
 import { barcode, productSchema, patchSchema } from './contracts.js';
+const createProductSchema=productSchema.extend({
+  sku:productSchema.shape.sku.default(()=>`PRD-${randomUUID().toUpperCase()}`),
+  purchasePrice:productSchema.shape.purchasePrice.default('0'),
+});
 export function catalogueRouter(auth:AuthService){
   const router=Router({mergeParams:true}),service=new CatalogueService(auth),{ctx,origin,attach,full,csrf}=authHttp(auth);
   const bid=(req:Request)=>String(req.params.businessId);
@@ -41,7 +46,7 @@ export function catalogueRouter(auth:AuthService){
     res.json(await packs.convert(ctx(res),bid(req),String(req.params.productId),id.data,req.body.quantity));
   });
   router.get('/:productId',async(req,res)=>{res.json(await service.get(ctx(res),bid(req),{id:String(req.params.productId)}));});
-  router.post('/',validateBody(productSchema),async(req,res)=>{res.status(201).json(await service.create(ctx(res),bid(req),req.body));});
+  router.post('/',validateBody(createProductSchema),async(req,res)=>{res.status(201).json(await service.create(ctx(res),bid(req),req.body));});
   router.patch('/:productId',validateBody(patchSchema),async(req,res)=>{res.json(await service.update(ctx(res),bid(req),String(req.params.productId),req.body));});
   return router;
 }
