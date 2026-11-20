@@ -222,7 +222,8 @@ model AuthAudit {
   @@map("auth_audit")
 }
 model AuthMail {
-  reportId String? @unique @map("report_id") @db.Uuid
+  reportId String? @map("report_id") @db.Uuid
+  reportPartnerId String? @map("report_partner_id") @db.Uuid
   report ReportDelivery? @relation(fields:[reportId],references:[id],onDelete:Cascade)
   id            String @id @default(uuid()) @db.Uuid
   payload       String
@@ -231,6 +232,7 @@ model AuthMail {
   deliveredAt   DateTime? @map("delivered_at") @db.Timestamptz(3)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   @@index([deliveredAt, availableAt])
+  @@index([reportId])
   @@map("auth_mail")
 }
 
@@ -962,6 +964,7 @@ model ReportPreference {
  language String @default("en")
  revision Int @default(0)
  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+ partnerRecipients Json @default("[]") @map("partner_recipients")
  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
  @@unique([businessId,userId])
@@ -986,9 +989,10 @@ model ReportDelivery {
  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
  failureCode String? @map("failure_code")
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+ partnerRecipients Json @default("[]") @map("partner_recipients")
  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
- mail AuthMail?
+ mail AuthMail[]
  @@unique([businessId,userId,requestKey])
  @@index([userId,businessId,createdAt])
  @@index([availableAt])

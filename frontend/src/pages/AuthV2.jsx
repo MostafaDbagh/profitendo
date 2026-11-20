@@ -1,3 +1,5 @@
+import { Button } from '../components/ui/button';
+import OwnerPinField from '../components/auth-v2/OwnerPinField';
 import PhoneInput from '../components/auth-v2/PhoneInput';
 import PhoneVerification from '../components/auth-v2/PhoneVerification';
 import OtpField from '../components/auth-v2/OtpField';
@@ -130,10 +132,7 @@ export default function AuthV2() {
                 {(mode === 'register' || (mode === 'invite' && session?.stage !== 'authenticated')) && field('name', 'name', { autoComplete: 'name', required: mode !== 'invite', minLength: 2, maxLength: 100 })}
                 {mode === 'register' && field('businessName', 'business', { autoComplete: 'organization', minLength: 2, maxLength: 120 })}
                 {['login', 'pinLogin', 'register', 'forgot'].includes(mode) && field('email', 'email', { type: 'email', autoComplete: 'email', dir: 'ltr', maxLength: 254 })}
-                {mode === 'pinLogin' && field('pin','ownerPin',{
-                  type:'password',showPasswordStrength:false,dir:'ltr',inputMode:'numeric',autoComplete:'off',
-                  pattern:'[0-9]{4,8}',minLength:4,maxLength:8,placeholder:c('ownerPinPlaceholder'),
-                })}
+                {mode === 'pinLogin' && <OwnerPinField value={form.pin} onChange={pin=>setForm(f=>({...f,pin}))} c={c} disabled={busy}/>}
                 {mode === 'register' && <PhoneInput verificationRequired={phoneRequired} id="v2-register-phone" label={c('phoneNumber')} value={form.phone} onChange={phone=>setForm(f=>({...f,phone}))} disabled={busy}/> }
                 {(['login', 'register', 'reset'].includes(mode) || (mode === 'invite' && session?.stage !== 'authenticated')) && field('password', mode === 'reset' ? 'newPassword' : 'password', { required: mode !== 'invite', type: 'password', autoComplete: mode === 'login' ? 'current-password' : 'new-password', minLength: mode === 'login' ? 1 : 8, maxLength: 128, hint: mode === 'login' ? undefined : c('passwordHint') })}
                 {['register','reset'].includes(mode)&&field('confirmPassword','confirmPassword',{type:'password',autoComplete:'new-password',minLength:8,maxLength:128,hint:mode==='register'&&form.confirmPassword&&form.password!==form.confirmPassword?c('PASSWORD_MISMATCH'):undefined,placeholder:c('confirmPasswordPlaceholder')})}
@@ -143,7 +142,29 @@ export default function AuthV2() {
               <Submit busy={busy} disabled={(mode === 'register' && !registrationReady) || (mode === 'pinLogin' && (!form.email.trim() || !/^[0-9]{4,8}$/.test(form.pin)))}>{c(setup ? secret ? 'confirmMfa' : 'beginSetup' : challenge ? 'submit' : mode === 'emailCode'?'verifyCode':mode === 'forgot' ? (mockOtp?'sendCode':'sendLink') : mode === 'verify' ? 'verifyButton' : mode === 'invite' ? 'accept' : mode === 'reset' ? 'submit' : mode)}</Submit>
             </form>
             {mode==='emailCode'&&<button type="button" className={`${linkClass} mt-4`} disabled={busy||now<resendAt} onClick={()=>run(()=>startEmailCode(emailChallenge.purpose))}>{now<resendAt?`${c('resendIn')} ${Math.max(0,Math.ceil((resendAt-now)/1000))}`:c('resendCode')}</button>}
-            {!setup && !challenge && <div className="mt-5 flex flex-col gap-3 items-center">{mode === 'login' ? <><button type="button" className={linkClass} onClick={() => switchMode('pinLogin')}>{c('pinLogin')}</button><button type="button" className={linkClass} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button><button type="button" className={linkClass} onClick={() => switchMode('register')}>{c('createLink')}</button>{error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={linkClass} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}</> : <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c(mode === 'pinLogin' ? 'passwordLogin' : 'back')}</button>}</div>}
+            {!setup && !challenge && (
+              mode === 'login' || mode === 'pinLogin' ? (
+                <div className="mt-3 text-center">
+                  <Button type="button" variant="outline" disabled={busy} className="h-11 w-full rounded-lg shadow-none"
+                    onClick={() => switchMode(mode === 'login' ? 'pinLogin' : 'login')}>
+                    {c(mode === 'login' ? 'pinLogin' : 'passwordLogin')}
+                  </Button>
+                  {mode === 'login' && (
+                    <div className="mt-4 border-t border-slate-100 pt-3">
+                      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+                        <button type="button" className={`\${linkClass} min-h-8`} onClick={() => switchMode('forgot')}>{c('forgotLink')}</button>
+                        <button type="button" className={`\${linkClass} min-h-8`} onClick={() => switchMode('register')}>{c('createLink')}</button>
+                      </div>
+                      {error === 'EMAIL_UNVERIFIED' && <button type="button" disabled={busy} className={`\${linkClass} mt-3`} onClick={() => run(async () => { if(mockOtp||emailOtp)await startEmailCode('VERIFY_EMAIL');else{await call('/verification/request', { email: form.email });setNotice('checkEmail');} })}>{c('verifyAgain')}</button>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-5 text-center">
+                  <button type="button" className={linkClass} onClick={() => switchMode('login')}>{c('back')}</button>
+                </div>
+              )
+            )}
             {(setup || challenge) && <button type="button" disabled={busy} className={`${linkClass} mt-5`} onClick={() => signOut()}>{c('logout')}</button>}
           </>}
         </div>

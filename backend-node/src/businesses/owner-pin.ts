@@ -27,7 +27,12 @@ export async function configureOwnerPin(auth: AuthService, ctx: AuthContext, bus
     await tx.authUser.update({where:{id:user.id},data:{ownerPinHash}});
     await tx.authSession.updateMany({where:{userId:user.id},data:{ownerPinUnlockedUntil:null}});
     await tx.authAudit.create({data:{businessId,userId:user.id,action:pin === null ? 'owner_pin.disabled' : 'owner_pin.configured'}});
-    return {enabled: pin !== null, unlockedUntil: null};
+    return {
+      status: {enabled: pin !== null, unlockedUntil: null},
+      token: ownerPinHash && user.platformRole === 'USER'
+        ? issueOwnerDevice(auth, {...user, ownerPinHash})
+        : null,
+    };
   });
 }
 
@@ -68,11 +73,15 @@ export async function rememberOwnerPinDevice(auth: AuthService, ctx: AuthContext
       throw new ApiError(403, 'OWNER_PIN_PASSWORD_INCORRECT', 'The current password is incorrect');
     }
     await tx.authAudit.create({data:{businessId,userId:user.id,action:'owner_pin.device_enabled'}});
-    return encrypt(auth.settings.key, JSON.stringify({
-      userId: user.id, securityVersion: user.securityVersion, pinBinding: digest(user.ownerPinHash),
-      expiresAt: Date.now() + deviceDuration,
-    }), devicePurpose);
+    return issueOwnerDevice(auth, {...user, ownerPinHash: user.ownerPinHash});
   });
+}
+
+function issueOwnerDevice(auth: AuthService, user: {id: string; securityVersion: number; ownerPinHash: string}) {
+  return encrypt(auth.settings.key, JSON.stringify({
+    userId: user.id, securityVersion: user.securityVersion, pinBinding: digest(user.ownerPinHash),
+    expiresAt: Date.now() + deviceDuration,
+  }), devicePurpose);
 }
 
 function readOwnerDevice(auth: AuthService, token: string | undefined) {

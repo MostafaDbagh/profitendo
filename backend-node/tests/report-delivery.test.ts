@@ -171,3 +171,42 @@ it('revokes profit-report access before preparation and after snapshot creation 
  expect((await get(`/report-delivery/${second.body.id}`,user)).status).toBe(404);const list=await get('/report-delivery',user);expect(list.status).toBe(200);expect(list.body.items).toEqual([]);
  await prioritize(second.body.id);let sent=false;await deliverMailBatch(db,settings,async()=>{sent=true;},1);expect(sent).toBe(false);expect((await db.reportDelivery.findUniqueOrThrow({where:{id:second.body.id}})).cancelledAt).not.toBeNull();
 });
+
+it('sends separate copies to active partner recipients and skips removed recipients at dispatch',async()=>{
+ const actorOwner=await actor('OWNER');
+ const [partner,foreignPartner]=await Promise.all([business,other].map(businessId=>db.partner.create({
+  data:{businessId,name:'Report partner',ownership:10,capital:0,currency:'USD',notes:''},
+ })));
+ const input={revision:0,enabled:false,reportTypes:['SALES'],language:'en'};
+ const recipients=[{partnerId:partner.id,email:'partner@example.test'}];
+ expect((await put({...input,partnerRecipients:[{...recipients[0],partnerId:foreignPartner.id}]},actorOwner)).status).toBe(422);
+ expect((await put({...input,partnerRecipients:recipients},actorOwner)).status).toBe(200);
+ expect((await get(settingsPath,actorOwner)).body).toMatchObject({partners:[{id:partner.id,name:partner.name}],partnerRecipients:recipients});
+ const queued=await send(actorOwner);
+ expect(queued.status).toBe(202);
+ await prepareReportBatch(db,settings);
+ await prioritize(queued.body.id);
+ const addresses:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{addresses.push(mail.to);},2);
+ expect(addresses.sort()).toEqual([actorOwner.user.email,recipients[0]!.email].sort());
+
+ const second=await send(actorOwner);
+ expect(second.status).toBe(202);
+ await prepareReportBatch(db,settings);
+ await db.authMail.updateMany({where:{reportId:second.body.id},data:{createdAt:new Date(0),availableAt:new Date(0)}});
+ expect((await put({...input,revision:1,partnerRecipients:[]},actorOwner)).status).toBe(200);
+ const remaining:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{remaining.push(mail.to);},2);
+ expect(remaining).toEqual([actorOwner.user.email]);
+ expect((await db.reportDelivery.findUniqueOrThrow({where:{id:second.body.id}})).cancelledAt).toBeNull();
+
+ expect((await put({...input,revision:2,enabled:true,partnerRecipients:recipients},actorOwner)).status).toBe(200);
+ const close=await write('/cash',{locationId:destination,day:'2025-12-31',opening:'0',counted:'0',expected:'0',confirm:true},actorOwner);
+ expect(close.status,close.text).toBe(200);
+ const automatic=await db.reportDelivery.findFirstOrThrow({where:{businessId:business,userId:actorOwner.user.id,automatic:true}});
+ await prepareReportBatch(db,settings);
+ await prioritize(automatic.id);
+ const automaticAddresses:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{automaticAddresses.push(mail.to);},2);
+ expect(automaticAddresses.sort()).toEqual([actorOwner.user.email,recipients[0]!.email].sort());
+});

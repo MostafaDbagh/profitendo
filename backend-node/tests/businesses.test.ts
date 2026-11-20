@@ -622,25 +622,28 @@ it('serves all seven interactive report views and scopes finance reports to the 
   }
 });
 
-it('provides starter accounts and keeps chart changes tenant scoped', async () => {
+it('lists only saved accounts and keeps chart changes tenant scoped', async () => {
   const path = `/${a}/accounts`;
   const chart = await get(path, ownerA);
   expect(chart.status).toBe(200);
-  expect(new Set(chart.body.items.map((account: {category:string}) => account.category)).size).toBe(6);
+  expect(chart.body.items).toEqual([]);
   expect((await get(path, ownerB)).status).toBe(403);
   const fields = {name:'Test utilities',category:'expenses',nature:'debit',active:true};
   const remove = (code: string, revision: number) =>
     request(app).delete(`/api/businesses${path}/${code}`).set('Origin', settings.appOrigin)
       .set('Cookie', ownerA.cookie).set('X-CSRF-Token', ownerA.csrf).send({revision});
   try {
-    expect((await write(path,{...fields,code:'1000'},ownerA,'post')).status).toBe(409);
+    expect((await write(`${path}/1000`,{...fields,revision:0},ownerA)).status).toBe(404);
     expect((await write(path,{...fields,code:'6800'},ownerA,'post')).status).toBe(201);
+    expect((await write(path,{...fields,code:'6800'},ownerA,'post')).status).toBe(409);
+    expect((await get(path,ownerA)).body.items).toMatchObject([{code:'6800',name:fields.name}]);
     expect((await write(`${path}/6800`,{...fields,active:false,revision:0},ownerA)).body.active).toBe(false);
     expect((await get(`/${b}/accounts`,ownerB)).body.items.some((row:{code:string})=>row.code==='6800')).toBe(false);
-    expect((await remove('1000',0)).status).toBe(409);
+    expect((await write(path,{...fields,code:'1000'},ownerA,'post')).status).toBe(201);
+    expect((await remove('1000',0)).status).toBe(200);
     expect((await remove('6800',1)).status).toBe(200);
   } finally {
-    await db.chartAccount.deleteMany({where:{businessId:a,code:'6800'}});
+    await db.chartAccount.deleteMany({where:{businessId:a,code:{in:['1000','6800']}}});
   }
 });
 
@@ -655,7 +658,7 @@ it('allows only an owner to configure and unlock sensitive sections with a sessi
   try {
     expect((await setPin(pin,staff)).status).toBe(403);
     expect((await setPin(pin,ownerA,'incorrect')).body.error.code).toBe('OWNER_PIN_PASSWORD_INCORRECT');
-    expect((await setPin(pin,ownerA)).body).toEqual({enabled:true,unlockedUntil:null});
+    expect((await setPin(pin,ownerA)).body).toEqual({enabled:true,unlockedUntil:null,browserSignInEnabled:true});
     for (const path of [backup,profit,`/${a}/partners`,`/${a}/accounts`,`/${a}/workflows/payments`]) {
       expect((await get(path,ownerA)).body.error.code).toBe('OWNER_PIN_REQUIRED');
     }
@@ -706,11 +709,13 @@ it('allows owner PIN sign-in only on an enabled browser and preserves MFA and de
     .set('Origin', settings.appOrigin).set('Cookie', cookie).send(input);
   expect((await signIn()).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
 
-  const remember = await write(`/${a}/owner-pin/device`, { password }, owner, 'post');
-  expect(remember.status).toBe(200);
-  expect(remember.body).toEqual({ ok: true });
-  const deviceHeader = (remember.headers['set-cookie'] as unknown as string[])[0]!;
+  expect(setPin.body.browserSignInEnabled).toBe(true);
+  const deviceHeader = (setPin.headers['set-cookie'] as unknown as string[])[0]!;
   expect(deviceHeader).toMatch(/HttpOnly/);
+  const disable = await request(app).delete(`/api/businesses/${a}/owner-pin/device`).set(authHeaders).send({});
+  expect(disable.status).toBe(200);
+  expect(disable.headers['set-cookie']).toEqual([expect.stringMatching(/^pl_owner_device=;.*Expires=/)]);
+  expect((await get(`/${a}`, owner)).body.ownerPin.enabled).toBe(true);
   const device = deviceHeader.split(';')[0]!;
   expect((await signIn(device + 'x')).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
   expect((await signIn(device, { email, pin: '011111' })).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');

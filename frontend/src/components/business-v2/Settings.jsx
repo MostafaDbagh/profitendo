@@ -13,7 +13,7 @@ const countryCurrencies = {SY:'SYP',AE:'AED',SA:'SAR',QA:'QAR',OM:'OMR',JO:'JOD'
 const countries = Object.keys(countryCurrencies);
 const regionalTimezones = {SY:'Asia/Damascus',AE:'Asia/Dubai',LB:'Asia/Beirut',JO:'Asia/Amman',SA:'Asia/Riyadh',QA:'Asia/Qatar',OM:'Asia/Muscat'};
 const currencies = ['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY'];
-export default function Settings({ context, api, c, reload, onName, lang, initialSetup = false, onSetupComplete, pinLocked, onPinStatus, onSection }) {
+export default function Settings({ context, api, c, reload, onName, lang, initialSetup = false, onSetupComplete, pinLocked, onPinStatus }) {
   const { business, permissions } = context;
   const { setLang } = useLanguage();
   const [form, setForm] = useState(() => initialSetup && business.timezone === 'UTC'
@@ -55,7 +55,7 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
   </form>{!initialSetup && <ServiceRequests {...{context,api,lang}}/>}{!initialSetup && editable && context.role === 'OWNER' && <>
-      <OwnerPinSettings {...{context,api,c,lang,onPinStatus,onSection}} />
+      <OwnerPinSettings {...{context,api,c,lang,onPinStatus}} />
       {pinLocked ? <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} /> :
         <><BusinessBackup {...{context,api,c,lang}}/><DangerZone {...{context,api,c,lang,reload}}/></>}
     </>}</div>;

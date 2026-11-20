@@ -1,3 +1,4 @@
+import {z} from 'zod';
 import type {Tx} from '../auth/service.js';
 import {effectivePermissions,type Permission} from '../businesses/permissions.js';
 export const reportTypes=['SALES','GROSS_PROFIT','NET_PROFIT','EXPENSES','RETURNS','CASH'] as const;
@@ -12,4 +13,20 @@ export async function reportRecipient(tx:Tx,businessId:string,userId:string,type
  if(locationId){if(!await tx.location.findFirst({where:{id:locationId,businessId,...(p['locations.all']?{}:{assignments:{some:{membershipId:member.id,businessId}}})}}))return null;}
  else if(!p['locations.all'])return null;
  return member;
+}
+
+export const partnerRecipientsSchema = z.array(z.object({
+ partnerId: z.uuid(),
+ email: z.string().trim().email().max(254).transform(email => email.toLowerCase()),
+}).strict()).max(20).refine(rows => new Set(rows.map(row => row.partnerId)).size === rows.length);
+
+export function partnerRecipients(value: unknown) {
+ return partnerRecipientsSchema.safeParse(value).data ?? [];
+}
+
+export async function activeReportPartners(tx: Tx, businessId: string, ids?: string[]) {
+ return tx.partner.findMany({
+  where: {businessId, active: true, ...(ids && {id: {in: ids}})},
+  select: {id: true, name: true}, orderBy: [{name: 'asc'}, {id: 'asc'}],
+ });
 }

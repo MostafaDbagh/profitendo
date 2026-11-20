@@ -42,7 +42,15 @@ export function businessRouter(auth: AuthService) {
   router.patch('/:businessId', validateBody(businessPatch), async (req, res) => { res.json(await service.update(ctx(res), String(req.params.businessId), req.body)); });
   const pin = z.string().regex(/^[0-9]{4,8}$/);
   router.put('/:businessId/owner-pin', validateBody(z.object({pin: pin.nullable(), password: z.string().min(1).max(128)}).strict()), async (req,res) => {
-    res.json(await configureOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.password, req.body.pin));
+    const {status, token} = await configureOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.password, req.body.pin);
+    const {name, options: {maxAge, ...options}} = ownerPinDeviceCookie(auth);
+    if (token) res.cookie(name, token, {...options, maxAge});
+    else if (!status.enabled) res.clearCookie(name, options);
+    res.json({...status, browserSignInEnabled: Boolean(token)});
+  });
+  router.delete('/:businessId/owner-pin/device', async (_req,res) => {
+    const {name, options: {maxAge: _maxAge, ...options}} = ownerPinDeviceCookie(auth);
+    res.clearCookie(name, options).json({ok:true});
   });
   router.post('/:businessId/owner-pin/device', validateBody(z.object({password:z.string().min(1).max(128)}).strict()), async (req,res) => {
     const token = await rememberOwnerPinDevice(auth, ctx(res), String(req.params.businessId), req.body.password);

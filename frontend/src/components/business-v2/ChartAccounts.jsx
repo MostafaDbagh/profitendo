@@ -12,22 +12,18 @@ const copy = {
     add:'Add account', edit:'Edit account', name:'Account name', code:'Account code', group:'Account group', nature:'Normal balance',
     assets:'Assets', liabilities:'Liabilities', equity:'Equity', revenue:'Revenue', cost_of_sales:'Cost of Sales', expenses:'Expenses',
     debit:'Debit', credit:'Credit', active:'Active', inactive:'Inactive', activate:'Activate', deactivate:'Deactivate',
-    remove:'Delete account', deleteHint:'Remove this custom account from the chart?', empty:'No matching accounts.',
-    system:'Starter accounts can be renamed or deactivated. Their codes and classification stay fixed.',
+    remove:'Delete account', deleteHint:'Remove this account from the chart?', empty:'No accounts yet. Add your first account to get started.', noMatches:'No matching accounts.',
     formHint:'Choose a group and enter the name used in your business.',
-    ACCOUNT_CODE_EXISTS:'An account already uses this code.', ACCOUNT_LIMIT_REACHED:'The custom account limit has been reached.',
-    SYSTEM_ACCOUNT:'This change is unavailable for a starter account.',
+    ACCOUNT_CODE_EXISTS:'An account already uses this code.', ACCOUNT_LIMIT_REACHED:'The account limit has been reached.',
   },
   ar:{
     title:'دليل الحسابات', intro:'نظّم الهيكل المحاسبي لحسابات منشأتك.', search:'ابحث برقم الحساب أو اسمه',
     add:'إضافة حساب', edit:'تعديل الحساب', name:'اسم الحساب', code:'رقم الحساب', group:'مجموعة الحساب', nature:'طبيعة الحساب',
     assets:'الأصول', liabilities:'الالتزامات', equity:'حقوق الملكية', revenue:'الإيرادات', cost_of_sales:'تكلفة المبيعات', expenses:'المصاريف',
     debit:'مدين', credit:'دائن', active:'نشط', inactive:'غير نشط', activate:'تفعيل', deactivate:'تعطيل',
-    remove:'حذف الحساب', deleteHint:'هل تريد حذف هذا الحساب المخصص من الدليل؟', empty:'لا توجد حسابات مطابقة.',
-    system:'يمكنك تعديل أسماء الحسابات الأساسية أو تعطيلها. تبقى أرقامها وتصنيفاتها ثابتة.',
+    remove:'حذف الحساب', deleteHint:'هل تريد حذف هذا الحساب من الدليل؟', empty:'لا توجد حسابات بعد. أضف حسابك الأول للبدء.', noMatches:'لا توجد حسابات مطابقة.',
     formHint:'اختر مجموعة الحساب وأدخل الاسم المستخدم في منشأتك.',
     ACCOUNT_CODE_EXISTS:'هذا الرقم مستخدم لحساب آخر.', ACCOUNT_LIMIT_REACHED:'بلغت الحد المسموح للحسابات المخصصة.',
-    SYSTEM_ACCOUNT:'هذا التغيير غير متاح للحسابات الأساسية.',
   },
 };
 
@@ -39,21 +35,21 @@ function Nature({ nature, text }) {
 
 function AccountForm({ account, text, lang, c, busy, error, close, save, returnFocus }) {
   const [form,setForm] = useState(() => ({
-    code:account?.code ?? '', name:account ? (lang === 'ar' ? account.nameAr ?? account.name : account.name) : '',
+    code:account?.code ?? '', name:account?.name ?? '',
     category:account?.category ?? 'assets', nature:account?.nature ?? 'debit', active:account?.active ?? true,
   }));
   const set = key => event => setForm(value => ({...value,[key]:event.target.value}));
-  return <Modal {...{lang,c,busy,close,returnFocus}} title={account ? text.edit : text.add} description={account?.system ? text.system : text.formHint}>
+  return <Modal {...{lang,c,busy,close,returnFocus}} title={account ? text.edit : text.add} description={text.formHint}>
     <form className="space-y-4" onSubmit={event => {event.preventDefault();save(form);}}>
       <Feedback {...{error,c}} />
       <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
         <Field id="chart-code" label={text.code} value={form.code} onChange={set('code')} disabled={Boolean(account)} required dir="ltr" maxLength={20} pattern={'[A-Za-z0-9\\-]+'} />
         <Field id="chart-name" label={text.name} value={form.name} onChange={set('name')} maxLength={120} required />
-        <Select id="chart-group" label={text.group} value={form.category} disabled={account?.system}
+        <Select id="chart-group" label={text.group} value={form.category}
           onChange={event => setForm(value => ({...value,category:event.target.value,nature:defaultNature(event.target.value)}))}>
           {groups.map(group => <option key={group} value={group}>{text[group]}</option>)}
         </Select>
-        <Select id="chart-nature" label={text.nature} value={form.nature} disabled={account?.system} onChange={set('nature')}>
+        <Select id="chart-nature" label={text.nature} value={form.nature} onChange={set('nature')}>
           {['debit','credit'].map(nature => <option key={nature} value={nature}>{text[nature]}</option>)}
         </Select>
       </fieldset>
@@ -73,7 +69,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
   const [search,setSearch] = useState(''), [dialog,setDialog] = useState(null), [busy,setBusy] = useState(false), [error,setError] = useState('');
   const trigger = useRef(null);
   const query = search.trim().toLocaleLowerCase(lang);
-  const rows = data?.items.filter(row => [row.code,row.name,row.nameAr].some(value => value?.toLocaleLowerCase(lang).includes(query))) ?? [];
+  const rows = data?.items.filter(row => [row.code,row.name].some(value => value?.toLocaleLowerCase(lang).includes(query))) ?? [];
 
   function open(event, type, account) {
     trigger.current = event.currentTarget;
@@ -117,7 +113,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
     </div>
     {!dialog && <Feedback error={error||loadError} c={t} retry={loadError ? reload : undefined} />}
     {!data && !loadError && <p role="status">{c('loading')}</p>}
-    {data && !rows.length && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{text.empty}</p>}
+    {data && !rows.length && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{data.items.length ? text.noMatches : text.empty}</p>}
     <div className="grid gap-4 xl:grid-cols-2">
       {groups.map(group => {
         const accounts = rows.filter(row=>row.category===group);
@@ -132,7 +128,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
           </div>
           <ul className="divide-y divide-slate-100">
             {accounts.map(account => {
-              const name = lang === 'ar' ? account.nameAr ?? account.name : account.name;
+              const {name} = account;
               return <li key={account.code} className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:px-4">
                 <div className="flex min-w-32 flex-1 items-baseline gap-2">
                   <bdi className="shrink-0 text-xs text-slate-500">{account.code}</bdi>
@@ -145,7 +141,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
                 <div className="flex items-center">
                   <button type="button" className={iconButton} disabled={busy} onClick={event=>open(event,'edit',account)} aria-label={`${text.edit} · ${name}`}><Pencil className="h-4 w-4" aria-hidden="true" /></button>
                   <button type="button" className={iconButton} disabled={busy} onClick={()=>toggle(account)} aria-label={`${text[account.active?'deactivate':'activate']} · ${name}`}><Power className="h-4 w-4" aria-hidden="true" /></button>
-                  <button type="button" className={iconButton} disabled={busy||account.system} onClick={event=>open(event,'delete',account)} aria-label={`${text.remove} · ${name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                  <button type="button" className={iconButton} disabled={busy} onClick={event=>open(event,'delete',account)} aria-label={`${text.remove} · ${name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                 </div>
               </li>;
             })}

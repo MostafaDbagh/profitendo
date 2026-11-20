@@ -6,7 +6,7 @@ import {encrypt} from '../auth/crypto.js';
 import {currencyDigits} from '../sales/money.js';
 import {fixed,scaled} from '../operations/decimal.js';
 import {billingState} from '../billing/entitlements.js';
-import {reportRecipient} from './delivery-access.js';
+import {activeReportPartners,partnerRecipients,reportRecipient} from './delivery-access.js';
 import {summaryTotals} from './service.js';
 const copy={
  en:{title:'Business report',SALES:'Sales',GROSS_PROFIT:'Gross profit',NET_PROFIT:'Estimated net profit',EXPENSES:'Expenses',RETURNS:'Returns',CASH:'Cash closing',saleCount:'Completed sales',sales:'Sales including tax',customerReturns:'Customer return credits',netSales:'Sales after returns (including tax)',netTax:'Net sales tax',grossProfit:'Gross profit excluding tax',estimatedProfit:'Estimated net profit',expenses:'Recorded expenses',estimatedCost:'Net cost of goods sold',damageCost:'Damage cost',transferLossCost:'Transfer-loss cost',supplierReturnAdjustment:'Supplier return valuation gain / loss',countAdjustmentValue:'Inventory count gain / loss',closeCount:'Closed days / locations',opening:'Total opening cash',expected:'Total expected cash',counted:'Total counted cash',variance:'Total cash variance',all:'All permitted locations',unavailable:'Unavailable',note:'Gross profit excludes sales tax and deducts the recorded net cost of goods sold. Estimated net profit also includes recorded expenses, damage, transfer losses, supplier return valuation differences and count adjustments. Unrecorded costs are not included.',missing:'Net profit is unavailable because some historical transfer losses have no recorded cost.',asOf:'Activity recorded by',timezone:'Business timezone',range:'Period',app:'The same report is available in the app under Dashboard & reports → Closing reports.'},
@@ -39,7 +39,23 @@ export async function prepareReportBatch(db:PrismaClient,settings:AuthSettings,l
    const profit=row.reportTypes.some(t=>['GROSS_PROFIT','NET_PROFIT'].includes(t));
    const snapshot={title:c.title,business:b.name,location:location?.name??c.all,from:row.fromDay,to:row.toDay,timezone:b.timezone,asOf:row.createdAt.toISOString(),language:lang,currency:b.baseCurrency,sections,note:profit?(totals.unvaluedTransferLosses&&row.reportTypes.includes('NET_PROFIT')?`${c.note} ${c.missing}`:c.note):''};
    const text=[`${c.title} — ${b.name}`,snapshot.location,`${c.range}: ${row.fromDay} → ${row.toDay}`,`${c.timezone}: ${b.timezone}`,`${c.asOf}: ${new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:b.timezone}).format(row.createdAt)}`,...sections.flatMap(s=>['',s.title,...s.metrics.map(m=>`${m.label}: ${m.value}`)]),'',snapshot.note,'',c.app,`${settings.appOrigin}/business-v2?tab=reports`].join('\n');
-   const mailId=randomUUID();await tx.authMail.create({data:{id:mailId,reportId:row.id,payload:encrypt(settings.key,JSON.stringify({to:recipient.user.email,subject:`${c.title} — ${b.name} — ${row.toDay}`,text}),`mail:${mailId}`)}});
+   const addresses=new Map<string,string|null>([[recipient.user.email.toLowerCase(),null]]);
+   if(recipient.role==='OWNER'){
+    const saved=partnerRecipients(pref?.partnerRecipients);
+    const requested=partnerRecipients(row.partnerRecipients);
+    const activeIds=new Set((await activeReportPartners(tx,row.businessId,requested.map(p=>p.partnerId))).map(p=>p.id));
+    for(const partner of requested){
+     if(activeIds.has(partner.partnerId)&&saved.some(p=>p.partnerId===partner.partnerId&&p.email===partner.email)&&!addresses.has(partner.email)){
+      addresses.set(partner.email,partner.partnerId);
+     }
+    }
+   }
+   await tx.authMail.createMany({data:[...addresses].map(([email,reportPartnerId])=>{
+    const id=randomUUID();
+    return {id,reportId:row.id,reportPartnerId,payload:encrypt(settings.key,JSON.stringify({
+     to:reportPartnerId?email:recipient.user.email,subject:`${c.title} — ${b.name} — ${row.toDay}`,text,
+    }),`mail:${id}`)};
+   })});
    await tx.reportDelivery.update({where:{id:row.id},data:{snapshot:encrypt(settings.key,JSON.stringify(snapshot),`report:${row.id}`),failureCode:null}});return true;
   });if(result)prepared++;}
   catch{failed++;await db.reportDelivery.updateMany({where:{id:claim.id,snapshot:''},data:{failureCode:'REPORT_PREPARATION_FAILED',availableAt:new Date(Date.now()+Math.min(60,2**claim.attempts)*60000)}});}

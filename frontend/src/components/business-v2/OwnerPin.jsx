@@ -7,8 +7,9 @@ const copy = {
   en: {
     title:'Owner PIN', hint:'Use a 4–8 digit PIN to protect sensitive sections such as profit, partners, and treasury.',
     on:'Enabled', off:'Disabled', pin:'PIN', password:'Current account password', save:'Save PIN', remove:'Disable PIN',
-    mfa:'Manage two-factor authentication', saved:'Owner PIN settings saved.', remember:'Enable PIN sign-in on this browser',
-    remembered:'PIN sign-in is enabled on this browser for 30 days.', trustedOnly:'Enable PIN sign-in only on a browser you control.',
+    saved:'Owner PIN settings saved.', remember:'Enable PIN sign-in on this browser',
+    disableBrowser:'Turn off PIN sign-in on this browser', browserDisabled:'PIN sign-in is off on this browser.',
+    remembered:'PIN sign-in is enabled on this browser for 30 days.', trustedOnly:'Saving the PIN enables PIN sign-in on this browser. Only save it on a browser you control.',
     OWNER_PIN_DEVICE_UNAVAILABLE:'PIN sign-in is unavailable for this account.', unlock:'Unlock section', locked:'This section is protected by your owner PIN.',
     unlockHint:'Enter your PIN to unlock sensitive sections for 15 minutes on this session.',
     OWNER_PIN_INCORRECT:'The PIN is incorrect.',
@@ -17,8 +18,9 @@ const copy = {
   ar: {
     title:'رمز المالك PIN', hint:'رمز من ٤ إلى ٨ أرقام لحماية الأقسام الحساسة مثل الأرباح والشركاء والخزينة.',
     on:'مفعّل', off:'غير مفعّل', pin:'رمز PIN', password:'كلمة مرور الحساب الحالية', save:'حفظ رمز PIN', remove:'إلغاء تفعيل الرمز',
-    mfa:'إدارة المصادقة الثنائية', saved:'تم حفظ إعدادات رمز المالك.', remember:'تفعيل تسجيل الدخول بالرمز في هذا المتصفح',
-    remembered:'تم تفعيل تسجيل الدخول بالرمز في هذا المتصفح لمدة ٣٠ يومًا.', trustedOnly:'فعّل تسجيل الدخول بالرمز فقط على متصفح تستخدمه أنت.',
+    saved:'تم حفظ إعدادات رمز المالك.', remember:'تفعيل تسجيل الدخول بالرمز في هذا المتصفح',
+    disableBrowser:'إيقاف تسجيل الدخول بالرمز في هذا المتصفح', browserDisabled:'تم إيقاف تسجيل الدخول بالرمز في هذا المتصفح.',
+    remembered:'تم تفعيل تسجيل الدخول بالرمز في هذا المتصفح لمدة ٣٠ يومًا.', trustedOnly:'يُفعّل حفظ الرمز تسجيل الدخول به في هذا المتصفح. احفظه فقط في متصفح تستخدمه أنت.',
     OWNER_PIN_DEVICE_UNAVAILABLE:'تسجيل الدخول بالرمز غير متاح لهذا الحساب.', unlock:'فتح القسم', locked:'هذا القسم محمي برمز المالك.',
     unlockHint:'أدخل رمز المالك لفتح الأقسام الحساسة لمدة ١٥ دقيقة في هذه الجلسة.',
     OWNER_PIN_INCORRECT:'رمز PIN غير صحيح.',
@@ -29,7 +31,7 @@ const copy = {
 const pinPattern = '[0-9]{4,8}';
 const isPin = value => /^[0-9]{4,8}$/.test(value);
 
-export function OwnerPinSettings({context, api, c, lang, onPinStatus, onSection}) {
+export function OwnerPinSettings({context, api, c, lang, onPinStatus}) {
   const text = copy[lang === 'ar' ? 'ar' : 'en'];
   const t = key => text[key] ?? c(key);
   const enabled = Boolean(context.ownerPin?.enabled);
@@ -40,20 +42,21 @@ export function OwnerPinSettings({context, api, c, lang, onPinStatus, onSection}
     if (busy || !password) return;
     setBusy(true);setError('');setSaved('');
     try {
-      onPinStatus(await api(`/businesses/${context.business.id}/owner-pin`, {
+      const status = await api(`/businesses/${context.business.id}/owner-pin`, {
         method:'PUT', body:{pin:nextPin,password},
-      }));
-      setPin('');setPassword('');setSaved('saved');
+      });
+      onPinStatus(status);
+      setPin('');setPassword('');setSaved(status.browserSignInEnabled ? 'remembered' : 'saved');
     } catch (failure) {setError(failure.message);}
     finally {setBusy(false);}
   }
 
-  async function rememberBrowser() {
-    if (busy || !enabled || !password) return;
+  async function setBrowserSignIn(allow) {
+    if (busy || !enabled || (allow && !password)) return;
     setBusy(true);setError('');setSaved('');
     try {
-      await api(`/businesses/${context.business.id}/owner-pin/device`, {method:'POST',body:{password}});
-      setPassword('');setSaved('remembered');
+      await api(`/businesses/${context.business.id}/owner-pin/device`, allow ? {method:'POST',body:{password}} : {method:'DELETE',body:{}});
+      setPassword('');setSaved(allow ? 'remembered' : 'browserDisabled');
     } catch (failure) {setError(failure.message);}
     finally {setBusy(false);}
   }
@@ -77,13 +80,13 @@ export function OwnerPinSettings({context, api, c, lang, onPinStatus, onSection}
       </fieldset>
       <div className="flex flex-wrap gap-2">
         <button type="submit" className={primaryClass} disabled={busy||!isPin(pin)||!password}>{busy?c('saving'):text.save}</button>
-        <button type="button" className={buttonClass} onClick={()=>onSection('security')}>{text.mfa}</button>
         {enabled && <>
-          <button type="button" className={buttonClass} disabled={busy||!password} onClick={rememberBrowser}>{text.remember}</button>
+          <button type="button" className={buttonClass} disabled={busy||!password} onClick={()=>setBrowserSignIn(true)}>{text.remember}</button>
+          <button type="button" className={buttonClass} disabled={busy} onClick={()=>setBrowserSignIn(false)}>{text.disableBrowser}</button>
           <button type="button" className={buttonClass} disabled={busy||!password} onClick={()=>configure(null)}>{text.remove}</button>
         </>}
       </div>
-      {enabled && <p className="text-sm text-slate-600">{text.trustedOnly}</p>}
+      <p className="text-sm text-slate-600">{text.trustedOnly}</p>
     </form>
   </section>;
 }

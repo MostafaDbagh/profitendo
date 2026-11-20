@@ -1,3 +1,4 @@
+import { Select as StyledSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
 import { ArrowRight } from 'lucide-react';
 import { formatQuantity } from '@/lib/quantity';
@@ -29,5 +30,18 @@ export default function Adjustments({context,api,c,lang,mode='returns',initialSu
  const [kind,setKind]=useState(startReturn ? requestedKind : available[0]),[page,setPage]=useState(1),[doc,setDoc]=useState(null),[edit,setEdit]=useState(startReturn),[error,setError]=useState(''),[busy,setBusy]=useState(false),{data,error:loadError,reload}=useResource(api,`/businesses/${context.business.id}/workflows/adjustments?kind=${kind}&page=${page}${initialSupplier?`&supplierId=${initialSupplier.id}`:''}`);
  const close=()=>{setDoc(null);setEdit(false);setError('');reload();};const shared={context,api,c,lang,initialSupplier};async function open(id){setBusy(true);setError('');try{setDoc(await api(`/businesses/${context.business.id}/workflows/adjustments/${id}`));}catch(e){setError(e.message);}finally{setBusy(false);}}
  if(edit)return <Editor {...shared} {...{kind,close}} done={d=>{setDoc(d);setEdit(false);}}/>;if(doc)return <Detail {...{doc,api,c,lang,close}} done={setDoc}/>;
- return <div className="space-y-5"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-bold">{c(mode)}</h2><p className="text-sm text-slate-500 mt-1">{c(`${mode}Hint`)}</p></div>{context.permissions[`${mode}.create`]&&<button className={primaryClass} onClick={()=>setEdit(true)}>{c(mode==='counts'?'newCount':mode==='damage'?'newDamage':'newRecord')}</button>}</div>{available.length>1&&<div className="max-w-sm"><Select id="adjust-kind" label={c('recordType')} value={kind} onChange={e=>{setKind(e.target.value);setPage(1);}}>{available.map(k=><option key={k} value={k}>{c(k)}</option>)}</Select></div>}<Feedback c={c} error={error||loadError} retry={reload}/>{!data&&!loadError&&<p role="status">{c('loading')}</p>}{data&&<><Table c={c} headers={['reference','selectedLocation','status','actions']} empty={!data.items.length}>{data.items.map(r=><tr key={r.id}><td className="p-4"><bdi>{r.reference}</bdi></td><td className="p-4">{r.locationName}</td><td className="p-4">{c(r.status)}</td><td className="p-4"><button className={buttonClass} disabled={busy} onClick={()=>open(r.id)}>{c('openDocument')}</button></td></tr>)}</Table><Pager {...{data,setPage,c}}/></>}</div>;
+ return <div className="space-y-5"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-bold">{c(mode)}</h2><p className="text-sm text-slate-500 mt-1">{c(`${mode}Hint`)}</p></div>{context.permissions[`${mode}.create`]&&<button className={primaryClass} onClick={()=>setEdit(true)}>{c(mode==='counts'?'newCount':mode==='damage'?'newDamage':'newRecord')}</button>}</div>{available.length>1&&<div className="max-w-sm">
+   <label htmlFor="adjust-kind" className="mb-1.5 block text-sm font-medium text-slate-700">{c('recordType')}</label>
+   <StyledSelect dir={lang==='ar'?'rtl':'ltr'} value={kind} onValueChange={value=>{setKind(value);setPage(1);}}>
+    <SelectTrigger id="adjust-kind" className="h-11 gap-2 rounded-lg border-slate-200 bg-white text-start shadow-none focus:ring-2 focus:ring-emerald-500">
+     <SelectValue />
+    </SelectTrigger>
+    <SelectContent align="start" className="rounded-lg border-slate-200 bg-white shadow-md">
+     {available.map(value=><SelectItem key={value} value={value}
+      className="min-h-10 cursor-pointer rounded-md ps-3 pe-8 data-[state=checked]:font-semibold data-[state=checked]:text-emerald-800 rtl:[&>span:first-child]:left-2 rtl:[&>span:first-child]:right-auto">
+      {c(value)}
+     </SelectItem>)}
+    </SelectContent>
+   </StyledSelect>
+  </div>}<Feedback c={c} error={error||loadError} retry={reload}/>{!data&&!loadError&&<p role="status">{c('loading')}</p>}{data&&<><Table c={c} headers={['reference','selectedLocation','status','actions']} empty={!data.items.length}>{data.items.map(r=><tr key={r.id}><td className="p-4"><bdi>{r.reference}</bdi></td><td className="p-4">{r.locationName}</td><td className="p-4">{c(r.status)}</td><td className="p-4"><button className={buttonClass} disabled={busy} onClick={()=>open(r.id)}>{c('openDocument')}</button></td></tr>)}</Table><Pager {...{data,setPage,c}}/></>}</div>;
 }

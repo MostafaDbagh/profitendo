@@ -1,5 +1,5 @@
 import {onboardingPolicy} from './policy.js';
-import {reportRecipient} from '../reports/delivery-access.js';
+import {activeReportPartners,partnerRecipients,reportRecipient} from '../reports/delivery-access.js';
 import {billingState} from '../billing/entitlements.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { AuthSettings } from './settings.js';
@@ -28,10 +28,15 @@ export async function deliverMailBatch(db: PrismaClient, settings: AuthSettings,
           const report=await tx.reportDelivery.findUnique({where:{id:row.reportId!}});
           if(!report||report.cancelledAt)return false;
           const member=await reportRecipient(tx,report.businessId,report.userId,report.reportTypes,report.locationId);
-          const preference=report.automatic?await tx.reportPreference.findUnique({where:{businessId_userId:{businessId:report.businessId,userId:report.userId}}}):null;
-          return !!member&&member.user.email===payload.to&&(!report.automatic||!!preference?.enabled)&&(await billingState(tx,report.businessId)).active;
+          const preference=report.automatic||row.reportPartnerId
+            ?await tx.reportPreference.findUnique({where:{businessId_userId:{businessId:report.businessId,userId:report.userId}}}):null;
+          if(!member||(report.automatic&&!preference?.enabled)||!(await billingState(tx,report.businessId)).active)return false;
+          if(!row.reportPartnerId)return member.user.email===payload.to;
+          return member.role==='OWNER'
+            && partnerRecipients(preference?.partnerRecipients).some(p=>p.partnerId===row.reportPartnerId&&p.email===payload.to)
+            && (await activeReportPartners(tx,report.businessId,[row.reportPartnerId])).length===1;
         });
-        if(!allowed){await db.$transaction(async tx=>{await tx.reportDelivery.update({where:{id:row.reportId!},data:{cancelledAt:new Date()}});await tx.authMail.update({where:{id:row.id},data:{payload:'',attempts:8}});});continue;}
+        if(!allowed){await db.$transaction(async tx=>{if(!row.reportPartnerId)await tx.reportDelivery.update({where:{id:row.reportId!},data:{cancelledAt:new Date()}});await tx.authMail.update({where:{id:row.id},data:{payload:'',attempts:8}});});continue;}
       }
       await send({to:payload.to,subject:payload.subject,text:payload.text});
       await db.authMail.update({ where: { id: row.id }, data: { deliveredAt: new Date(), payload: '' } });
