@@ -9,11 +9,11 @@ import {businessDay,lockCash} from './cash.js';
 import type {PaymentInput,CloseInput,ReversalInput} from './contracts.js';
 export const incoming=(kind:string)=>kind==='SUPPLIER_REFUND'||kind==='CASH_IN';
 export async function supplierBalance(tx:Tx,bid:string,id:string){
- const d=await tx.purchaseDocument.findFirst({where:{businessId:bid,id,kind:'RECEIPT',status:'COMPLETED'},include:{lines:true}});if(!d)fail('NOT_FOUND',404);
+ const d=await tx.purchaseDocument.findFirst({where:{businessId:bid,id,kind:'RECEIPT',status:'COMPLETED'},include:{lines:true}});if(!d?.locationId)fail('NOT_FOUND',404);
  const digits=currencyDigits(d.currency),gross=d.lines.reduce((s,l)=>s+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n);
  const credits=(await tx.adjustment.findMany({where:{businessId:bid,sourceId:id,kind:'SUPPLIER_RETURN',status:'COMPLETED'}})).reduce((s,r)=>s+scaled(r.total.toFixed(4)),0n);
  const entries=await tx.moneyEntry.findMany({where:{businessId:bid,sourceId:id,kind:{in:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}}),paid=entries.filter(e=>e.kind==='SUPPLIER_PAYMENT').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n),refunded=entries.filter(e=>e.kind==='SUPPLIER_REFUND').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n),net=gross-credits,remaining=net-paid+refunded;
- return {doc:d,gross,credits,paid,refunded,outstanding:remaining>0n?remaining:0n,refundDue:remaining<0n?-remaining:0n,net};
+ return {doc:{...d,locationId:d.locationId},gross,credits,paid,refunded,outstanding:remaining>0n?remaining:0n,refundDue:remaining<0n?-remaining:0n,net};
 }
 export async function refundBalance(tx:Tx,bid:string,id:string){const d=await tx.adjustment.findFirst({where:{businessId:bid,id,kind:'CUSTOMER_RETURN',status:'COMPLETED'}});if(!d)fail('NOT_FOUND',404);const paid=(await tx.moneyEntry.findMany({where:{businessId:bid,sourceId:id,kind:'CUSTOMER_REFUND'}})).reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);return {doc:d,paid,remaining:scaled(d.total.toFixed(4))-paid};}
 export class FinanceService{

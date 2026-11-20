@@ -26,7 +26,7 @@ export class WorkflowService{
    await requireLocation(this.auth,tx,ctx,bid,d.locationId,'returns.view',false);
    return {locationId:d.locationId,reference:d.reference,currency:d.currency,digits:d.currencyDigits,lines:d.lines.map(l=>({id:l.id,productId:l.productId,name:l.name,sku:l.sku,unit:l.unit,quantity:l.baseQuantity.toFixed(4),total:l.total.toFixed(4),tax:l.tax.toFixed(4),unitCost:l.unitCost.toFixed(4)}))};
   }
-  const d=await tx.purchaseDocument.findFirst({where:{id,businessId:bid,kind:'RECEIPT',status:'COMPLETED'},include:{lines:true}});if(!d)fail('NOT_FOUND',404);
+  const d=await tx.purchaseDocument.findFirst({where:{id,businessId:bid,kind:'RECEIPT',status:'COMPLETED'},include:{lines:true}});if(!d?.locationId)fail('NOT_FOUND',404);
   await requireLocation(this.auth,tx,ctx,bid,d.locationId,'purchasing.view',false);const digits=currencyDigits(d.currency);
   return {locationId:d.locationId,reference:d.reference,currency:d.currency,digits,lines:d.lines.map(l=>({id:l.id,productId:l.productId,name:l.name,sku:l.sku,unit:l.unit,quantity:l.baseQuantity.toFixed(4),tax:'0.0000',total:lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits),unitCost:l.unitCost.toFixed(4)}))};
  }

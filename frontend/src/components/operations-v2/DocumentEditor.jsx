@@ -16,11 +16,14 @@ const scaled=v=>{const [w,f='']=v.split('.');return BigInt(w)*10000n+BigInt(f.pa
 const fixed=n=>`${n/10000n}.${String(n%10000n).padStart(4,'0')}`;
 export default function DocumentEditor({context,api,c,lang,kind,document:doc,seed,close,done}){
  const cost=context.permissions['catalogue.cost'],root=`/businesses/${context.business.id}`,source=doc||seed;
- const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?{id:source.supplierId,name:source.supplierName}:null);
+ const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?.locationId?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?.supplierId?{id:source.supplierId,name:source.supplierName}:null);
  const [date,setDate]=useState(doc?.documentDate||new Date().toLocaleDateString('en-CA')),[reference,setReference]=useState(doc?.supplierReference||''),[notes,setNotes]=useState(doc?.notes||'');
  const [lines,setLines]=useState(()=>source?.lines.map(l=>({...l,productId:l.productId,quantity:formatQuantity(doc?l.baseQuantity:fixed(scaled(l.baseQuantity)-scaled(l.receivedQuantity))),unitCost:l.unitCost??''})).filter(l=>scaled(l.quantity)>0n)||[]);
  const [picker,setPicker]=useState(''),[scan,setScan]=useState(''),[mode,setMode]=useState('once'),[scanning,setScanning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [addingSupplier,setAddingSupplier]=useState(false);
+ const [plannedItem,setPlannedItem]=useState(null);
+ const plannedReceipt=Boolean(seed?.plannedItems?.length||doc?.lines.some(line=>line.plannedItemId));
+ const canChooseSupplier=!doc&&!seed?.supplierId;
  const [focusProduct,setFocusProduct]=useState('');
  const scanRef=useRef(null),scanLock=useRef(false),scanQueue=useRef([]),trigger=useRef(null),quantityRefs=useRef({});
  useEffect(()=>{if(focusProduct&&quantityRefs.current[focusProduct]){quantityRefs.current[focusProduct].focus();quantityRefs.current[focusProduct].select();setFocusProduct('');}},[focusProduct,lines]);
@@ -45,7 +48,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  }
  function edit(index,key,value){setLines(old=>old.map((l,i)=>i===index?{...l,[key]:value}:l));}
  async function save(e){e.preventDefault();if(busy||scanning)return;if(!lines.length){setError('noLines');return;}setBusy(true);setError('');
-  try{const common={documentDate:date,supplierReference:reference,notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity,...(cost?{unitCost:l.unitCost}:{} )}))};
+  try{const common={documentDate:date,supplierReference:reference,notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity,...(l.plannedItemId?{plannedItemId:l.plannedItemId}:{}),...(cost?{unitCost:l.unitCost}:{} )}))};
    const result=await api(doc?`${root}/operations/purchases/${doc.id}`:`${root}/operations/purchases`,{method:doc?'PATCH':'POST',body:doc?{...common,revision:doc.revision}:{...common,clientKey,kind,locationId:location?.id,supplierId:supplier?.id,...(seed?{orderId:seed.id}:{})}});
    draft.clear();done(result);
   }catch(e){setError(e.message);}finally{setBusy(false);}
@@ -54,11 +57,21 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2><p className="text-sm text-slate-500 mt-1">{c(kind==='ORDER'?'orderHint':'documentHint')}</p></div>
  <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><div className="mb-2 flex flex-wrap items-center justify-between gap-2">
  <p className="text-sm font-medium">{c(key==='location'?'selectedLocation':'selectedSupplier')}</p>
- {key==='supplier'&&!source&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning}
+ {key==='supplier'&&canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning}
   className="rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}
- </div><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||!!source} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
- {!seed&&<div className={`${panelClass} space-y-3`}>
+ </div><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||!!doc||Boolean(key==='location'?seed?.locationId:seed?.supplierId)} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
+ {seed?.plannedItems?.length>0&&<div className={`${panelClass} space-y-3`}>
+  <h3 className="font-semibold">{lang==='ar'?'أصناف طلب الشراء':'Planned items'}</h3>
+  <p className="text-sm text-slate-600">{lang==='ar'?'اختر منتج المخزون المقابل لكل صنف استلمته.':'Choose the inventory product for each planned item you received.'}</p>
+  {seed.plannedItems.filter(item=>scaled(item.quantity)>scaled(item.receivedQuantity)).map(item=><div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+   <span className="text-sm font-medium">{item.name} · <bdi>{formatQuantity(fixed(scaled(item.quantity)-scaled(item.receivedQuantity)))}</bdi></span>
+   <button type="button" className={buttonClass} disabled={busy||lines.some(line=>line.plannedItemId===item.id)} onClick={event=>{
+    trigger.current=event.currentTarget;setPlannedItem(item);setPicker('product');
+   }}>{c('selectProduct')}</button>
+  </div>)}
+ </div>}
+ {!seed&&!plannedReceipt&&<div className={`${panelClass} space-y-3`}>
  <form onSubmit={lookup} className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)] items-end">
  <ScanModeSelect value={mode} onChange={setMode} disabled={busy||scanning} {...{c,lang}}/>
  <div className="min-w-0"><label className="text-sm font-medium block mb-1.5" htmlFor="receipt-scan">{c('receivingBarcode')}</label><div className="flex gap-2"><input ref={scanRef} id="receipt-scan" className={`${inputClass} h-11 flex-1 min-w-0`} dir="ltr" placeholder={lang==='ar'?'امسح الباركود أو أدخل رمز الصنف':'Scan barcode or enter SKU'} required maxLength={128} value={scan} disabled={busy} onChange={e=>setScan(e.target.value)}/><button className={`${buttonClass} h-11 shrink-0`} disabled={busy}>{lang==='ar'?(scanning?'جارٍ البحث…':'إضافة'):(scanning?'Searching…':'Add')}</button></div></div>
@@ -81,6 +94,11 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {addingSupplier&&<SupplierForm path={`${root}/operations/suppliers`} {...{api,c,lang}}
   returnFocus={trigger.current} close={()=>setAddingSupplier(false)}
   done={saved=>{setSupplier(saved);setAddingSupplier(false);}}/>}
- {picker&&<RecordPicker {...{api,c,lang}} path={picker==='location'?`${root}/locations?state=active`:picker==='supplier'?`${root}/operations/suppliers?state=active`:`${root}/products?state=active`} onAddSupplier={picker==='supplier'&&!source&&context.permissions['suppliers.create']?()=>{setPicker('');setAddingSupplier(true);}:undefined} emptyHelp={picker==='product'?<ProductEntryHelp lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>:null} title={c(picker==='location'?'chooseLocation':picker==='supplier'?'chooseSupplier':'selectProduct')} returnFocus={trigger.current} close={()=>setPicker('')} onSelect={row=>{if(picker==='location')setLocation(row);else if(picker==='supplier')setSupplier(row);else add(row);setPicker('');}}/>}
+ {picker&&<RecordPicker {...{api,c,lang}} path={picker==='location'?`${root}/locations?state=active`:picker==='supplier'?`${root}/operations/suppliers?state=active`:`${root}/products?state=active`} onAddSupplier={picker==='supplier'&&canChooseSupplier&&context.permissions['suppliers.create']?()=>{setPicker('');setAddingSupplier(true);}:undefined} emptyHelp={picker==='product'?<ProductEntryHelp lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>:null} title={c(picker==='location'?'chooseLocation':picker==='supplier'?'chooseSupplier':'selectProduct')} returnFocus={trigger.current} close={()=>{setPicker('');setPlannedItem(null);}} onSelect={row=>{if(picker==='location')setLocation(row);else if(picker==='supplier')setSupplier(row);else if(plannedItem){
+   if(lines.some(line=>line.productId===row.id)){setError('duplicatePlannedProduct');setPicker('');setPlannedItem(null);return;}
+   setError('');
+   setLines(current=>[...current,{productId:row.id,plannedItemId:plannedItem.id,name:row.name,sku:row.sku,unit:row.unit,
+    quantity:formatQuantity(fixed(scaled(plannedItem.quantity)-scaled(plannedItem.receivedQuantity))),unitCost:row.purchasePrice??''}]);
+  }else add(row);setPicker('');setPlannedItem(null);}}/>}
  </section>;
 }

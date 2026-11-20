@@ -59,7 +59,7 @@ export class InventoryService{
     }):[];
     const locationNames=new Map(locations.map(location=>[location.id,location.name]));
     const transferById=new Map(transfers.map(doc=>[doc.id,doc]));
-    const supplierByReceipt=new Map(receipts.map(doc=>[doc.id,doc.supplier.name]));
+    const supplierByReceipt=new Map(receipts.map(doc=>[doc.id,doc.supplier?.name]));
     return {page,pageSize:25,total:await tx.stockMovement.count({where}),items:rows.map(({costAmount,costLayers,...row})=>{
      const outgoing=row.quantity.isNegative();
      let from=outgoing?access.location.name:null;

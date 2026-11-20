@@ -198,3 +198,36 @@ it('blocks archive with stock or open documents, and rechecks supplier, location
  expect((await confirm(completed)).status).toBe(200);
  await db.locationAssignment.deleteMany({where:{businessId:business}});expect((await get(`/purchases/${pending.id}`,staff)).status).toBe(404);
 });
+
+it('plans unlisted items without a location or supplier and posts inventory only on linked receipt confirmation',async()=>{
+ await db.businessSubscription.update({where:{businessId:business},data:{trialEndsAt:new Date(Date.now()+86400000)}});
+ const proposal={kind:'ORDER',clientKey:randomUUID(),documentDate:'2026-11-20',plannedItems:[{name:'عطور فرنسية',quantity:'10'}]};
+ const movementCount=await db.stockMovement.count({where:{businessId:business}});
+ const created=await write('/purchases',proposal);
+ expect(created.status,created.text).toBe(201);
+ expect(created.body).toMatchObject({kind:'ORDER',status:'DRAFT',locationId:null,supplierId:null,notes:'',supplierReference:'',
+  lines:[],plannedItems:[{name:'عطور فرنسية',quantity:'10.0000',receivedQuantity:'0.0000'}]});
+ const orderId=created.body.id;
+ expect((await write('/purchases',proposal)).body.id).toBe(orderId);
+ expect((await get(`/purchases/${orderId}`,foreign,other)).status).toBe(404);
+ expect((await get(`/purchases/${orderId}`,staff)).status).toBe(404);
+ const changed=await write(`/purchases/${orderId}`,{revision:0,documentDate:'2026-11-21',notes:'Optional note',plannedItems:proposal.plannedItems},owner,'patch');
+ expect(changed.status,changed.text).toBe(200);
+ expect(changed.body).toMatchObject({documentDate:'2026-11-21',notes:'Optional note'});
+ const order=await submit(changed.body);
+ expect(await db.stockMovement.count({where:{businessId:business}})).toBe(movementCount);
+ const plannedItemId=order.plannedItems[0].id;
+ const line=(quantity:string)=>({productId:product,plannedItemId,quantity});
+ const unrelated=await write('/purchases',input({lines:[line('1')]}));
+ expect(unrelated.status).toBe(422);
+ const oversized=await write('/purchases',input({orderId,lines:[line('11')]}));
+ expect(oversized.body.error.code).toBe('ORDER_QUANTITY_EXCEEDED');
+ const receipt=await submit(await draft({orderId,lines:[line('6')]}));
+ expect(await db.stockMovement.count({where:{businessId:business}})).toBe(movementCount);
+ expect((await confirm(receipt)).status).toBe(200);
+ expect((await get(`/purchases/${orderId}`)).body).toMatchObject({status:'PARTIAL',plannedItems:[{receivedQuantity:'6.0000'}]});
+ const rest=await submit(await draft({orderId,lines:[line('4')]}));
+ expect((await confirm(rest)).status).toBe(200);
+ expect((await get(`/purchases/${orderId}`)).body).toMatchObject({status:'RECEIVED',plannedItems:[{receivedQuantity:'10.0000'}]});
+ expect(await db.stockMovement.count({where:{businessId:business}})).toBe(movementCount+2);
+});

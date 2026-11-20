@@ -230,3 +230,136 @@ it('allows owners to send closing reports to two extra addresses without a partn
  await deliverMailBatch(db,settings,async mail=>{addresses.push(mail.to);},3);
  expect(addresses.sort()).toEqual([reportOwner.user.email,...extraEmails].sort());
 });
+
+it('normalizes extra addresses, queues automatic copies for one location, and rechecks recipients on retry',async()=>{
+ const reportOwner=await actor('OWNER');
+ const input={revision:0,enabled:true,reportTypes:['SALES','CASH'],language:'en'};
+ const normalized='normalized-copy@example.test';
+ expect((await put({...input,extraEmails:['invalid-address']},reportOwner)).status).toBe(422);
+ expect((await put({...input,extraEmails:[' Normalized-Copy@Example.Test ',normalized]},reportOwner)).status).toBe(200);
+ expect((await get(settingsPath,reportOwner)).body.extraEmails).toEqual([normalized]);
+
+ const day='2025-12-30';
+ const close=await write('/cash',{locationId:destination,day,opening:'0',counted:'0',expected:'0',confirm:true},reportOwner);
+ expect(close.status,close.text).toBe(200);
+ const row=await db.reportDelivery.findFirstOrThrow({where:{businessId:business,userId:reportOwner.user.id,automatic:true}});
+ expect(row).toMatchObject({locationId:destination,fromDay:day,toDay:day,extraEmails:[normalized]});
+ await prepareReportBatch(db,settings);
+ const mail=await db.authMail.findFirstOrThrow({where:{reportId:row.id,reportAdditional:true}});
+ await db.authMail.update({where:{id:mail.id},data:{createdAt:new Date(0),availableAt:new Date(0)}});
+ const failed=await deliverMailBatch(db,settings,async payload=>{
+  expect(payload.to).toBe(normalized);
+  throw new Error('Simulated temporary mail failure');
+ },1);
+ expect(failed.failed).toBe(1);
+
+ expect((await put({...input,revision:1,extraEmails:[]},reportOwner)).status).toBe(200);
+ await prioritize(row.id);
+ const sent:string[]=[];
+ await deliverMailBatch(db,settings,async payload=>{sent.push(payload.to);},2);
+ expect(sent).toEqual([reportOwner.user.email]);
+ expect((await db.reportDelivery.findUniqueOrThrow({where:{id:row.id}})).cancelledAt).toBeNull();
+});
+
+it('deduplicates owner, partner and extra addresses and excludes replacements from an already queued report',async()=>{
+ const reportOwner=await actor('OWNER');
+ const shared='shared-recipient@example.test';
+ const partner=await db.partner.create({data:{businessId:business,name:'Shared recipient',ownership:10,capital:0,currency:'USD',notes:''}});
+ const input={revision:0,enabled:false,reportTypes:['SALES'],language:'ar',
+  extraEmails:[reportOwner.user.email,shared],partnerRecipients:[{partnerId:partner.id,email:shared}]};
+ expect((await put(input,reportOwner)).status).toBe(200);
+ const first=await send(reportOwner);
+ expect(first.status).toBe(202);
+ await prepareReportBatch(db,settings);
+ await prioritize(first.body.id);
+ const copies:{to:string;text:string}[]=[];
+ await deliverMailBatch(db,settings,async mail=>{copies.push(mail);},2);
+ expect(copies.map(mail=>mail.to).sort()).toEqual([reportOwner.user.email,shared].sort());
+ expect(copies[0]?.text).toBe(copies[1]?.text);
+ expect(copies[0]?.text).toContain('Main warehouse');
+
+ const second=await send(reportOwner);
+ expect(second.status).toBe(202);
+ expect((await put({...input,revision:1,extraEmails:['replacement@example.test'],partnerRecipients:[]},reportOwner)).status).toBe(200);
+ await prepareReportBatch(db,settings);
+ const queued=await db.authMail.findMany({where:{reportId:second.body.id},select:{reportAdditional:true,reportPartnerId:true}});
+ expect(queued).toEqual([{reportAdditional:false,reportPartnerId:null}]);
+});
+
+it('retries only the failed extra copy after the owner copy has sent',async()=>{
+ const reportOwner=await actor('OWNER');
+ const extra='retry-copy@example.test';
+ expect((await put({revision:0,enabled:false,reportTypes:['SALES'],language:'en',extraEmails:[extra]},reportOwner)).status).toBe(200);
+ const result=await send(reportOwner);
+ expect(result.status).toBe(202);
+ const reportId=result.body.id;
+ await prepareReportBatch(db,settings);
+ await prioritize(reportId);
+ const sent:string[]=[];
+ const first=await deliverMailBatch(db,settings,async mail=>{
+  if(mail.to===extra)throw new Error('Simulated SMTP rejection');
+  sent.push(mail.to);
+ },2);
+ expect(first).toMatchObject({delivered:1,failed:1});
+ expect(sent).toEqual([reportOwner.user.email]);
+ const pending=await db.authMail.findFirstOrThrow({where:{reportId,reportAdditional:true}});
+ expect(pending).toMatchObject({deliveredAt:null,attempts:1});
+ await prioritize(reportId);
+ const retry=await deliverMailBatch(db,settings,async mail=>{sent.push(mail.to);},1);
+ expect(retry).toMatchObject({delivered:1,failed:0});
+ expect(sent).toEqual([reportOwner.user.email,extra]);
+});
+
+it('skips a deactivated partner after preparation while still sending the owner and extra copies',async()=>{
+ const reportOwner=await actor('OWNER');
+ const extra='active-extra@example.test';
+ const partner=await db.partner.create({data:{businessId:business,name:'Partner before deactivation',ownership:10,capital:0,currency:'USD',notes:''}});
+ const input={revision:0,enabled:false,reportTypes:['SALES'],language:'en',extraEmails:[extra],
+  partnerRecipients:[{partnerId:partner.id,email:'inactive-partner@example.test'}]};
+ expect((await put(input,reportOwner)).status).toBe(200);
+ const result=await send(reportOwner);
+ expect(result.status).toBe(202);
+ const reportId=result.body.id;
+ await prepareReportBatch(db,settings);
+ expect(await db.authMail.count({where:{reportId}})).toBe(3);
+ await db.partner.update({where:{id:partner.id},data:{active:false}});
+ await prioritize(reportId);
+ const sent:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{sent.push(mail.to);},3);
+ expect(sent.sort()).toEqual([reportOwner.user.email,extra].sort());
+ expect((await get(settingsPath,reportOwner)).body.partnerRecipients).toEqual([]);
+});
+
+it('stops external copies after an ownership change even if the sender retains access to sales reports',async()=>{
+ const reportOwner=await actor('OWNER');
+ const extra='former-owner-copy@example.test';
+ expect((await put({revision:0,enabled:false,reportTypes:['SALES'],language:'en',extraEmails:[extra]},reportOwner)).status).toBe(200);
+ const result=await send(reportOwner);
+ expect(result.status).toBe(202);
+ const reportId=result.body.id;
+ await prepareReportBatch(db,settings);
+ await db.membership.updateMany({where:{businessId:business,userId:reportOwner.user.id},data:{role:'OPERATIONS_MANAGER'}});
+ expect((await get(settingsPath,reportOwner)).body).toMatchObject({canAddRecipients:false,extraEmails:[]});
+ await prioritize(reportId);
+ const sent:string[]=[];
+ await deliverMailBatch(db,settings,async mail=>{sent.push(mail.to);},2);
+ expect(sent).toEqual([reportOwner.user.email]);
+});
+
+it('continues delivering to the second extra address when the first copy fails',async()=>{
+ const reportOwner=await actor('OWNER');
+ const extraEmails=['simulated-rejection@example.test','working-copy@example.test'];
+ expect((await put({revision:0,enabled:false,reportTypes:['SALES'],language:'en',extraEmails},reportOwner)).status).toBe(200);
+ const result=await send(reportOwner);
+ expect(result.status).toBe(202);
+ const reportId=result.body.id;
+ await prepareReportBatch(db,settings);
+ await prioritize(reportId);
+ const sent:string[]=[];
+ const outcome=await deliverMailBatch(db,settings,async mail=>{
+  if(mail.to===extraEmails[0])throw new Error('Simulated address-specific failure');
+  sent.push(mail.to);
+ },3);
+ expect(outcome).toMatchObject({delivered:2,failed:1});
+ expect(sent.sort()).toEqual([reportOwner.user.email,extraEmails[1]].sort());
+});

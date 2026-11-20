@@ -524,8 +524,8 @@ model StockMovement {
 model PurchaseDocument {
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
-  locationId String @map("location_id") @db.Uuid
-  supplierId String @map("supplier_id") @db.Uuid
+  locationId String? @map("location_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.Uuid
   kind String
   reference String
   clientKey String @map("client_key") @db.Uuid
@@ -546,11 +546,12 @@ model PurchaseDocument {
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  location Location @relation(fields:[businessId,locationId],references:[businessId,id],onDelete:Restrict)
-  supplier Supplier @relation(fields:[businessId,supplierId],references:[businessId,id],onDelete:Restrict)
+  location Location? @relation(fields:[businessId,locationId],references:[businessId,id],onDelete:Restrict)
+  supplier Supplier? @relation(fields:[businessId,supplierId],references:[businessId,id],onDelete:Restrict)
   order PurchaseDocument? @relation("OrderReceipts",fields:[businessId,orderId],references:[businessId,id],onDelete:Restrict)
   receipts PurchaseDocument[] @relation("OrderReceipts")
   lines PurchaseLine[]
+  plannedItems PurchasePlanItem[]
   @@unique([businessId,id])
   @@unique([businessId,clientKey])
   @@unique([businessId,reference])
@@ -561,6 +562,7 @@ model PurchaseLine {
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   documentId String @map("document_id") @db.Uuid
+  plannedItemId String? @map("planned_item_id") @db.Uuid
   productId String @map("product_id") @db.Uuid
   sku String
   name String
@@ -573,11 +575,28 @@ model PurchaseLine {
   receivedQuantity Decimal @default(0) @map("received_quantity") @db.Decimal(18,4)
   unitCost Decimal @map("unit_cost") @db.Decimal(18,4)
   document PurchaseDocument @relation(fields:[businessId,documentId],references:[businessId,id],onDelete:Restrict)
+  plannedItem PurchasePlanItem? @relation(fields:[businessId,plannedItemId],references:[businessId,id],onDelete:Restrict,map:"purchase_lines_planned_item_fkey")
   product Product @relation(fields:[businessId,productId],references:[businessId,id],onDelete:Restrict)
   @@unique([businessId,documentId,productId])
+  @@unique([businessId,documentId,plannedItemId],map:"purchase_lines_planned_item_unique")
   @@map("purchase_lines")
 }
 
+
+model PurchasePlanItem {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  documentId String @map("document_id") @db.Uuid
+  name String
+  quantity Decimal @db.Decimal(18,4)
+  receivedQuantity Decimal @default(0) @map("received_quantity") @db.Decimal(18,4)
+  position Int
+  document PurchaseDocument @relation(fields:[businessId,documentId],references:[businessId,id],onDelete:Cascade)
+  receiptLines PurchaseLine[]
+  @@unique([businessId,id])
+  @@unique([businessId,documentId,position])
+  @@map("purchase_plan_items")
+}
 
 model StockTransfer {
   id String @id @default(uuid()) @db.Uuid
