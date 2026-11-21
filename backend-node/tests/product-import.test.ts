@@ -114,11 +114,82 @@ it('previews and commits CSV with the same identifier preservation and atomic wo
  expect((await write(`/${res.body.id}/commit`,{confirm:true})).status).toBe(200);
  expect((await db.product.findUniqueOrThrow({where:{businessId_sku:{businessId:business,sku:'CSV-001'}}})).name).toBe('حليب, طازج');
 });
-it('rejects CSV missing, reordered, duplicate and extra headers before creating a preview',async()=>{
- for(const headers of [columns.slice(1),[...columns].reverse(),columns.map(()=> 'sku'),[...columns,'extra']]){
+it('rejects CSV missing required, duplicate and extra headers before creating a preview',async()=>{
+ for(const headers of [columns.filter(c=>c!=='name'),columns.map(()=> 'sku'),[...columns,'extra']]){
   const res=await write('/preview',{filename:'bad.csv',fileBase64:Buffer.from(headers.join(',')+'\n'+productRow().join(',')).toString('base64')});
   expect(res.status).toBe(422);expect(res.body.error.code).toBe('IMPORT_HEADERS');
  }
  const extraExcel=await write('/preview',await file([productRow()], [...columns,'unexpected']));expect(extraExcel.body.error.code).toBe('IMPORT_HEADERS');
  const template=await get('/template?format=csv');expect(template.status).toBe(200);expect(Buffer.from(template.body.fileBase64,'base64').toString()).toBe('\uFEFF'+columns.join(',')+'\r\n');
+});
+
+it.each(['ar','en'] as const)('round-trips a real %s export with reordered columns, existing rows and a new product',async lang=>{
+ const tester=await actor('OWNER');
+ const before=await db.product.findMany({where:{businessId:business},orderBy:{id:'asc'},include:{barcodes:true}});
+ const stockBefore=await db.stockBalance.findMany({where:{businessId:business}});
+ const foreignBefore=await db.product.count({where:{businessId:other}});
+ const exported=await request(app).get(`/api/businesses/${business}/products/insights?export=true&lang=${lang}`).set('Cookie',cookie(tester));
+ expect(exported.status).toBe(200);
+ const {parseCsv}=await import('../src/catalogue/csv.js');
+ const {importHeaderMap}=await import('../src/catalogue/workbook.js');
+ const {csvCell}=await import('../src/reports/service.js');
+ const source=parseCsv(Buffer.from(exported.body.csv));
+ const keys=importHeaderMap(source[0]!.values)!;
+ const added:Record<string,string>={sku:`ROUND-${lang}`,name:`Coffee ${lang}`,unit:lang==='ar'?'غرام':'Gram',purchasePrice:'1.2345',sellingPrice:'',minimumStock:'',barcodes:`000-ROUND-${lang}`,active:lang==='ar'?'نعم':'Yes'};
+ const newRow=keys.map(key=>added[key]??'');
+ // Edits to existing rows must never overwrite existing catalogue records.
+ source[1]!.values[keys.indexOf('name')]='Do not overwrite this product';
+ const reordered=[...source.map(row=>row.values),newRow].map(values=>[...values].reverse());
+ const content=reordered.map(values=>values.map(csvCell).join(',')).join('\r\n');
+ const result=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64')},tester);
+ expect(result.status).toBe(201);expect(result.body.issues).toEqual([]);expect(result.body.skipped).toBe(before.length);expect(result.body.total).toBe(1);
+ expect(result.body.rows[0].product).toMatchObject({sku:`ROUND-${lang.toUpperCase()}`,unit:'GRAM',purchasePrice:'1.2345',sellingPrice:'0',minimumStock:'0',category:'',barcodes:[`000-ROUND-${lang}`]});
+ expect((await write(`/${result.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+ expect(await db.product.findMany({where:{businessId:business,id:{in:before.map(p=>p.id)}},orderBy:{id:'asc'},include:{barcodes:true}})).toEqual(before);
+ expect(await db.stockBalance.findMany({where:{businessId:business}})).toEqual(stockBefore);
+ expect(await db.product.count({where:{businessId:other}})).toBe(foreignBefore);
+ const repeated=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64')},tester);
+ expect(repeated.body).toMatchObject({id:null,total:0,issues:[],rows:[],skipped:before.length+1});
+});
+
+it('accepts mixed-language reordered Excel columns with only required fields and rejects semantic duplicates',async()=>{
+ const tester=await actor('OWNER');
+ const res=await write('/preview',await file([['1.2345','Coffee minimal','غرام']],['تكلفة الشراء','Product Name','UNIT']),tester);
+ expect(res.status).toBe(201);expect(res.body.issues).toEqual([]);
+ expect(res.body.rows[0].product).toMatchObject({name:'Coffee minimal',unit:'GRAM',sellingPrice:'0',minimumStock:'0',category:''});
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+ const duplicate=await write('/preview',await file([['A','B','GRAM','1']],['name','اسم المنتج','unit','purchasePrice']),tester);
+ expect(duplicate.status).toBe(422);expect(duplicate.body.error.code).toBe('IMPORT_HEADERS');
+});
+
+it('does not skip a SKU belonging only to another tenant, and rejects conflicting new barcodes',async()=>{
+ const tester=await actor('OWNER');
+ const sameForeignSku=await write('/preview',await file([productRow('BULK-0','LOCAL-BULK-0')]),tester);
+ expect(sameForeignSku.body.issues).toEqual([]);expect(sameForeignSku.body.total).toBe(1);expect(sameForeignSku.body.skipped).toBe(0);
+ expect((await write(`/${sameForeignSku.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+ const conflict=await write('/preview',await file([productRow('NEW-BARCODE-CONFLICT','001234567890')]),tester);
+ expect(conflict.body.id).toBeNull();expect(conflict.body.issues).toContainEqual(expect.objectContaining({field:'barcodes',code:'IDENTIFIER_EXISTS'}));
+ expect(await db.product.count({where:{businessId:business,sku:'NEW-BARCODE-CONFLICT'}})).toBe(0);
+});
+
+it.each(['ar','en'] as const)('serves %s templates through the real API for both formats',async lang=>{
+ const {templateColumns}=await import('../src/catalogue/workbook.js');
+ const {parseCsv}=await import('../src/catalogue/csv.js');
+ for(const format of ['csv','xlsx']){
+  const response=await get(`/template?format=${format}&lang=${lang}`);
+  expect(response.status).toBe(200);
+  const bytes=Buffer.from(response.body.fileBase64,'base64');
+  const rows=format==='csv'?parseCsv(bytes):await parseWorkbook(bytes);
+  expect(rows[0]!.values).toEqual([...templateColumns(lang)]);
+ }
+});
+it('reports missing purchase cost and duplicate new SKUs without creating products',async()=>{
+ const tester=await actor('OWNER');
+ const before=await db.product.count({where:{businessId:business}});
+ const emptyCost=productRow('EMPTY-COST','EMPTY-COST-BAR');emptyCost[3]='';
+ const res=await write('/preview',await file([emptyCost,productRow('DUPLICATE-NEW','DUP-A'),productRow('DUPLICATE-NEW','DUP-B')]),tester);
+ expect(res.body.id).toBeNull();
+ expect(res.body.issues).toContainEqual(expect.objectContaining({field:'purchasePrice',code:'INVALID_VALUE'}));
+ expect(res.body.issues).toContainEqual(expect.objectContaining({field:'sku',code:'IDENTIFIER_EXISTS'}));
+ expect(await db.product.count({where:{businessId:business}})).toBe(before);
 });

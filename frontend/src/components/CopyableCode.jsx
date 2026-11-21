@@ -9,7 +9,9 @@ export default function CopyableCode({ children, kind = 'sku', className = '' })
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
   const value = String(children ?? '');
-  if (!value) return null;
+  // Auto-generated storage identifiers are not user-provided product codes.
+  const generatedSku = kind === 'sku' && /^PRD-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(value);
+  if (!value || generatedSku) return <span className={className}>-</span>;
   const name = kind === 'barcode' ? (lang === 'ar' ? 'الباركود' : 'barcode') : (lang === 'ar' ? 'رمز الصنف' : 'SKU');
   const label = `${lang === 'ar' ? 'نسخ' : 'Copy'} ${name}: ${value}`;
   async function copy(event) {

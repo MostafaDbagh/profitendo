@@ -1,5 +1,5 @@
 import { ApiError } from '../errors.js';
-import { columns, type WorkbookRow } from './workbook.js';
+import { importHeaderMap, type WorkbookRow } from './workbook.js';
 
 /** Bounded UTF-8 CSV parser. Quoted commas, escaped quotes and multiline cells
  * are supported; identifiers stay strings, preserving leading zeroes. */
@@ -14,14 +14,15 @@ export function parseCsv(buffer: Buffer): WorkbookRow[] {
   let values: string[] = [], cell = '', quoted = false, closed = false, row = 1;
   function field() {
     values.push(cell.trim()); cell = ''; closed = false;
-    if (values.length > columns.length) {
+    if (values.length > 24) {
       if (row === 1) throw new ApiError(422, 'IMPORT_HEADERS', 'Unexpected CSV column');
       throw invalid();
     }
   }
   function record() {
     field();
-    if (row === 1 || values.some(value => value !== '')) rows.push({row, values, invalid:values.length !== columns.length});
+    if(row===1&&!importHeaderMap(values))throw new ApiError(422,'IMPORT_HEADERS','Use supported product headers');
+    if (row === 1 || values.some(value => value !== '')) rows.push({row, values, invalid:row === 1 ? false : values.length !== rows[0]?.values.length});
     values = []; row++;
     if (row > 502) throw invalid();
   }

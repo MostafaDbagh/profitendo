@@ -3,8 +3,8 @@ import type {AuthService,AuthContext} from '../auth/service.js';
 import {requireBusiness} from '../businesses/access.js';
 import {ApiError} from '../errors.js';
 import {fixed,scaled} from '../operations/decimal.js';
-import {csvCell} from '../reports/service.js';
-export type InsightQuery={page:number;search?:string;state:'active'|'inactive'|'all';filter:'all'|'low'|'top';export:boolean};
+import {productExportCsv} from './export.js';
+export type InsightQuery={page:number;search?:string;state:'active'|'inactive'|'all';filter:'all'|'low'|'top';export:boolean;lang?:'ar'|'en'};
 export async function productInsights(auth:AuthService,ctx:AuthContext,businessId:string,q:InsightQuery){return auth.transaction(async tx=>{
  const a=await requireBusiness(auth,tx,ctx,businessId,'catalogue.view');
  const stock=a.permissions['inventory.view']&&a.permissions['locations.view'],sales=a.permissions['sales.view']&&a.permissions['locations.view'];
@@ -28,6 +28,6 @@ export async function productInsights(auth:AuthService,ctx:AuthContext,businessI
   return {...rest,barcodes:barcodes.map(b=>b.value),sellingPrice:sellingPrice.toFixed(4),minimumStock:minimumStock.toFixed(4),...(a.permissions['catalogue.cost']?{purchasePrice:purchasePrice.toFixed(4)}:{}),...(stock?{onHand:fixed(onHand),available:fixed(available),lowStock:lowLocations.length>0,lowLocations,stockByLocation}:{}),...(sales?{saleCount:counts.get(p.id)?.count??0,unitsSold:fixed(counts.get(p.id)?.units??0n)}:{})};});
  if(q.filter==='low')rows=rows.filter(p=>p.lowStock);
  if(q.filter==='top')rows=rows.filter(p=>(p.saleCount??0)>0).sort((a,b)=>(b.saleCount??0)-(a.saleCount??0)||a.sku.localeCompare(b.sku)).slice(0,10);
- if(q.export){const headers=['name','sku','unit','sellingPrice',...(a.permissions['catalogue.cost']?['purchasePrice']:[]),...(sales?['saleCount','unitsSold']:[]),...(stock?['onHand','available','minimumStock','lowStock']:[])];return {filename:'products.csv',csv:[headers.map(csvCell).join(','),...rows.map(p=>headers.map(h=>csvCell((p as unknown as Record<string,unknown>)[h])).join(','))].join('\r\n')};}
+ if(q.export){const headers=['name','sku','unit','category','subcategory','brand','description','barcodes','active','minimumStock','sellingPrice',...(a.permissions['catalogue.cost']?['purchasePrice']:[]),...(sales?['saleCount','unitsSold']:[]),...(stock?['onHand','available','lowStock']:[])];return {filename:'products.csv',csv:productExportCsv(headers,rows,q.lang)};}
  return {page:q.page,pageSize:25,total:paginated?total:rows.length,currency:a.business.baseCurrency,items:paginated?rows:rows.slice((q.page-1)*25,q.page*25)};
 });}

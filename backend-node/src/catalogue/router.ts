@@ -11,7 +11,6 @@ import { CatalogueService } from './service.js';
 import { barcode, productSchema, patchSchema } from './contracts.js';
 const createProductSchema=productSchema.extend({
   sku:productSchema.shape.sku.default(()=>`PRD-${randomUUID().toUpperCase()}`),
-  purchasePrice:productSchema.shape.purchasePrice.default('0'),
 });
 export function catalogueRouter(auth:AuthService){
   const router=Router({mergeParams:true}),service=new CatalogueService(auth),{ctx,origin,attach,full,csrf}=authHttp(auth);
@@ -25,7 +24,7 @@ export function catalogueRouter(auth:AuthService){
     const q=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),search:z.string().trim().max(160).optional(),state:z.enum(['active','inactive','all']).default('active')}).strict().safeParse(req.query);
     if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid catalogue filters');res.json(await service.list(ctx(res),bid(req),q.data));
   });
-  router.get('/insights',async(req,res)=>{const q=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),search:z.string().trim().max(160).optional(),state:z.enum(['active','inactive','all']).default('active'),filter:z.enum(['all','low','top']).default('all'),export:z.enum(['true','false']).default('false').transform(v=>v==='true')}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');res.json(await productInsights(auth,ctx(res),bid(req),q.data));});
+  router.get('/insights',async(req,res)=>{const q=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),search:z.string().trim().max(160).optional(),state:z.enum(['active','inactive','all']).default('active'),filter:z.enum(['all','low','top']).default('all'),lang:z.enum(['ar','en']).default('en'),export:z.enum(['true','false']).default('false').transform(v=>v==='true')}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');res.json(await productInsights(auth,ctx(res),bid(req),q.data));});
   router.get('/barcode',async(req,res)=>{
     const q=z.object({value:barcode}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid barcode');
     res.json(await service.get(ctx(res),bid(req),{barcode:q.data.value}));

@@ -8,7 +8,7 @@ import { requireBusiness } from '../businesses/access.js';
 import { billingState } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
 import { productSchema, type ProductInput } from './contracts.js';
-import { columns, parseWorkbook } from './workbook.js';
+import { columns, parseWorkbook, importHeaderMap, importUnit } from './workbook.js';
 type Issue={row:number;field:string;code:string};
 type Parsed={row:number;product:ProductInput};
 async function access(auth:AuthService,tx:Tx,ctx:AuthContext,businessId:string){
@@ -38,14 +38,24 @@ export class ProductImportService {
     await this.authorize(ctx,businessId);
     const buffer=Buffer.from(base64,'base64');
     const source=format==='csv'?parseCsv(buffer):await parseWorkbook(buffer);
-    if(!source[0] || source[0].invalid || source[0].values.length!==columns.length || columns.some((column,i)=>source[0]!.values[i]!==column))throw new ApiError(422,'IMPORT_HEADERS','Use the provided template headers');
+    const headerMap=source[0] && importHeaderMap(source[0].values);
+    if(!source[0] || source[0].invalid || !headerMap)throw new ApiError(422,'IMPORT_HEADERS','Use the provided template headers');
+    const exported=headerMap.includes('saleCount')||headerMap.includes('onHand')||headerMap.includes('active');
+    const existingSkus=exported?await this.auth.transaction(async tx=>{await access(this.auth,tx,ctx,businessId);return new Set((await tx.product.findMany({where:{businessId,sku:{in:source.slice(1).map(item=>String(item.values[headerMap.indexOf('sku')]??'').trim().toUpperCase()).filter(Boolean)}},select:{sku:true}})).map(p=>p.sku));}):new Set<string>();
+    let skipped=0;
     const rows:Parsed[]=[],issues:Issue[]=[];
     for(const item of source.slice(1)){
       if(item.invalid){issues.push({row:item.row,field:'row',code:'PLAIN_VALUES_REQUIRED'});continue;}
-      const record=Object.fromEntries(columns.map((column,i)=>[column,item.values[i]??'']));
+      const incoming=Object.fromEntries(headerMap.map((column,i)=>[column,item.values[i]??'']));
+      if(exported&&typeof incoming.sku==='string'&&existingSkus.has(incoming.sku.trim().toUpperCase())){skipped++;continue;}
+      const record=Object.fromEntries(columns.map(column=>[column,incoming[column]??'']));
+      record.sku ||= `PRD-${randomUUID().toUpperCase()}`;
+      record.unit=importUnit(record.unit??'');
+      if(['نعم','Yes'].includes(String(record.active)))record.active='true';
+      if(['لا','No'].includes(String(record.active)))record.active='false';
       if(typeof record.sku!=='string'||typeof record.barcodes!=='string'){issues.push({row:item.row,field:'sku/barcodes',code:'TEXT_REQUIRED'});continue;}
       for(const field of ['purchasePrice','sellingPrice','minimumStock'])record[field]=String(record[field]);
-      const parsed=productSchema.safeParse({...record,minimumStock:record.minimumStock||'0',active:record.active===''?true:record.active==='true'?true:record.active==='false'?false:record.active,barcodes:String(record.barcodes).split(/\r?\n/).map(v=>v.trim()).filter(Boolean)});
+      const parsed=productSchema.safeParse({...record,sellingPrice:record.sellingPrice||'0',minimumStock:record.minimumStock||'0',active:record.active===''?true:record.active==='true'?true:record.active==='false'?false:record.active,barcodes:String(record.barcodes).split(/\r?\n/).map(v=>v.trim()).filter(Boolean)});
       if(!parsed.success){for(const issue of parsed.error.issues)issues.push({row:item.row,field:String(issue.path[0]??'row'),code:'INVALID_VALUE'});}
       else rows.push({row:item.row,product:parsed.data});
     }
@@ -61,12 +71,13 @@ export class ProductImportService {
         if(!units.has(row.product.unit))allIssues.push({row:row.row,field:'unit',code:'INVALID_VALUE'});
         if(retiredCategories.has(row.product.category))allIssues.push({row:row.row,field:'category',code:'INVALID_VALUE'});
       }
-      if(allIssues.length)return {id:null,currency:business.baseCurrency,total:source.length-1,issues:allIssues,rows};
+      if(!rows.length&&!allIssues.length)return {id:null,currency:business.baseCurrency,total:0,skipped,issues:[],rows:[]};
+      if(allIssues.length)return {id:null,currency:business.baseCurrency,total:source.length-1,skipped,issues:allIssues,rows};
       await tx.productImport.updateMany({where:{businessId,actorId:ctx.user.id,status:'PREVIEW',expiresAt:{lte:new Date()}},data:{payload:'',status:'EXPIRED'}});
       if(await tx.productImport.count({where:{businessId,actorId:ctx.user.id,status:'PREVIEW'}})>=5)throw new ApiError(429,'IMPORT_PREVIEW_LIMIT','Finish an existing preview or wait for it to expire');
       const id=randomUUID(),expiresAt=new Date(Date.now()+30*60000);
       await tx.productImport.create({data:{id,businessId,actorId:ctx.user.id,currency:business.baseCurrency,rowCount:rows.length,expiresAt,payload:encrypt(this.auth.settings.key,JSON.stringify(rows),`product-import:${id}`)}});
-      return {id,currency:business.baseCurrency,total:rows.length,issues,rows,expiresAt};
+      return {id,currency:business.baseCurrency,total:rows.length,skipped,issues,rows,expiresAt};
     });
   }
   async commit(ctx:AuthContext,businessId:string,id:string){

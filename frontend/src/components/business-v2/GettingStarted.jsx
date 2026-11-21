@@ -30,7 +30,7 @@ const copy = {
       ], 'Name: Dairy · Code: DAIRY'],
       ['Add your first product', 'Create a product you can use in purchases and sales.', 'Go to Products', [
         'In Products, choose Add product and enter the product name and SKU.',
-        'Choose the category and unit, fill in the required prices, then save.',
+        'Choose the unit and enter the purchase cost, then save. Category, selling price and low-stock threshold are optional.',
       ], 'Product: Whole milk 1 L · SKU: MILK-1L · Category: Dairy'],
     ],
     faq: 'Frequently asked questions',
@@ -67,7 +67,7 @@ const copy = {
       ], 'الاسم: الألبان · الرمز: DAIRY'],
       ['أضف منتجك الأول', 'أضف منتجًا لتتمكن من استخدامه في المشتريات والمبيعات.', 'انتقل إلى المنتجات', [
         'من تبويب المنتجات، اضغط «إضافة منتج» وأدخل اسم المنتج ورمزه (SKU).',
-        'اختر الفئة والوحدة، وأدخل الأسعار المطلوبة، ثم احفظ المنتج.',
+        'اختر الوحدة وأدخل تكلفة الشراء، ثم احفظ المنتج. الفئة وسعر البيع وحد تنبيه المخزون اختيارية.',
       ], 'المنتج: حليب كامل الدسم ١ لتر · الرمز: MILK-1L · الفئة: الألبان'],
     ],
     faq: 'أسئلة شائعة',

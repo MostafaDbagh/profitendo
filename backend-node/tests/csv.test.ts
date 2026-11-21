@@ -10,7 +10,7 @@ it('rejects malformed quoting, invalid UTF-8, oversized cells/files and excess r
  for(const input of [csv('"unclosed'),csv('"closed"junk'),Buffer.from([255,254]),Buffer.alloc(1024*1024+1),csv('a'.repeat(2601)),csv(('x,'.repeat(11)+'true\n').repeat(501))])expect(()=>parseCsv(input)).toThrow();
 });
 it('flags missing columns and rejects extra header columns without silently dropping data',()=>{
- expect(parseCsv(Buffer.from('sku,name\na,b'))[0]!.invalid).toBe(true);
+ expect(()=>parseCsv(Buffer.from('sku,name\na,b'))).toThrow(expect.objectContaining({code:'IMPORT_HEADERS'}));
  expect(()=>parseCsv(Buffer.from(columns.join(',')+',unexpected\n'))).toThrow(expect.objectContaining({code:'IMPORT_HEADERS'}));
  expect(parseCsv(csv('sku,name'))[1]!.invalid).toBe(true);
 });

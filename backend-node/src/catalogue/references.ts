@@ -3,7 +3,7 @@ import type { AuthContext, AuthService, Tx } from '../auth/service.js';
 import { requireBusiness } from '../businesses/access.js';
 import { billingState } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
-export const baseUnits=['PIECE','BOX','CARTON','KG','LITRE','METRE'];
+export const baseUnits=['PIECE','BOX','CARTON','KG','GRAM','LITRE','METRE'];
 export const referenceSchema=z.object({kind:z.enum(['CATEGORY','UNIT']),code:z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,31}$/),name:z.string().trim().min(2).max(80)}).strict();
 export async function validateReferences(tx:Tx,businessId:string,input:{unit?:string;category?:string},previousCategory?:string){
  if(input.unit&&!baseUnits.includes(input.unit)&&!await tx.catalogueReference.findFirst({where:{businessId,kind:'UNIT',code:input.unit,active:true}}))throw new ApiError(422,'UNIT_UNAVAILABLE','Choose an active unit');

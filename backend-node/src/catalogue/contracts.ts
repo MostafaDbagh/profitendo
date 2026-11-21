@@ -14,7 +14,7 @@ export const productSchema=z.object({...fields,
   unit:z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/),
   category:fields.category.default(''),subcategory:fields.subcategory.default(''),
   brand:fields.brand.default(''),description:fields.description.default(''),
-  minimumStock:decimal.default('0'),active:z.boolean().default(true),barcodes:fields.barcodes.default([]),
+  sellingPrice:decimal.default('0'),minimumStock:decimal.default('0'),active:z.boolean().default(true),barcodes:fields.barcodes.default([]),
 }).strict();
 export const patchSchema=z.object(fields).partial().extend({revision:z.number().int().nonnegative()}).strict().refine(value=>Object.keys(value).length>1);
 export type ProductInput=z.infer<typeof productSchema>;
