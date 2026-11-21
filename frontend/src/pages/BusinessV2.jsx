@@ -69,7 +69,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
   if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <p role="status">{c('loading')}</p>}</div>;
   if (context.business.initialSetupPending && context.role === 'OWNER' && context.permissions['business.edit']) {
     return <DraftScope.Provider value={{...context, lang}}>
-      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="mx-auto max-w-xl px-4 py-8 sm:py-12">
+      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="mx-auto max-w-xl px-4 py-8 sm:py-12 lg:min-h-0 lg:overflow-y-auto">
         <div className="mb-6 flex items-center justify-center gap-3 text-xl font-bold">
           <span className="rounded-xl bg-emerald-600 p-2.5 text-white"><TrendingUp className="h-6 w-6" aria-hidden="true" /></span>
           <span dir="ltr">ProfitLens</span>
@@ -111,7 +111,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
   );
 
   return <DraftScope.Provider value={{...context,lang}}><UpgradeContext.Provider value={{canUpgrade:!!context.permissions['billing.manage'],onUpgrade:()=>setSection('billing'),lang}}>
-    <div dir={direction} className="min-w-0 lg:flex">
+    <div dir={direction} className="min-w-0 lg:flex lg:min-h-0 lg:flex-1">
       <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <header className="sticky top-0 z-30 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center border-b border-slate-200 bg-white px-3 py-1.5 lg:hidden">
           <Dialog.Trigger asChild>
@@ -131,16 +131,16 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
               <Dialog.Close asChild><button type="button" className={iconButton} aria-label={ar ? 'إغلاق القائمة' : 'Close menu'}><X className="h-5 w-5" aria-hidden="true" /></button></Dialog.Close>
             </div>
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">{businessControls('mobile')}</div>
-            <nav aria-label={menuLabel} className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3">{items}</nav>
+            <nav aria-label={menuLabel} className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]">{items}</nav>
             <div className="shrink-0 border-t border-slate-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{logoutButton}<Feedback error={logoutError} c={c} /></div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
       {logoutError && <div className="px-3 lg:hidden"><Feedback error={logoutError} c={c} /></div>}
-      <nav aria-label={menuLabel} className="hidden w-64 shrink-0 flex-col gap-2 border-e border-slate-200 bg-white p-4 lg:flex xl:w-72 xl:p-6">
+      <nav aria-label={menuLabel} className="hidden w-64 shrink-0 flex-col gap-2 border-e border-slate-200 bg-white p-4 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable] xl:w-72 xl:p-6">
         {items}{logoutButton}<Feedback error={logoutError} c={c} />
       </nav>
-    <main ref={contentRef} tabIndex={-1} className="min-w-0 flex-1 px-3 py-4 outline-none sm:px-5 sm:py-6 xl:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
+    <main ref={contentRef} tabIndex={-1} className="min-w-0 flex-1 px-3 py-4 outline-none sm:px-5 sm:py-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain xl:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
       ? <OwnerPinUnlock {...{context,api,c,lang}} onPinStatus={setPinStatus} />
       : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</div></div></main>
   </div></UpgradeContext.Provider></DraftScope.Provider>;
@@ -167,9 +167,9 @@ export default function BusinessV2() {
         {businesses?.length > 0 && <select id={surface === 'desktop' ? 'active-business' : 'active-business-mobile'} aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-h-11 min-w-0 max-w-full truncate sm:max-w-64 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>}
         {businesses?.length===0&&<Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}
   </>;
-  return <div className="min-h-screen bg-slate-50 text-slate-900">
+  return <div className={`min-h-screen bg-slate-50 text-slate-900 ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
     <Seo title={`${c('title')} | ProfitLens`} path="/business-v2" noindex />
-    <header dir="ltr" className={`items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:px-8 ${hasBusiness ? 'hidden lg:flex' : 'flex'}`}>
+    <header dir="ltr" className={`items-center justify-between gap-3 shrink-0 border-b border-slate-200 bg-white px-4 py-3 lg:px-8 ${hasBusiness ? 'hidden lg:flex' : 'flex'}`}>
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         {businessControls('desktop')}
       </div>
