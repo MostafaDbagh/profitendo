@@ -19,7 +19,7 @@ export default function LocationForm({ location, path, api, c, lang, close, done
   return <Modal title={c(location?'editLocation':'addLocation')} description={c('locationFormHint')} {...{close,returnFocus,lang,c,busy}}>
     <form className="space-y-4" onSubmit={save}><LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>
       <fieldset disabled={busy || error==='REVISION_CONFLICT'} className="space-y-4">
-        <Field id="location-name" label={requiredLabel(c('locationName'))} placeholder={c('locationNamePlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required />
+        <Field id="location-name" label={requiredLabel(lang === 'ar' ? 'اسم المتجر' : 'Shop name')} placeholder={c('locationNamePlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required />
         {!location && <Select id="location-kind" label={requiredLabel(c('locationKind'))} required value={form.kind} onChange={set('kind')}><option value="" disabled>{lang === 'ar' ? 'اختر نوع الموقع' : 'Choose a location type'}</option><option value="WAREHOUSE">{c('WAREHOUSE')}</option><option value="SHOP">{c('SHOP')}</option></Select>}
         <Field id="location-address" label={c('locationAddress')} placeholder={c('locationAddressPlaceholder')} value={form.address} onChange={set('address')} maxLength={500} />
       </fieldset>
