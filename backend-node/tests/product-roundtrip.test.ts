@@ -21,3 +21,9 @@ it('rejects duplicate semantic columns and missing required labels',()=>{
  expect(importHeaderMap(['name','اسم المنتج','unit','purchasePrice'])).toBeNull();
  expect(importHeaderMap(['name','unit'])).toBeNull();
 });
+
+it('accepts lowercase unit codes from edited exports',()=>{
+ expect(importUnit('box')).toBe('BOX');
+ expect(importUnit('custom_unit')).toBe('CUSTOM_UNIT');
+ expect(importUnit('علبة')).toBe('BOX');
+});

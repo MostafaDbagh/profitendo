@@ -34,5 +34,9 @@ export function importHeaderMap(values:(string|number)[]) {
   return keys as string[];
 }
 export function importUnit(value:string|number) {
-  return Object.entries(exportUnits).find(([key,labels])=>key===value||labels.includes(String(value)))?.[0]??value;
+  if (typeof value !== 'string') return value;
+  const code = value.normalize('NFKC').trim().toUpperCase();
+  return Object.entries(exportUnits).find(([, labels]) =>
+    labels.some(label => label.toUpperCase() === code)
+  )?.[0] ?? code;
 }

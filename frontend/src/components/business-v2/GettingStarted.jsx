@@ -18,8 +18,8 @@ const copy = {
       ], 'For a shop in Syria, choose Syria and select SYP if you keep your records in Syrian pounds.'],
       ['Add your first shop or warehouse', 'Tell ProfitLens where you sell or store stock.', 'Go to Locations', [
         'Open Locations and choose Add location.',
-        'Choose Shop or Warehouse, enter a name and code, then save.',
-      ], 'Name: Main shop · Code: SHOP-01'],
+        'Choose Shop or Warehouse, enter a name, then save.',
+      ], 'Name: Main shop'],
       ['Add your first supplier', 'Save who you buy from so you can find them when recording a purchase.', 'Go to Suppliers', [
         'Open Suppliers and choose Add supplier.',
         'Enter the supplier’s name and code. Add contact details if you have them, then save.',
@@ -55,8 +55,8 @@ const copy = {
       ], 'إذا كان متجرك في سوريا وتسجّل معاملاتك بالليرة السورية، اختر سوريا والعملة SYP.'],
       ['أضف أول متجر أو مستودع', 'حدّد أين تبيع بضائعك أو تخزّنها.', 'انتقل إلى المواقع', [
         'افتح تبويب المواقع واضغط «إضافة موقع».',
-        'اختر متجرًا أو مستودعًا، ثم أدخل اسم الموقع ورمزه واحفظه.',
-      ], 'الاسم: المتجر الرئيسي · الرمز: SHOP-01'],
+        'اختر متجرًا أو مستودعًا، ثم أدخل اسم الموقع واحفظه.',
+      ], 'الاسم: المتجر الرئيسي'],
       ['أضف أول مورد', 'احفظ بيانات المورد لتتمكن من اختياره عند تسجيل مشترياتك.', 'انتقل إلى الموردين', [
         'افتح تبويب الموردين واضغط «إضافة مورد».',
         'أدخل اسم المورد ورمزه. أضف بيانات التواصل إن توفّرت، ثم احفظه.',

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import type { AuthService } from '../auth/service.js';
@@ -16,7 +17,7 @@ export function locationRouter(auth:AuthService){
     const parsed=z.object({page:z.coerce.number().int().min(1).max(10000).default(1),state:z.enum(['active','archived','all']).default('active'),kind:z.enum(['WAREHOUSE','SHOP']).optional(),search:z.string().trim().max(120).optional()}).strict().safeParse(req.query);
     if(!parsed.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid location filters');res.json(await service.list(ctx(res),businessId(req),parsed.data));
   });
-  router.post('/',validateBody(z.object({code:z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{1,29}$/),name,kind:z.enum(['WAREHOUSE','SHOP']),address:address.default('')}).strict()),async(req,res)=>{res.status(201).json(await service.create(ctx(res),businessId(req),req.body));});
+  router.post('/',validateBody(z.object({code:z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{1,29}$/).default(()=>'LOC-'+randomBytes(10).toString('hex').toUpperCase()),name,kind:z.enum(['WAREHOUSE','SHOP']),address:address.default('')}).strict()),async(req,res)=>{res.status(201).json(await service.create(ctx(res),businessId(req),req.body));});
   router.patch('/:locationId',validateBody(z.object({revision:z.number().int().nonnegative(),name:name.optional(),address:address.optional(),active:z.boolean().optional()}).strict().refine(v=>v.name!==undefined||v.address!==undefined||v.active!==undefined)),async(req,res)=>{res.json(await service.update(ctx(res),businessId(req),String(req.params.locationId),req.body));});
   router.get('/:locationId/assignments',async(req,res)=>{
     const parsed=z.object({page:z.coerce.number().int().min(1).max(10000).default(1)}).strict().safeParse(req.query);if(!parsed.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid pagination');
