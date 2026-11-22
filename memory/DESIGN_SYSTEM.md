@@ -954,3 +954,31 @@ no browser page errors. Updated three old sales fixtures to create valid stocked
 quotes before simulating stock loss/reservation or empty-shop archiving. All
 original rollback/overselling/archive assertions remain. Typechecks pass.
 Logs and browser harnesses: `tmp/owner-cashier/`.
+
+
+## Product import duplicate review (2026-11-22)
+
+Preserved the existing light import modal, typography, emerald actions, logical
+RTL alignment and internally scrolling preview table. Added an amber duplicate
+review section with translated keep/exclude controls. Disabled generic table
+search/export tools only in the import preview so filtering cannot imply that
+hidden rows will be excluded from confirmation. Generated replacement SKUs are
+visible in the preview. Before screenshots: `tmp/import-review-before`; after:
+`tmp/import-review-after`. Real API browser checks passed in AR/EN at
+320/390/768/1440px, including page/dialog overflow, invalid input, duplicate
+choices, owner imports and accountant-style staff imports. Inspected Arabic
+mobile duplicate review and English desktop review screenshots. No global design
+or shared component styling changed.
+
+
+## Import recovery QA (2026-11-22)
+
+Preserved import modal layout while fixing confirmed draft-discard and failed-file-
+replacement defects. Confirmed discard clears the server preview before local reset;
+failed replacement retains the old preview. Barcode text now stays on one line inside
+its scrolling table, improving readability without changing global components.
+Captured baseline in `tmp/import-signoff-before`, development checks in
+`tmp/import-signoff-after`, and optimized-build checks in
+`tmp/import-signoff-production`. Owner/accountant recovery flows, Escape/focus,
+busy guards and AR/EN responsive overflow checks passed. Reviewed final desktop
+replacement-error and Arabic mobile duplicate-review screenshots.

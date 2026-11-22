@@ -54,3 +54,9 @@ test('request metadata is persisted synchronously before a network call',()=>{
   act(()=>controls.draft.checkpoint({clientKey:'stable-retry-key',fingerprint:'same-body'}));
   const stored=JSON.parse(localStorage.getItem(localStorage.key(0))).values;expect(stored.name).toBe('Payment');expect(stored.clientKey).toBe('stable-retry-key');
 });
+
+test('caller-managed reset clears the draft after external cleanup without another confirmation',()=>{
+  mount();act(()=>controls.setName('Import preview'));const confirm=jest.spyOn(window,'confirm');
+  act(()=>controls.draft.reset());expect(confirm).not.toHaveBeenCalled();expect(controls.name).toBe('');expect(localStorage.length).toBe(0);
+  remount();expect(controls.name).toBe('');
+});

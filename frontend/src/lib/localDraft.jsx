@@ -89,8 +89,8 @@ export function useLocalDraft(name, values, restore) {
       setStatus('idle'); setRestored(false);
     } catch { setStatus('error'); }
   }
-  function discard() {
-    if (!window.confirm(scope.lang === 'ar' ? 'حذف هذه المسودة وإعادة الحقول إلى البداية؟' : 'Discard this draft and reset the fields?')) return;
+  // Call reset only after any caller-specific confirmation and server cleanup.
+  function reset() {
     try {
       if (key) localStorage.removeItem(key);
       state.current.stored = null; state.current.blocked = false;
@@ -102,7 +102,11 @@ export function useLocalDraft(name, values, restore) {
       setStatus('idle'); setRestored(false);
     } catch { setStatus('error'); }
   }
-  return {status, restored, online, clear, discard, checkpoint};
+  function discard() {
+    if (!window.confirm(scope.lang === 'ar' ? 'حذف هذه المسودة وإعادة الحقول إلى البداية؟' : 'Discard this draft and reset the fields?')) return;
+    reset();
+  }
+  return {status, restored, online, clear, discard, reset, checkpoint};
 }
 
 export function LocalDraftNotice({draft, lang, busy}) {

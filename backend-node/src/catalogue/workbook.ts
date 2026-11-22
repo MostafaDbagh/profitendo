@@ -27,9 +27,24 @@ export async function importTemplate(lang:string='en'){
   return Buffer.from(await workbook.xlsx.writeBuffer()).toString('base64');
 }
 
-const normalizeHeader=(value:string|number)=>String(value).normalize('NFKC').replace(/[\u200e\u200f\u061c\ufeff]/g,'').trim().toLowerCase().replace(/[\s_-]+/g,'');
+const normalizeHeader=(value:string|number)=>String(value).normalize('NFKC').replace(/[\u200e\u200f\u061c\ufeff]/g,'').trim().toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/[\s_\-/]+/g,'');
+const headerAliases: Record<string,string[]> = {
+  name:['Product','Item name','اسم الصنف','المنتج','الصنف'],
+  sku:['Product code','Item code','رمز المنتج','كود المنتج','كود الصنف','رمز المنتج / SKU'],
+  unit:['Unit of measure','UOM','وحدة القياس','وحدة'],
+  purchasePrice:['Purchase price','Cost price','Cost','سعر الشراء','سعر التكلفة','التكلفة'],
+  sellingPrice:['Sale price','Sales price','Retail price','سعر المبيع'],
+  minimumStock:['Minimum stock','Min stock','Reorder level','الكمية الدنيا','الحد الادنى للمخزون'],
+  category:['الفئة الرئيسية','التصنيف','القسم'],barcodes:['Barcode','باركود','الباركود'],
+};
+export function importDecimal(value:string|number) {
+  let text=String(value).trim().replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c<='٩'?0x660:0x6f0))).replace(/٫/g,'.');
+  // Only unambiguous thousands groups; never guess a decimal comma.
+  if (/^\d{1,3}([,٬]\d{3})+(\.\d{1,4})?$/.test(text)) text=text.replace(/[,٬]/g,'');
+  return text;
+}
 export function importHeaderMap(values:(string|number)[]) {
-  const keys=values.map(value=>Object.entries(exportHeaders).find(([key,labels])=>[key,...labels].some(label=>normalizeHeader(label)===normalizeHeader(value)))?.[0]);
+  const keys=values.map(value=>Object.entries(exportHeaders).find(([key,labels])=>[key,...labels,...(headerAliases[key]??[])].some(label=>normalizeHeader(label)===normalizeHeader(value)))?.[0]);
   if(keys.some(key=>!key)||new Set(keys).size!==keys.length||!['name','unit','purchasePrice'].every(key=>keys.includes(key)))return null;
   return keys as string[];
 }

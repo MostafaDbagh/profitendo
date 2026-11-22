@@ -61,7 +61,10 @@
     "sms:send-once": "tsx src/auth/sms-worker.ts",
     "test:browser:contact-onboarding": "tsx scripts/contact-onboarding-browser.ts",
     "test:browser:onboarding-policy": "tsx scripts/onboarding-policy-browser.ts",
-    "test:browser:dashboard-charts": "node --env-file=.env.staging --import tsx scripts/dashboard-charts-browser.ts"
+    "test:browser:dashboard-charts": "node --env-file=.env.staging --import tsx scripts/dashboard-charts-browser.ts",
+    "test:import": "vitest run tests/product-import.test.ts tests/import-template.test.ts tests/csv.test.ts tests/catalogue.test.ts tests/catalogue-contracts.test.ts tests/security-boundary.test.ts tests/app.test.ts",
+    "test:browser:import:deep": "IMPORT_DEEP_TEST=true tsx scripts/import-browser.ts",
+    "test:browser:import:build": "IMPORT_DEEP_TEST=true IMPORT_FRONTEND_BUILD=true tsx scripts/import-browser.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

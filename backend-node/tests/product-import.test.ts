@@ -141,14 +141,14 @@ it.each(['ar','en'] as const)('round-trips a real %s export with reordered colum
  source[1]!.values[keys.indexOf('name')]='Do not overwrite this product';
  const reordered=[...source.map(row=>row.values),newRow].map(values=>[...values].reverse());
  const content=reordered.map(values=>values.map(csvCell).join(',')).join('\r\n');
- const result=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64')},tester);
+ const result=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64'),duplicateMode:'skip'},tester);
  expect(result.status).toBe(201);expect(result.body.issues).toEqual([]);expect(result.body.skipped).toBe(before.length);expect(result.body.total).toBe(1);
  expect(result.body.rows[0].product).toMatchObject({sku:`ROUND-${lang.toUpperCase()}`,unit:'GRAM',purchasePrice:'1.2345',sellingPrice:'0',minimumStock:'0',category:'',barcodes:[`000-ROUND-${lang}`]});
  expect((await write(`/${result.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
  expect(await db.product.findMany({where:{businessId:business,id:{in:before.map(p=>p.id)}},orderBy:{id:'asc'},include:{barcodes:true}})).toEqual(before);
  expect(await db.stockBalance.findMany({where:{businessId:business}})).toEqual(stockBefore);
  expect(await db.product.count({where:{businessId:other}})).toBe(foreignBefore);
- const repeated=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64')},tester);
+ const repeated=await write('/preview',{filename:'roundtrip.csv',fileBase64:Buffer.from(content).toString('base64'),duplicateMode:'skip'},tester);
  expect(repeated.body).toMatchObject({id:null,total:0,issues:[],rows:[],skipped:before.length+1});
 });
 
@@ -192,4 +192,151 @@ it('reports missing purchase cost and duplicate new SKUs without creating produc
  expect(res.body.issues).toContainEqual(expect.objectContaining({field:'purchasePrice',code:'INVALID_VALUE'}));
  expect(res.body.issues).toContainEqual(expect.objectContaining({field:'sku',code:'IDENTIFIER_EXISTS'}));
  expect(await db.product.count({where:{businessId:business}})).toBe(before);
+});
+
+
+it('shows duplicates and supports explicitly excluding or keeping them without overwriting products',async()=>{
+ const tester=await actor('OWNER');
+ const upload=await file([productRow('IMPORT-01','001234567890'),productRow('RESOLVE-NEW','RESOLVE-BAR')]);
+ const before=await db.product.findUniqueOrThrow({where:{businessId_sku:{businessId:business,sku:'IMPORT-01'}}});
+ const review=await write('/preview',upload,tester);
+ expect(review.body.id).toBeNull();expect(review.body.duplicates[0]).toMatchObject({row:2,sku:'IMPORT-01',fields:expect.arrayContaining(['sku','barcodes','name'])});
+ const skipped=await write('/preview',{...upload,duplicateMode:'skip'},tester);
+ expect(skipped.body).toMatchObject({id:null,skipped:2,total:0,issues:[]});
+ const kept=await write('/preview',{...upload,duplicateMode:'keep'},tester);
+ expect(kept.body.issues).toEqual([]);expect(kept.body.rows[0].product.sku).toMatch(/^PRD-/);expect(kept.body.rows[0].product.barcodes).toEqual([]);
+ expect(kept.body.rows[1].product).toMatchObject({sku:'RESOLVE-NEW',barcodes:['RESOLVE-BAR']});
+ expect((await write(`/${kept.body.id}/commit`,{confirm:true},tester)).body.count).toBe(2);
+ expect(await db.product.findUniqueOrThrow({where:{id:before.id}})).toEqual(before);
+ expect(await db.stockBalance.count({where:{businessId:business}})).toBe(0);
+});
+it('keeps the first accepted row and excludes subsequent in-file duplicates',async()=>{
+ const tester=await actor('OWNER');
+ const row=productRow('FRESH-DUP','FRESH-BAR');row[1]='Unique in-file product';
+ const res=await write('/preview',{...await file([row,row]),duplicateMode:'skip'},tester);
+ expect(res.body).toMatchObject({total:1,skipped:1,issues:[]});expect(res.body.duplicates).toHaveLength(1);
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+});
+it('supports an accountant permission profile, then rechecks revoked permissions on commit',async()=>{
+ const accountant=await actor('CASHIER');
+ await db.membership.update({where:{businessId_userId:{businessId:business,userId:accountant.user.id}},data:{permissionOverrides:{'catalogue.create':true,'catalogue.cost':true}}});
+ const res=await write('/preview',await file([['محصول عربي','قطعة','١٬٢٣٤٫٥٠٠٠','٢٥٠٠٫٧٥']],['اسم الصنف','وحدة القياس','سعر الشراء','سعر البيع']),accountant);
+ expect(res.status).toBe(201);expect(res.body.issues).toEqual([]);
+ expect(res.body.rows[0].product).toMatchObject({purchasePrice:'1234.5000',sellingPrice:'2500.75',unit:'PIECE'});
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},accountant)).body.count).toBe(1);
+ const pending=await write('/preview',await file([productRow('ACCOUNTANT-PENDING','ACC-PENDING')]),accountant);
+ await db.membership.update({where:{businessId_userId:{businessId:business,userId:accountant.user.id}},data:{permissionOverrides:{'catalogue.create':true,'catalogue.cost':false}}});
+ expect((await write(`/${pending.body.id}/commit`,{confirm:true},accountant)).status).toBe(403);
+ expect(await db.product.count({where:{businessId:business,sku:'ACCOUNTANT-PENDING'}})).toBe(0);
+});
+it('never bypasses invalid prices when resolving duplicates',async()=>{
+ const tester=await actor('OWNER');const bad=productRow('IMPORT-01','001234567890');bad[3]='1,25';
+ for(const duplicateMode of ['keep','skip']){
+  const res=await write('/preview',{...await file([bad]),duplicateMode},tester);
+  expect(res.body.id).toBeNull();expect(res.body.issues).toContainEqual(expect.objectContaining({field:'purchasePrice',code:'INVALID_VALUE'}));
+ }
+});
+
+it('keeps in-file identifier copies as separate products and preserves exact financial values',async()=>{
+ const tester=await actor('OWNER');const row=productRow('COPY-FILE','000-COPY-FILE');row[1]='Repeated copy';row[3]='99999999999999.9999';row[4]='0';
+ const res=await write('/preview',{...await file([row,row]),duplicateMode:'keep'},tester);
+ expect(res.body.issues).toEqual([]);expect(res.body.rows[1].product).toMatchObject({name:'Repeated copy',purchasePrice:'99999999999999.9999',sellingPrice:'0',barcodes:[]});
+ expect(res.body.rows[1].product.sku).not.toBe('COPY-FILE');
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.count).toBe(2);
+ expect((await db.product.findUniqueOrThrow({where:{businessId_sku:{businessId:business,sku:'COPY-FILE'}}})).purchasePrice.toString()).toBe('99999999999999.9999');
+});
+it('shows same-name warnings without changing distinct valid identifiers',async()=>{
+ const tester=await actor('OWNER');const first=productRow('NAME-ONE','NAME-BAR-ONE'),second=productRow('NAME-TWO','NAME-BAR-TWO');first[1]='Special Coffee';second[1]='special   coffee';
+ const res=await write('/preview',await file([first,second]),tester);
+ expect(res.body.issues).toEqual([]);expect(res.body.duplicates).toEqual([expect.objectContaining({row:3,fields:['name']})]);
+ expect(res.body.rows.map((r:{product:{sku:string}})=>r.product.sku)).toEqual(['NAME-ONE','NAME-TWO']);
+ await write(`/${res.body.id}/discard`,{},tester);
+});
+it('reports invalid units, boolean values and excessive precision together without partial writes',async()=>{
+ const tester=await actor('OWNER');const row=productRow('BAD-FIELDS','BAD-FIELDS-BAR');row[2]='UNKNOWN';row[3]='1.23456';row[11]='maybe';
+ const res=await write('/preview',await file([row]),tester);
+ expect(res.body.id).toBeNull();expect(res.body.issues).toEqual(expect.arrayContaining([expect.objectContaining({field:'purchasePrice'}),expect.objectContaining({field:'active'})]));
+ expect(await db.product.count({where:{businessId:business,sku:'BAD-FIELDS'}})).toBe(0);
+});
+
+it('rejects numeric zero SKUs instead of silently replacing them with generated identifiers',async()=>{
+ const tester=await actor('OWNER');const row:unknown[]=productRow('ZERO-SKU','ZERO-SKU-BAR');row[0]=0;
+ const res=await write('/preview',await file([row]),tester);
+ expect(res.body.id).toBeNull();expect(res.body.issues).toContainEqual(expect.objectContaining({field:'sku/barcodes',code:'TEXT_REQUIRED'}));
+});
+it.each(['TRUE','FALSE','True','False','YES','NO'])('accepts case-insensitive active value %s',async active=>{
+ const tester=await actor('OWNER');const row=productRow(`ACTIVE-${active.toUpperCase()}`,`BAR-${active}`);row[11]=active;
+ const res=await write('/preview',await file([row]),tester);expect(res.status).toBe(201);expect(res.body.issues).toEqual([]);
+ expect(res.body.rows[0].product.active).toBe(['true','yes'].includes(active.toLowerCase()));await write(`/${res.body.id}/discard`,{},tester);
+});
+it.each([
+ ['purchasePrice',3,'-0.01'],['purchasePrice',3,'100000000000000'],['sellingPrice',4,'1e3'],['sellingPrice',4,'NaN'],
+ ['minimumStock',5,'-1'],['minimumStock',5,'0.00001'],['name',1,''],['name',1,'a'],['name',1,'x'.repeat(161)],
+ ['category',6,'x'.repeat(81)],['description',9,'x'.repeat(2001)],['sku',0,'BAD SKU'],['barcodes',10,'bad barcode'],
+ ['barcodes',10,'REPEAT\nREPEAT'],['barcodes',10,Array.from({length:21},(_,i)=>`B${i}`).join('\n')],['active',11,'sometimes']
+])('rejects invalid %s value without creating a preview',async(field,index,value)=>{
+ const tester=await actor('OWNER');const row=productRow(`INVALID-${randomUUID()}`,'VALID-BAR');row[Number(index)]=String(value);
+ const res=await write('/preview',await file([row]),tester);expect(res.status).toBe(201);expect(res.body.id).toBeNull();
+ expect(res.body.issues).toContainEqual(expect.objectContaining({field,code:'INVALID_VALUE'}));
+ expect(await db.productImport.count({where:{actorId:tester.user.id}})).toBe(0);
+});
+it('keeps nonconflicting barcodes while resolving a barcode-only duplicate',async()=>{
+ const tester=await actor('OWNER');const row=productRow('PARTIAL-BAR','001234567890\n000-UNIQUE-BAR');row[1]='A unique mixed-barcode item';
+ const res=await write('/preview',{...await file([row]),duplicateMode:'keep'},tester);
+ expect(res.body.issues).toEqual([]);expect(res.body.rows[0].product).toMatchObject({sku:'PARTIAL-BAR',barcodes:['000-UNIQUE-BAR']});
+ expect(res.body.duplicates[0].fields).toEqual(['barcodes']);expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).status).toBe(200);
+});
+it('does not let an excluded row reserve its otherwise unique identifiers',async()=>{
+ const tester=await actor('OWNER');const first=productRow('REUSE-SKIPPED','REUSE-SKIPPED-BAR'),second=[...first];second[1]='Distinct survivor';
+ const res=await write('/preview',{...await file([first,second]),duplicateMode:'skip'},tester);
+ expect(res.body).toMatchObject({total:1,skipped:1,issues:[]});expect(res.body.rows[0].row).toBe(3);
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+});
+it('rechecks retired custom units and categories on confirmation with atomic rollback',async()=>{
+ const tester=await actor('OWNER');
+ for(const kind of ['UNIT','CATEGORY'] as const){
+  const reference=await db.catalogueReference.create({data:{businessId:business,kind,code:`REF_${kind}`,name:`Custom ${kind}`}});
+  const row=productRow(`RETIRE-${kind}`,`RETIRE-${kind}-BAR`);row[kind==='UNIT'?2:6]=kind==='UNIT'?reference.code:reference.name;
+  const res=await write('/preview',await file([row]),tester);expect(res.body.issues).toEqual([]);
+  await db.catalogueReference.update({where:{id:reference.id},data:{active:false}});
+  const commit=await write(`/${res.body.id}/commit`,{confirm:true},tester);expect(commit.status).toBe(422);expect(commit.body.error.code).toBe(`${kind}_UNAVAILABLE`);
+  expect(await db.product.count({where:{businessId:business,sku:row[0]}})).toBe(0);await write(`/${res.body.id}/discard`,{},tester);
+ }
+});
+it('discards previews idempotently and prevents both confirmation and cross-uploader discard',async()=>{
+ const tester=await actor('OWNER'),second=await actor('OWNER');const res=await write('/preview',await file([productRow('DISCARD-TEST','DISCARD-BAR')]),tester);
+ await write(`/${res.body.id}/discard`,{},second);
+ expect((await db.productImport.findUniqueOrThrow({where:{id:res.body.id}})).status).toBe('PREVIEW');
+ expect((await write(`/${res.body.id}/discard`,{},tester)).status).toBe(200);expect((await write(`/${res.body.id}/discard`,{},tester)).status).toBe(200);
+ const stored=await db.productImport.findUniqueOrThrow({where:{id:res.body.id}});expect(stored.payload).toBe('');expect(stored.status).toBe('EXPIRED');
+ expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.error.code).toBe('IMPORT_EXPIRED');
+});
+it('enforces pending-preview limits and releases a slot when discarded',async()=>{
+ const tester=await actor('OWNER');const batches:string[]=[];const upload=await file([productRow('LIMIT-TEST','LIMIT-BAR')]);
+ for(let i=0;i<5;i++){const res=await write('/preview',upload,tester);expect(res.status).toBe(201);batches.push(res.body.id);}
+ expect((await write('/preview',upload,tester)).body.error.code).toBe('IMPORT_PREVIEW_LIMIT');
+ await write(`/${batches[0]}/discard`,{},tester);expect((await write('/preview',upload,tester)).status).toBe(201);
+});
+it('rejects tampered commit bodies, invalid IDs and unsupported preview modes',async()=>{
+ const tester=await actor('OWNER');const upload=await file([productRow('TAMPER-TEST','TAMPER-BAR')]);const res=await write('/preview',upload,tester);
+ for(const body of [{confirm:false},{},{confirm:true,rows:[]},{confirm:true,duplicateMode:'keep'}])expect((await write(`/${res.body.id}/commit`,body,tester)).status).toBe(422);
+ expect((await write('/not-an-id/commit',{confirm:true},tester)).status).toBe(400);
+ expect((await write('/preview',{...upload,duplicateMode:'overwrite'},tester)).status).toBe(422);
+ expect((await write('/preview',{...upload,filename:'products.xls'},tester)).status).toBe(422);
+ expect((await write('/preview',{...upload,fileBase64:'%%%invalid'},tester)).status).toBe(422);
+ await write(`/${res.body.id}/discard`,{},tester);
+});
+it('rejects empty workbooks and allows zero prices without changing stock or financial records',async()=>{
+ const tester=await actor('OWNER');expect((await write('/preview',await file([]),tester)).body.error.code).toBe('IMPORT_EMPTY');
+ const row=productRow('ZERO-PRICES','000000');row[3]='0';row[4]='0';row[5]='0';
+ const res=await write('/preview',await file([row]),tester);expect(res.body.issues).toEqual([]);expect((await write(`/${res.body.id}/commit`,{confirm:true},tester)).body.count).toBe(1);
+ const stored=await db.product.findUniqueOrThrow({where:{businessId_sku:{businessId:business,sku:'ZERO-PRICES'}}});expect(stored.purchasePrice.toString()).toBe('0');expect(stored.sellingPrice.toString()).toBe('0');
+ expect(await db.stockBalance.count({where:{businessId:business}})).toBe(0);expect(await db.stockMovement.count({where:{businessId:business}})).toBe(0);
+});
+it('allows only one of two different previews with the same identifiers to commit concurrently',async()=>{
+ const first=await actor('OWNER'),second=await actor('OWNER');const upload=await file([productRow('RACE-SAME','RACE-SAME-BAR')]);
+ const a=await write('/preview',upload,first),b=await write('/preview',upload,second);
+ const results=await Promise.all([write(`/${a.body.id}/commit`,{confirm:true},first),write(`/${b.body.id}/commit`,{confirm:true},second)]);
+ expect(results.map(r=>r.status).sort()).toEqual([200,409]);expect(await db.product.count({where:{businessId:business,sku:'RACE-SAME'}})).toBe(1);
+ expect(await db.authAudit.count({where:{businessId:business,action:'products.imported',targetId:{in:[a.body.id,b.body.id]}}})).toBe(1);
 });

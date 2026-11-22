@@ -8,7 +8,7 @@ import { requireBusiness } from '../businesses/access.js';
 import { billingState } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
 import { productSchema, type ProductInput } from './contracts.js';
-import { columns, parseWorkbook, importHeaderMap, importUnit } from './workbook.js';
+import { columns, parseWorkbook, importHeaderMap, importUnit, importDecimal } from './workbook.js';
 type Issue={row:number;field:string;code:string};
 type Parsed={row:number;product:ProductInput};
 async function access(auth:AuthService,tx:Tx,ctx:AuthContext,businessId:string){
@@ -34,27 +34,25 @@ export class ProductImportService {
     await this.auth.transaction(async tx=>{await access(this.auth,tx,ctx,businessId);await tx.productImport.updateMany({where:{id,businessId,actorId:ctx.user.id,status:'PREVIEW'},data:{status:'EXPIRED',payload:''}});});
     return {ok:true};
   }
-  async preview(ctx:AuthContext,businessId:string,base64:string,format:'xlsx'|'csv'='xlsx'){
+  async preview(ctx:AuthContext,businessId:string,base64:string,format:'xlsx'|'csv'='xlsx',duplicateMode:'review'|'skip'|'keep'='review'){
     await this.authorize(ctx,businessId);
     const buffer=Buffer.from(base64,'base64');
     const source=format==='csv'?parseCsv(buffer):await parseWorkbook(buffer);
     const headerMap=source[0] && importHeaderMap(source[0].values);
     if(!source[0] || source[0].invalid || !headerMap)throw new ApiError(422,'IMPORT_HEADERS','Use the provided template headers');
-    const exported=headerMap.includes('saleCount')||headerMap.includes('onHand')||headerMap.includes('active');
-    const existingSkus=exported?await this.auth.transaction(async tx=>{await access(this.auth,tx,ctx,businessId);return new Set((await tx.product.findMany({where:{businessId,sku:{in:source.slice(1).map(item=>String(item.values[headerMap.indexOf('sku')]??'').trim().toUpperCase()).filter(Boolean)}},select:{sku:true}})).map(p=>p.sku));}):new Set<string>();
     let skipped=0;
     const rows:Parsed[]=[],issues:Issue[]=[];
     for(const item of source.slice(1)){
       if(item.invalid){issues.push({row:item.row,field:'row',code:'PLAIN_VALUES_REQUIRED'});continue;}
       const incoming=Object.fromEntries(headerMap.map((column,i)=>[column,item.values[i]??'']));
-      if(exported&&typeof incoming.sku==='string'&&existingSkus.has(incoming.sku.trim().toUpperCase())){skipped++;continue;}
       const record=Object.fromEntries(columns.map(column=>[column,incoming[column]??'']));
-      record.sku ||= `PRD-${randomUUID().toUpperCase()}`;
+      if(record.sku==='')record.sku=`PRD-${randomUUID().toUpperCase()}`;
       record.unit=importUnit(record.unit??'');
-      if(['نعم','Yes'].includes(String(record.active)))record.active='true';
-      if(['لا','No'].includes(String(record.active)))record.active='false';
+      if(typeof record.active==='string')record.active=record.active.toLowerCase();
+      if(['نعم','yes'].includes(String(record.active)))record.active='true';
+      if(['لا','no'].includes(String(record.active)))record.active='false';
       if(typeof record.sku!=='string'||typeof record.barcodes!=='string'){issues.push({row:item.row,field:'sku/barcodes',code:'TEXT_REQUIRED'});continue;}
-      for(const field of ['purchasePrice','sellingPrice','minimumStock'])record[field]=String(record[field]);
+      for(const field of ['purchasePrice','sellingPrice','minimumStock'])record[field]=importDecimal(record[field]??'');
       const parsed=productSchema.safeParse({...record,sellingPrice:record.sellingPrice||'0',minimumStock:record.minimumStock||'0',active:record.active===''?true:record.active==='true'?true:record.active==='false'?false:record.active,barcodes:String(record.barcodes).split(/\r?\n/).map(v=>v.trim()).filter(Boolean)});
       if(!parsed.success){for(const issue of parsed.error.issues)issues.push({row:item.row,field:String(issue.path[0]??'row'),code:'INVALID_VALUE'});}
       else rows.push({row:item.row,product:parsed.data});
@@ -63,7 +61,34 @@ export class ProductImportService {
     return this.auth.transaction(async tx=>{
       const {business}=await access(this.auth,tx,ctx,businessId);
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required');
-      const allIssues=[...issues,...await conflicts(tx,businessId,rows)];
+      const identifierIssues:Issue[]=[];
+      const duplicates:{row:number;name:string;sku:string;fields:string[];action:string}[]=[];
+      const normalizeName=(name:string)=>name.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+      const catalogue=await tx.product.findMany({where:{businessId},select:{name:true,sku:true}});
+      const names=new Set(catalogue.map(p=>normalizeName(p.name)));
+      const selected:Parsed[]=[];
+      // Only accepted rows reserve identifiers; excluded rows cannot suppress later valid rows.
+      const usedSkus=new Set(catalogue.map(p=>p.sku));
+      const usedBarcodes=new Set((await tx.productBarcode.findMany({where:{businessId,value:{in:rows.flatMap(entry=>entry.product.barcodes)}},select:{value:true}})).map(p=>p.value));
+      for(const entry of rows){
+        const {product,row}=entry;
+        const fields:string[]=[];
+        if(usedSkus.has(product.sku))fields.push('sku');
+        if(product.barcodes.some(value=>usedBarcodes.has(value)))fields.push('barcodes');
+        if(names.has(normalizeName(product.name)))fields.push('name');
+        for(const field of fields.filter(field=>field!=='name'))identifierIssues.push({row,field,code:'IDENTIFIER_EXISTS'});
+        if(fields.length){
+          duplicates.push({row,name:product.name,sku:product.sku,fields,action:duplicateMode});
+          if(duplicateMode==='skip'){skipped++;continue;}
+          if(duplicateMode==='keep'){
+            if(fields.includes('sku'))product.sku=`PRD-${randomUUID().toUpperCase()}`;
+            product.barcodes=product.barcodes.filter(value=>!usedBarcodes.has(value));
+          }
+        }
+        selected.push(entry);usedSkus.add(product.sku);product.barcodes.forEach(value=>usedBarcodes.add(value));names.add(normalizeName(product.name));
+      }
+      rows.splice(0,rows.length,...selected);
+      const allIssues=[...issues,...(duplicateMode==='review'?identifierIssues:[])];
       const definitions=await tx.catalogueReference.findMany({where:{businessId}});
       const units=new Set([...baseUnits,...definitions.filter(r=>r.kind==='UNIT'&&r.active).map(r=>r.code)]);
       const retiredCategories=new Set(definitions.filter(r=>r.kind==='CATEGORY'&&!r.active).map(r=>r.name));
@@ -71,13 +96,13 @@ export class ProductImportService {
         if(!units.has(row.product.unit))allIssues.push({row:row.row,field:'unit',code:'INVALID_VALUE'});
         if(retiredCategories.has(row.product.category))allIssues.push({row:row.row,field:'category',code:'INVALID_VALUE'});
       }
-      if(!rows.length&&!allIssues.length)return {id:null,currency:business.baseCurrency,total:0,skipped,issues:[],rows:[]};
-      if(allIssues.length)return {id:null,currency:business.baseCurrency,total:source.length-1,skipped,issues:allIssues,rows};
+      if(!rows.length&&!allIssues.length)return {id:null,currency:business.baseCurrency,total:0,skipped,duplicates,issues:[],rows:[]};
+      if(allIssues.length)return {id:null,currency:business.baseCurrency,total:source.length-1,skipped,duplicates,issues:allIssues,rows};
       await tx.productImport.updateMany({where:{businessId,actorId:ctx.user.id,status:'PREVIEW',expiresAt:{lte:new Date()}},data:{payload:'',status:'EXPIRED'}});
       if(await tx.productImport.count({where:{businessId,actorId:ctx.user.id,status:'PREVIEW'}})>=5)throw new ApiError(429,'IMPORT_PREVIEW_LIMIT','Finish an existing preview or wait for it to expire');
       const id=randomUUID(),expiresAt=new Date(Date.now()+30*60000);
       await tx.productImport.create({data:{id,businessId,actorId:ctx.user.id,currency:business.baseCurrency,rowCount:rows.length,expiresAt,payload:encrypt(this.auth.settings.key,JSON.stringify(rows),`product-import:${id}`)}});
-      return {id,currency:business.baseCurrency,total:rows.length,skipped,issues,rows,expiresAt};
+      return {id,currency:business.baseCurrency,total:rows.length,skipped,duplicates,issues,rows,expiresAt};
     });
   }
   async commit(ctx:AuthContext,businessId:string,id:string){
