@@ -56,6 +56,14 @@ afterAll(async()=>{
  await db.productPack.deleteMany({where:{businessId:{in:bids}}});await db.product.deleteMany({where:{businessId:{in:bids}}});await db.authAudit.deleteMany({where:{businessId:{in:bids}}});
  await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.delete({where:{id:planId}});await db.$disconnect();
 });
+it('creates suppliers without a user-entered code and preserves generated codes on edits',async()=>{
+ const first=await write('/suppliers',{name:'Automatic supplier one'}),second=await write('/suppliers',{name:'Automatic supplier two'});
+ expect(first.status).toBe(201);expect(second.status).toBe(201);
+ expect(first.body.code).toMatch(/^SUP-[A-F0-9]{20}$/);expect(second.body.code).not.toBe(first.body.code);
+ const edited=await write(`/suppliers/${first.body.id}`,{revision:0,name:'Updated supplier'},owner,'patch');
+ expect(edited.status).toBe(200);expect(edited.body.code).toBe(first.body.code);
+ expect((await write('/suppliers',{name:'Not permitted'},staff)).status).toBe(403);
+});
 it('isolates suppliers, validates contacts, revision checks edits and preserves inactive codes',async()=>{
  expect((await get('/suppliers',admin)).status).toBe(403);
  expect((await get('/suppliers',foreign)).status).toBe(403);

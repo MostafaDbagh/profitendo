@@ -1,8 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { decimal } from '../catalogue/contracts.js';
 export const positive=decimal.refine(value=>decimal.safeParse(value).success && /[1-9]/.test(value));
 export const supplierSchema=z.object({
- code:z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{1,39}$/),
+ code:z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{1,39}$/).default(()=>'SUP-'+randomBytes(10).toString('hex').toUpperCase()),
  name:z.string().trim().min(2).max(160),contact:z.string().trim().max(160).default(''),
  phone:z.string().trim().max(40).default(''),email:z.union([z.email().max(254),z.literal('')]).default(''),
  address:z.string().trim().max(500).default(''),notes:z.string().trim().max(2000).default(''),
