@@ -97,3 +97,19 @@ records. Service 15 will provide daily cash/reconciliation. No tax engine,
 statutory fiscal/e-invoicing, serial/batch/expiry allocation or dedicated thermal
 printer integration is included. Commercial rollout still depends on billing,
 local compliance configuration, migration and pilot work tracked separately.
+
+## Staff attribution (23 November 2026)
+
+Sales record `actorRole` when the draft is created and `completedRole` when checkout
+completes, alongside the existing immutable name snapshots. Both fields are nullable
+for historical sales: historical roles are not inferred from current memberships.
+List responses include both creator and checkout names/roles. The sales table and
+receipt show the checkout operator for completed sales and creator for drafts or
+cancelled sales. OWNER is presented as Admin/المدير; CASHIER as Cashier/الكاشير.
+Unknown historical roles use the neutral Sold by/منفذ البيع label with the recorded name.
+
+Migration `20261123090000_sale_staff_roles` is additive and must run before deploying
+the updated API. Local isolated-database verification: 28 sales API tests, three
+frontend attribution tests, TypeScript checks and AR/EN desktop/mobile component
+screenshots in `tmp/sale-staff-review`. Tests cover different creator/checkout users,
+profile/role changes, legacy records and tenant isolation. No production deployment.

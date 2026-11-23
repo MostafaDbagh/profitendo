@@ -70,7 +70,7 @@ export class SalesService{
    const access=await requireBusiness(this.auth,tx,ctx,bid,'sales.view');if(!access.permissions['locations.view'])fail('FORBIDDEN',403);
    if(q.locationId)await requireLocation(this.auth,tx,ctx,bid,q.locationId,'sales.view',false);
    const where={businessId:bid,...(q.locationId?{locationId:q.locationId}:{}),...(q.status?{status:q.status}:{}),...(access.permissions['locations.all']?{}:{location:{assignments:{some:{businessId:bid,membershipId:access.membership.id}}}})};
-   const items=await tx.sale.findMany({where,skip:(q.page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],select:{id:true,reference:true,status:true,locationName:true,customerName:true,total:true,currency:true,currencyDigits:true,actorName:true,createdAt:true}});
+   const items=await tx.sale.findMany({where,skip:(q.page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}],select:{id:true,reference:true,status:true,locationName:true,customerName:true,total:true,currency:true,currencyDigits:true,actorName:true,actorRole:true,completedName:true,completedRole:true,createdAt:true}});
    return {items,page:q.page,pageSize:25,total:await tx.sale.count({where})};
   });
  }
@@ -82,7 +82,7 @@ export class SalesService{
    if(prior){if(prior.actorId!==ctx.user.id&&!access.permissions['sales.manage'])fail('FORBIDDEN',403);if(prior.requestHash!==requestHash)fail('IDEMPOTENCY_CONFLICT');return present(prior,access);}
    if(access.location.archivedAt)fail('LOCATION_ARCHIVED');await entitled(tx,bid);
    const {lines,...pricing}=await this.price(tx,bid,input.lines,access,input.locationId),id=randomUUID();
-   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:ctx.user.name,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
+   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:access.user.name,actorRole:access.membership.role,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
    await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
    await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.created',targetId:id,changes:{}}});
    return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
@@ -112,7 +112,7 @@ export class SalesService{
    if(movement.costAmount!==null)await tx.saleLine.update({where:{id:line.id},data:{costAmount:movement.costAmount}});
   }
   await tx.salePayment.create({data:{businessId:bid,saleId:id,method:input.payment.method,createdAt:postedAt,amount:doc.total,received:input.payment.received,change:checked(received-total),reference:input.payment.reference,actorId:ctx.user.id,actorName:ctx.user.name}});
-  await tx.sale.update({where:{id},data:{status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:ctx.user.name,completedAt:postedAt}});
+  await tx.sale.update({where:{id},data:{status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:access.user.name,completedRole:access.membership.role,completedAt:postedAt}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.completed',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  }).catch(error=>{if((error as {code?:string}).code==='P2002')fail('IDEMPOTENCY_CONFLICT');throw error;});}
 }

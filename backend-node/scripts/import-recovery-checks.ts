@@ -20,9 +20,9 @@ export async function checkImportRecovery(page:Page,db:ReturnType<typeof createD
  async function closeSuccess(){await page.getByRole('status').filter({hasText:'Products imported'}).waitFor();await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).last().click();}
  await importButton.click();
  await page.locator('#product-import-file').setInputFiles({name:'unsupported.xls',mimeType:'application/octet-stream',buffer:Buffer.from('invalid')});
- await page.getByRole('alert').waitFor();assert(await previewButton.isDisabled());assert.equal(await count(),before);
+ await page.getByRole('alert').waitFor();assert.equal(await previewButton.count(),0);assert.equal(await count(),before);
  await page.locator('#product-import-file').setInputFiles({name:'oversize.xlsx',mimeType:'application/octet-stream',buffer:Buffer.alloc(1024*1024+1)});
- await page.getByRole('alert').waitFor();assert(await previewButton.isDisabled());
+ await page.getByRole('alert').waitFor();assert.equal(await previewButton.count(),0);
  await pick('DRAFT');
  await page.route('**/product-imports/preview',r=>r.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'TRANSACTION_BUSY'}})}),{times:1});
  await previewButton.click();await page.getByRole('alert').waitFor();assert(await previewButton.isEnabled());assert.equal(await count(),before);
@@ -42,7 +42,7 @@ export async function checkImportRecovery(page:Page,db:ReturnType<typeof createD
  const discardResponse=page.waitForResponse(r=>r.url().endsWith(`/product-imports/${draftId}/discard`));
  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Discard draft',exact:true}).click();assert.equal((await discardResponse).status(),200);await confirmButton.waitFor({state:'hidden'});
  const discarded=await db.productImport.findUniqueOrThrow({where:{id:draftId}});assert.equal(discarded.status,'EXPIRED','Discard draft must release the server preview');assert.equal(discarded.payload,'');
- assert(await previewButton.isDisabled());
+ assert.equal(await previewButton.count(),0);
  // Replacing a file expires the previous preview, and commits cannot resurrect it.
  await pick('REPLACED');const replacedId=await preview();await pick('EXPIRED');
  assert.equal((await db.productImport.findUniqueOrThrow({where:{id:replacedId}})).status,'EXPIRED');

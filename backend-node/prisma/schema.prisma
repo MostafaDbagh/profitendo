@@ -708,6 +708,7 @@ model Sale {
   total Decimal @db.Decimal(18,4)
   actorId String @map("actor_id") @db.Uuid
   actorName String @map("actor_name")
+  actorRole String? @map("actor_role")
   pricedBy String @map("priced_by") @db.Uuid
   pricedName String @map("priced_name")
   expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
@@ -715,6 +716,7 @@ model Sale {
   checkoutHash String? @map("checkout_hash")
   completedBy String? @map("completed_by") @db.Uuid
   completedName String? @map("completed_name")
+  completedRole String? @map("completed_role")
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)

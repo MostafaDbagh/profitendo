@@ -1,3 +1,4 @@
+import { saleStaff } from './saleStaff';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import { formatQuantity } from '@/lib/quantity';
 import { unitLabel } from '../catalogue-v2/units';
@@ -15,7 +16,7 @@ export default function Receipt({doc,c,lang}) {
   </header>
   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
    <div className="flex justify-between gap-3"><dt className="text-slate-500">{ar?'اسم العميل':'Customer name'}</dt><dd className="font-medium text-end"><bdi>{doc.customerName?.trim()||(ar?'عميل نقدي':'Walk-in customer')}</bdi></dd></div>
-   <div className="flex justify-between gap-3"><dt className="text-slate-500">{c('saleCashier')}</dt><dd className="text-end"><bdi>{doc.completedName||doc.actorName}</bdi></dd></div>
+   <div className="flex justify-between gap-3"><dt className="text-slate-500">{saleStaff(doc,c).label}</dt><dd className="text-end"><bdi>{saleStaff(doc,c).name}</bdi></dd></div>
    <div className="sm:col-span-2 flex flex-wrap justify-between gap-2"><dt className="text-slate-500">{doc.status==='DRAFT'?c('saleExpiry'):(ar?'تاريخ البيع':'Sale date')}</dt><dd><bdi>{new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:doc.timezone}).format(new Date(date))}</bdi></dd></div>
   </dl>
   <table className="w-full table-fixed text-start text-xs sm:text-sm">

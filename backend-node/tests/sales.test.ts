@@ -308,3 +308,31 @@ it('enforces country currencies and Syria zero tax on the server',async()=>{
   for(const countryCode of ['AE','SA','QA','OM','JO','LB'])expect((await configure({countryCode,baseCurrency:'USD'})).status).toBe(200);
  } finally {await configure({countryCode:null,salesTaxRate:'0'});}
 });
+
+it('snapshots cashier/admin attribution and returns the checkout operator in lists and receipts',async()=>{
+ const employee=await actor('CASHIER',business,source),boss=await actor('OWNER');
+ await db.authUser.update({where:{id:employee.user.id},data:{name:'Mostafa'}});
+ await db.authUser.update({where:{id:boss.user.id},data:{name:'Rabee'}});
+ const p=await funded();
+ const sale=await draft({lines:[{productId:p,quantity:'1'}]},employee);
+ expect(sale).toMatchObject({actorName:'Mostafa',actorRole:'CASHIER',completedName:null,completedRole:null});
+ const completed=await checkout(sale,checkoutBody(sale),boss);expect(completed.status,completed.text).toBe(200);
+ expect(completed.body).toMatchObject({actorName:'Mostafa',actorRole:'CASHIER',completedName:'Rabee',completedRole:'OWNER'});
+ await db.authUser.update({where:{id:employee.user.id},data:{name:'Renamed employee'}});
+ await db.authUser.update({where:{id:boss.user.id},data:{name:'Renamed admin'}});
+ await db.membership.update({where:{businessId_userId:{businessId:business,userId:employee.user.id}},data:{role:'VIEWER'}});
+ expect((await get(`/${sale.id}`)).body).toMatchObject({actorName:'Mostafa',actorRole:'CASHIER',completedName:'Rabee',completedRole:'OWNER'});
+ expect((await get()).body.items.find((row:{id:string})=>row.id===sale.id)).toMatchObject({actorName:'Mostafa',actorRole:'CASHIER',completedName:'Rabee',completedRole:'OWNER'});
+ expect((await get(`/${sale.id}`,foreign,other)).status).toBe(404);
+ const own=await draft({lines:[{productId:p,quantity:'1'}]},boss);
+ expect(own).toMatchObject({actorName:'Renamed admin',actorRole:'OWNER'});
+});
+it('records cashier checkout and leaves unknown legacy roles unset',async()=>{
+ const employee=await actor('CASHIER',business,source),p=await funded();
+ const sale=await draft({lines:[{productId:p,quantity:'1'}]},employee);
+ const completed=await checkout(sale,checkoutBody(sale),employee);
+ expect(completed.status).toBe(200);expect(completed.body.completedRole).toBe('CASHIER');
+ const legacy=await draft({lines:[{productId:p,quantity:'1'}]});
+ await db.sale.update({where:{id:legacy.id},data:{actorRole:null}});
+ expect((await get(`/${legacy.id}`)).body).toMatchObject({actorRole:null,actorName:legacy.actorName});
+});

@@ -44,6 +44,7 @@ try{
  await db.businessSubscription.create({data:{businessId:business.id,planId,trialStartedAt:new Date(),trialEndsAt:new Date(Date.now()+86400000)}});
  const page=await actor('OWNER',business.id),staff=await actor('CASHIER',business.id);await open(staff);assert.equal(await staff.getByRole('button',{name:'Import Excel / CSV',exact:true}).count(),0);
  await open(page);await page.getByRole('button',{name:'Import Excel / CSV',exact:true}).click();
+ for(const width of [390,1440]){await page.setViewportSize({width,height:width<768?844:1100});await shot(page,`simple-empty-en-${width}`);}
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download Excel template',exact:true}).click();assert.equal((await download).suggestedFilename(),'product-import-template.xlsx');
  await page.locator('#product-import-file').setInputFiles({name:'invalid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:await workbook('BAD','-1')});await page.getByRole('button',{name:'Preview import',exact:true}).click();await page.getByRole('alert').filter({hasText:'Fix these rows'}).waitFor();assert.equal(await db.product.count({where:{businessId:business.id}}),0);assert.equal(await page.getByRole('button',{name:'Confirm import',exact:true}).count(),0);await shot(page,'new-en-errors');
  const valid=await workbook();

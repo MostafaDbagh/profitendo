@@ -982,3 +982,17 @@ Captured baseline in `tmp/import-signoff-before`, development checks in
 `tmp/import-signoff-production`. Owner/accountant recovery flows, Escape/focus,
 busy guards and AR/EN responsive overflow checks passed. Reviewed final desktop
 replacement-error and Arabic mobile duplicate-review screenshots.
+
+## Simplified product import (2026-11-23)
+
+User explicitly requested a simpler import experience. The initial modal now has one
+file-selection action, one Excel-template link, and collapsed file guidance (including
+the optional CSV template). Removed the always-visible draft notice and column list.
+File selection reveals the preview action; review shows the product table and confirm.
+SKU/barcode metadata remains in row details. Duplicate decisions remain explicit,
+with the affected-product list collapsed. Existing light surfaces, emerald actions,
+RTL behavior, server validation and recovery safeguards are preserved.
+Baseline: user screenshot and prior `tmp/import-signoff-production`. After:
+`tmp/import-simple-review` and `tmp/import-simple-production`. Inspected Arabic mobile
+empty state; production-build owner/accountant import and recovery flows passed,
+including AR/EN at 320/390/768/1440px and no page/dialog overflow.
