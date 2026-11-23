@@ -63,11 +63,11 @@ export class ReportService{
   }else if(q.view==='sales'){
    const where={...scoped,status:'COMPLETED' as const,completedAt:range};
    if(!q.export)pagedTotal=await tx.sale.count({where});
-   rows=(await tx.sale.findMany({where,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,location:r.locationName,date:r.completedAt?.toISOString(),customer:r.customerName,total:r.total.toFixed(digits),currency:r.currency}));
+   rows=(await tx.sale.findMany({where,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,location:r.locationName,date:r.completedAt?.toISOString(),customer:r.customerName,total:r.total.toFixed(currencyDigits(r.currency)),currency:r.currency}));
   }else if(q.view==='returns'){
    const where={...scoped,status:'COMPLETED',completedAt:range,kind:{in:purchase?['CUSTOMER_RETURN','SUPPLIER_RETURN']:['CUSTOMER_RETURN']}};
    if(!q.export)pagedTotal=await tx.adjustment.count({where});
-   rows=(await tx.adjustment.findMany({where,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,location:r.locationName,kind:r.kind,source:r.sourceReference,date:r.completedAt?.toISOString(),credit:r.total.toFixed(digits),currency:r.currency}));
+   rows=(await tx.adjustment.findMany({where,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging})).map(r=>({reference:r.reference,location:r.locationName,kind:r.kind,source:r.sourceReference,date:r.completedAt?.toISOString(),credit:r.total.toFixed(currencyDigits(r.currency)),currency:r.currency}));
   } else if (q.view === 'cash') {
    const where = {...scoped,day:{gte:q.from,lte:q.to}};
    if (!q.export) pagedTotal = await tx.cashClose.count({where});
@@ -91,7 +91,7 @@ export class ReportService{
    const returns=await tx.adjustment.findMany({where:refundWhere,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging});if(returns.length>limit)fail('REPORT_TOO_LARGE',422);
    const paid=await tx.moneyEntry.groupBy({by:['sourceId'],where:{businessId:bid,sourceId:{in:returns.map(r=>r.id)},kind:'CUSTOMER_REFUND'},_sum:{amount:true}});
    const paidBySource=new Map(paid.map(p=>[p.sourceId,p._sum.amount?.toFixed(4)??'0']));
-   rows=returns.map(r=>{const refund=scaled(paidBySource.get(r.id)??'0');return {reference:r.reference,source:r.sourceReference,location:r.locationName,credit:r.total.toFixed(digits),paid:fixed(refund),outstanding:fixed(scaled(r.total.toFixed(4))-refund),currency:r.currency};});
+   rows=returns.map(r=>{const refund=scaled(paidBySource.get(r.id)??'0');return {reference:r.reference,source:r.sourceReference,location:r.locationName,credit:r.total.toFixed(currencyDigits(r.currency)),paid:fixed(refund),outstanding:fixed(scaled(r.total.toFixed(4))-refund),currency:r.currency};});
   }
   else{
    const receiptWhere={...scoped,kind:'RECEIPT',status:'COMPLETED',...(q.view==='purchases'?{completedAt:range}:{})};
@@ -99,7 +99,7 @@ export class ReportService{
    const receipts=await tx.purchaseDocument.findMany({where:receiptWhere,include:{lines:true},orderBy:[{completedAt:'desc'},{id:'asc'}],...paging});if(receipts.length>limit)fail('REPORT_TOO_LARGE',422);
    const receiptIds=receipts.map(r=>r.id);const credits=q.view==='balances'?await tx.adjustment.groupBy({by:['sourceId'],where:{businessId:bid,sourceId:{in:receiptIds},status:'COMPLETED',kind:'SUPPLIER_RETURN'},_sum:{total:true}}):[],payments=q.view==='balances'?await tx.moneyEntry.groupBy({by:['sourceId','kind'],where:{businessId:bid,sourceId:{in:receiptIds},kind:{in:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}},_sum:{amount:true}}):[];
    const creditsBySource=new Map(credits.map(c=>[c.sourceId,c._sum.total?.toFixed(4)??'0'])),paymentsBySource=new Map(payments.map(p=>[`${p.sourceId}:${p.kind}`,p._sum.amount?.toFixed(4)??'0']));
-   for(const r of receipts){const total=r.lines.reduce((s,l)=>s+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),digits)),0n);if(q.view==='balances'){const credit=scaled(creditsBySource.get(r.id)??'0'),paid=scaled(paymentsBySource.get(`${r.id}:SUPPLIER_PAYMENT`)??'0'),refunded=scaled(paymentsBySource.get(`${r.id}:SUPPLIER_REFUND`)??'0'),remaining=total-credit-paid+refunded;rows.push({reference:r.reference,supplier:r.supplierName,location:r.locationName,total:fixed(total),credit:fixed(credit),paid:fixed(paid),refundReceived:fixed(refunded),outstanding:fixed(remaining>0n?remaining:0n),refundDue:fixed(remaining<0n?-remaining:0n),currency:r.currency});}else rows.push({reference:r.reference,supplier:r.supplierName,location:r.locationName,date:r.completedAt?.toISOString(),total:fixed(total),currency:r.currency});}
+   for(const r of receipts){const total=r.lines.reduce((s,l)=>s+scaled(lineGross(l.baseQuantity.toFixed(4),l.unitCost.toFixed(4),currencyDigits(r.currency))),0n);if(q.view==='balances'){const credit=scaled(creditsBySource.get(r.id)??'0'),paid=scaled(paymentsBySource.get(`${r.id}:SUPPLIER_PAYMENT`)??'0'),refunded=scaled(paymentsBySource.get(`${r.id}:SUPPLIER_REFUND`)??'0'),remaining=total-credit-paid+refunded;rows.push({reference:r.reference,supplier:r.supplierName,location:r.locationName,total:fixed(total),credit:fixed(credit),paid:fixed(paid),refundReceived:fixed(refunded),outstanding:fixed(remaining>0n?remaining:0n),refundDue:fixed(remaining<0n?-remaining:0n),currency:r.currency});}else rows.push({reference:r.reference,supplier:r.supplierName,location:r.locationName,date:r.completedAt?.toISOString(),total:fixed(total),currency:r.currency});}
   }
   if(rows.length>limit)fail('REPORT_TOO_LARGE',422);
   if(q.export){const headers=Object.keys(rows[0]??{}),csv=[headers.map(csvCell).join(','),...rows.map(r=>headers.map(h=>csvCell(r[h])).join(','))].join('\r\n');await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'report.exported',changes:{view:q.view,rowCount:rows.length}}});return {...base,filename:`${q.view}-${q.from}-${q.to}.csv`,csv,total:rows.length};}

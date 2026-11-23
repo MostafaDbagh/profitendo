@@ -1,3 +1,4 @@
+import {useLocalDraft,LocalDraftNotice} from '../../lib/localDraft';
 import {useRef,useState} from 'react';
 import {RotateCcw} from 'lucide-react';
 import {Field} from '../auth-v2/Fields';
@@ -24,12 +25,16 @@ export default function CustomerReturn({context,api,c:parentCopy,lang,close,init
   <Feedback c={c} error={resource.error} retry={resource.reload}/>
   {sale&&!resource.data&&!resource.error&&<p role="status">{c('loading')}</p>}
   {resource.data&&<ReturnItems key={sale.id} {...{api,c,lang,root}} source={{...resource.data,id:sale.id}} done={setDoc} onBusy={setBusy}/>}
-  {picker&&<DocumentPicker {...{api,c,lang}} path={`${root}/sales?status=COMPLETED`} returnFocus={picker} close={()=>setPicker(null)} onSelect={r=>{setSale(r);setPicker(null);}}/>}
+  {picker&&<DocumentPicker {...{api,c,lang}} path={`${root}/sales?status=COMPLETED`} returnFocus={picker} close={()=>setPicker(null)} onSelect={r=>{if(r.id===sale?.id)resource.reload();setSale(r);setPicker(null);}}/>}
  </div>;
 }
 export function ReturnItems({source,api,c,lang,root,done,onBusy=()=>{}}){
  const ar=lang==='ar',[rows,setRows]=useState(()=>source.lines.filter(l=>scale(l.remaining)>0n).map(l=>({...l,selected:false,quantity:'',condition:'RESTOCK'}))),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const posting=useRef(false),key=useRef(crypto.randomUUID()),fingerprint=useRef('');
+ const draft=useLocalDraft(`customer-return:${source.id}`,{rows,reason,clientKey:key.current,fingerprint:fingerprint.current},saved=>{
+  setRows(source.lines.filter(line=>scale(line.remaining)>0n).map(line=>{const prior=saved.rows.find(row=>row.id===line.id);return {...line,selected:!!prior?.selected,quantity:prior?.quantity||'',condition:prior?.condition==='DAMAGED'?'DAMAGED':'RESTOCK'};}));
+  setReason(saved.reason);key.current=saved.clientKey;fingerprint.current=saved.fingerprint;
+ });
  const update=(id,patch)=>setRows(old=>old.map(r=>r.id===id?{...r,...patch}:r));
  async function review(e){
   e.preventDefault();if(posting.current)return;
@@ -38,10 +43,13 @@ export function ReturnItems({source,api,c,lang,root,done,onBusy=()=>{}}){
   if(reason.trim().length<5){setError('RETURN_INPUT_REASON');return;}
   const body={kind:'CUSTOMER_RETURN',locationId:source.locationId,sourceId:source.id,reason,lines:selected.map(r=>({productId:r.productId,sourceLineId:r.id,quantity:r.quantity,condition:r.condition}))};
   const next=JSON.stringify(body);if(next!==fingerprint.current){fingerprint.current=next;key.current=crypto.randomUUID();}
+  draft.checkpoint({clientKey:key.current,fingerprint:fingerprint.current});
   posting.current=true;setBusy(true);onBusy(true);setError('');
-  try{done(await api(`${root}/workflows/adjustments`,{method:'POST',body:{...body,clientKey:key.current}}));}catch(e){setError(e.message);}finally{posting.current=false;setBusy(false);onBusy(false);}
+  try{const result=await api(`${root}/workflows/adjustments`,{method:'POST',body:{...body,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);
+   if(e.message==='RETURN_QUANTITY_EXCEEDED')try{const fresh=await api(`${root}/workflows/adjustments/source/${source.id}?kind=CUSTOMER_RETURN`);setRows(old=>old.map(row=>({...row,remaining:fresh.lines.find(line=>line.id===row.id)?.remaining||'0.0000'})));}catch{/* Keep the original rejection and entered values if refresh is unavailable. */}
+  }finally{posting.current=false;setBusy(false);onBusy(false);}
  }
- return <form onSubmit={review} className="space-y-4"><Feedback {...{c,error}}/>
+ return <form onSubmit={review} className="space-y-4"><Feedback {...{c,error}}/><LocalDraftNotice {...{draft,lang,busy}}/>
   {!rows.length?<p className={panelClass}>{ar?'أُرجعت جميع منتجات هذه الفاتورة. لا توجد كميات أخرى للإرجاع.':'All items from this sale have already been returned.'}</p>:<><p className="text-sm text-slate-600">{ar?'حدد المنتجات التي أعادها الزبون، ثم أدخل كمياتها.':'Select the items the customer brought back, then enter their quantities.'}</p>
   <fieldset disabled={busy} className="space-y-3 min-w-0">{rows.map((r,i)=><div className={`${panelClass} space-y-3`} key={r.id}>
    <label className="flex gap-3 items-center min-h-11 cursor-pointer font-semibold"><input type="checkbox" className="h-5 w-5 accent-emerald-600" checked={r.selected} onChange={e=>update(r.id,{selected:e.target.checked})}/>{r.name}</label>

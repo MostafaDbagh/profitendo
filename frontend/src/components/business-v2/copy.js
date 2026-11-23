@@ -73,3 +73,9 @@ Object.assign(businessCopy.ar,{productSaleCount:'مرات البيع',productUni
 
 Object.assign(businessCopy.ar,{'catalogue.create':'إضافة المنتجات واستيرادها','catalogue.edit':'تعديل المنتجات والعبوات والصور','suppliers.create':'إضافة مورد','suppliers.edit':'تعديل الموردين','team.manage':'تفويض إدارة صلاحيات الموظفين'});
 Object.assign(businessCopy.en,{'catalogue.create':'Add and import products','catalogue.edit':'Edit products, packs and images','suppliers.create':'Add suppliers','suppliers.edit':'Edit suppliers','team.manage':'Delegate staff permission management'});
+
+Object.assign(businessCopy.en,{reversePayment:'Correct this payment record',reversalHint:'We add a correction dated today. The original payment stays in history. This does not send or return money.',reversalReason:'Why does this payment need correcting?',reversalEntry:'Payment correction',reversalSaved:'Payment corrected. Record a replacement separately if needed.'});
+Object.assign(businessCopy.ar,{reversePayment:'تصحيح تسجيل هذه الدفعة',reversalHint:'نضيف تصحيحاً بتاريخ اليوم. تبقى الدفعة الأصلية في السجل. هذا الإجراء لا يدفع المال ولا يعيده.',reversalReason:'لماذا تحتاج هذه الدفعة إلى تصحيح؟',reversalEntry:'تصحيح دفعة',reversalSaved:'تم تصحيح الدفعة. سجّل دفعة بديلة بشكل منفصل عند الحاجة.'});
+
+Object.assign(businessCopy.en,{stockRecordedCosts:'Stock quantities are current. Date filters do not change them. Stock value uses the recorded purchase costs of the remaining goods.'});
+Object.assign(businessCopy.ar,{stockRecordedCosts:'الكميات هي الموجودة حالياً ولا تتغير باختيار التواريخ. قيمة المخزون تُحسب من تكاليف شراء البضاعة المتبقية المسجلة.'});

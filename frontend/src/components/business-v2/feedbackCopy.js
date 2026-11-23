@@ -1,5 +1,6 @@
 export const feedbackCopy={
  en:{
+ PAYMENT_CURRENCY_MISMATCH:"This document uses a different currency from the business. This payment was not recorded. Ask the owner to review the currency settings.",
  cashClosed:"Cash drawer closed. The counted cash and any difference have been recorded.",
  FORBIDDEN:"You do not have permission for this action. Ask the business owner for access.",
  VALIDATION_ERROR:"Some details are missing or invalid. Check the required fields and try again.",
@@ -30,6 +31,7 @@ export const feedbackCopy={
  reopen:'Reopen screen',support:'Contact support',
  },
  ar:{
+ PAYMENT_CURRENCY_MISMATCH:"عملة هذا المستند تختلف عن عملة النشاط. لم تُسجّل الدفعة. اطلب من المالك مراجعة إعدادات العملة.",
  cashClosed:"تم إغلاق صندوق اليوم وتسجيل النقد المعدود وأي فرق.",
  FORBIDDEN:"ليس لديك صلاحية لهذا الإجراء. اطلب الصلاحية من مالك النشاط.",
  VALIDATION_ERROR:"بعض البيانات ناقصة أو غير صحيحة. راجع الحقول المطلوبة ثم حاول مجدداً.",

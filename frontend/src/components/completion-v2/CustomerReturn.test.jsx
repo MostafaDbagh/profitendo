@@ -1,3 +1,4 @@
+import {DraftScope} from '../../lib/localDraft';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import CustomerReturn,{ReturnItems,returnCopy} from './CustomerReturn';
@@ -9,9 +10,9 @@ jest.mock('../ui/dialog',()=>({Dialog:({children})=><div role="dialog">{children
 global.IS_REACT_ACT_ENVIRONMENT=true;
 let host,root,api,done;
 const source={id:'sale',locationId:'shop',reference:'SALE-1',lines:[{id:'line',productId:'p',name:'Bottle',unit:'PIECE',remaining:'2.0000'},{id:'used',productId:'p2',name:'Already returned',unit:'PIECE',remaining:'0.0000'}]};
-beforeEach(()=>{Object.defineProperty(window,'crypto',{configurable:true,value:{randomUUID:()=> 'test'}});localStorage.clear();host=document.createElement('div');document.body.append(host);root=createRoot(host);api=jest.fn(async()=>({}));done=jest.fn();});
+beforeEach(()=>{localStorage.clear();Object.defineProperty(window,'crypto',{configurable:true,value:{randomUUID:()=> 'test'}});localStorage.clear();host=document.createElement('div');document.body.append(host);root=createRoot(host);api=jest.fn(async()=>({}));done=jest.fn();});
 afterEach(()=>{act(()=>root.unmount());host.remove();});
-async function render(element,lang='en'){localStorage.setItem('profitlens_lang',lang);await act(async()=>root.render(<LanguageProvider>{element}</LanguageProvider>));}
+async function render(element,lang='en'){localStorage.setItem('profitlens_lang',lang);await act(async()=>root.render(<LanguageProvider><DraftScope.Provider value={{business:{id:"b"},membershipId:"owner",permissions:{"returns.create":true}}}>{element}</DraftScope.Provider></LanguageProvider>));}
 const c=returnCopy(k=>k,'en');
 function fill(id,value){act(()=>{const input=host.querySelector('#'+id);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});}
 async function submit(){await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));}
@@ -22,3 +23,18 @@ test('failed review preserves entered quantities and reason for retry',async()=>
 test('opening from original sale reads its returnable items without choosing a location',async()=>{api.mockResolvedValue(source);await render(<CustomerReturn context={{business:{id:'b'}}} {...{api,c}} lang="en" initialSale={{id:'sale',reference:'SALE-1'}} close={()=>{}}/>);expect(api.mock.calls[0][0]).toBe('/businesses/b/workflows/adjustments/source/sale?kind=CUSTOMER_RETURN');expect(host.textContent).toContain('SALE-1');expect(host.textContent).not.toContain('chooseLocation');});
 test('review displays server refund, stock delta and approval restriction',async()=>{await render(<AdjustmentDetail doc={{id:'r',kind:'CUSTOMER_RETURN',status:'DRAFT',reference:'R1',total:'12.34',currency:'USD',capabilities:{confirm:false,cancel:false},lines:[{id:'l',name:'Bottle',quantity:'1',delta:'0',condition:'DAMAGED',unit:'PIECE',amount:'12.34'}]}} {...{api,c}} lang="en" close={()=>{}} done={done}/>);expect(host.textContent).toContain('12.34 USD');expect(host.textContent).toContain('has not been paid');expect(host.textContent).toContain('Waiting for someone');expect([...host.querySelectorAll('button')].some(b=>b.textContent==='Confirm return')).toBe(false);});
 test('approval uses server revision and guards duplicate confirmation clicks',async()=>{const doc={id:'r',businessId:'b',revision:4,kind:'CUSTOMER_RETURN',status:'DRAFT',reference:'R1',total:'12.34',currency:'USD',capabilities:{confirm:true,cancel:false},lines:[]};await render(<AdjustmentDetail {...{doc,api,c,done}} lang="en" close={()=>{}}/>);act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Confirm return').click());expect(api).not.toHaveBeenCalled();expect(host.querySelector('[role=dialog]').textContent).toContain('Record the actual refund separately');await act(async()=>{host.querySelector('[role=dialog] button').click();host.querySelector('[role=dialog] button').click();});expect(api).toHaveBeenCalledTimes(1);expect(api.mock.calls[0]).toEqual(['/businesses/b/workflows/adjustments/r/status',{method:'POST',body:{revision:4,action:'confirm',confirm:true}}]);});
+
+test('ambiguous save draft restores entered quantities and the original retry key after remount',async()=>{
+ let sequence=0;Object.defineProperty(window,'crypto',{configurable:true,value:{randomUUID:()=>`key-${++sequence}`}});
+ api.mockRejectedValueOnce(Error('SAVE_UNCONFIRMED'));
+ const element=<ReturnItems {...{source,api,done,c}} lang="en" root="/businesses/b"/>;
+ await render(element);act(()=>host.querySelector('input[type=checkbox]').click());fill('return-quantity-0','1');fill('return-reason','Wrong size');await submit();const original=api.mock.calls[0][1].body.clientKey;
+ act(()=>root.unmount());root=createRoot(host);await render(element);
+ expect(host.querySelector('#return-quantity-0').value).toBe('1');expect(host.querySelector('#return-reason').value).toBe('Wrong size');
+ await submit();expect(api.mock.calls[1][1].body.clientKey).toBe(original);
+});
+test('concurrent return rejection refreshes availability without clearing entered work',async()=>{
+ api.mockRejectedValueOnce(Error('RETURN_QUANTITY_EXCEEDED')).mockResolvedValueOnce({...source,lines:source.lines.map(l=>({...l,remaining:'1.0000'}))});
+ await render(<ReturnItems {...{source,api,done,c}} lang="en" root="/businesses/b"/>);act(()=>host.querySelector('input[type=checkbox]').click());fill('return-quantity-0','2');fill('return-reason','Wrong size');await submit();
+ expect(host.textContent).toContain('Available to return: 1.0000');expect(host.querySelector('#return-quantity-0').value).toBe('2');expect(host.querySelector('#return-reason').value).toBe('Wrong size');await submit();expect(api).toHaveBeenCalledTimes(2);
+});

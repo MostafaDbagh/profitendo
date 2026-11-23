@@ -119,7 +119,7 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
       </div>
     </div>
     <p className="text-sm text-slate-500">
-      {c(['balances','refunds'].includes(view) ? 'balanceAsOfNow' : view === 'stock' ? 'stockAsOfNow' : view === 'cash' ? 'reportCashHint' : 'reportUtcHint')}
+      {c(['balances','refunds'].includes(view) ? 'balanceAsOfNow' : view === 'stock' ? (context.business.fifoStartedAt?'stockRecordedCosts':'stockAsOfNow') : view === 'cash' ? 'reportCashHint' : 'reportUtcHint')}
       {' '}<bdi>{timezone}</bdi>
       {!['balances','refunds','stock'].includes(view) && <> · <bdi>{range.from} — {range.to}</bdi></>}
     </p>

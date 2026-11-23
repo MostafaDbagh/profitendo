@@ -53,7 +53,7 @@ function Summary({context, api, c, lang, pinLocked}) {
             <PopoverContent dir={ar ? 'rtl' : 'ltr'} sideOffset={8}
               className="w-80 max-w-[calc(100vw-2rem)] border-slate-200 bg-white text-start text-sm leading-relaxed text-slate-700">
               <div className="space-y-2">
-                <p className="font-semibold text-slate-900">{ar ? 'كيف يُحسب صافي الربح؟' : 'How is net profit calculated?'}</p>
+                <p className="font-semibold text-slate-900">{ar ? 'كيف يُحسب الربح التقديري؟' : 'How is estimated profit calculated?'}</p>
                 <p>{ar
                   ? 'نبدأ بالمبيعات بعد المرتجعات وقبل الضريبة، ثم نطرح تكلفة البضاعة المباعة والمصروفات.'
                   : 'Start with sales after returns, excluding tax. Subtract the cost of goods sold and recorded expenses.'}</p>
@@ -61,8 +61,9 @@ function Summary({context, api, c, lang, pinLocked}) {
                   ? 'نأخذ أيضًا في الحسبان فروق الجرد، وتالف المخزون وفاقد التحويل، وفروق تكلفة مرتجعات الموردين.'
                   : 'The estimate also includes stock count adjustments, damage, transfer losses, and supplier return cost differences.'}</p>
                 <p className="rounded-lg bg-emerald-50 p-2 text-emerald-900">{ar
-                  ? 'مثال: مبيعات ١٠٠ − تكلفة ٦٠ − مصروفات ١٠ = صافي ربح ٣٠.'
-                  : 'Example: 100 in sales − 60 in costs − 10 in expenses = 30 net profit.'}</p>
+                  ? 'مثال: مبيعات ١٠٠ − تكلفة ٦٠ − مصروفات ١٠ = ربح تقديري ٣٠.'
+                  : 'Example: 100 in sales − 60 in costs − 10 in expenses = 30 estimated profit.'}</p>
+                <p>{ar?'الربح التقديري ليس النقد الموجود في الصندوق. يعتمد على التكاليف والمصروفات التي سجّلتها.':'Estimated profit is not the cash in your drawer. It depends on the costs and expenses you recorded.'}</p>
                 {data.unvaluedTransferLosses > 0 && <p className="text-amber-800">{c('profitMissingLossCosts')}</p>}
               </div>
             </PopoverContent>

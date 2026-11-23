@@ -480,3 +480,18 @@ it('one owner account enables cashier mode, sells, returns stock and closes its 
  const membership=await db.membership.findFirstOrThrow({where:{businessId:business,userId:person.user.id}});
  expect(membership.role).toBe('OWNER');expect(membership.ownerAsCashier).toBe(false);
 });
+
+it('rejects linked settlements in a different currency without consuming the balance',async()=>{
+ const sale=await sold(),line=sale.lines[0],ret=await adjustment('CUSTOMER_RETURN',[{productId:line.productId,sourceLineId:line.id,quantity:'1'}],{sourceId:sale.id});await approve(ret);
+ const received=await receipt();
+ await db.business.update({where:{id:business},data:{baseCurrency:'AED'}});
+ try{
+  for(const [kind,sourceId] of [['CUSTOMER_REFUND',ret.id],['SUPPLIER_PAYMENT',received.id]]){
+   const result=await pay(kind!,'1',{sourceId});expect(result.body.error?.code).toBe('PAYMENT_CURRENCY_MISMATCH');
+  }
+  expect((await get(`/balances/${ret.id}?kind=CUSTOMER`)).body.outstanding).toBe('12.0000');
+  await db.business.update({where:{id:business},data:{baseCurrency:'JPY'}});
+  const day=new Date().toISOString().slice(0,10),report=await get(`/reports?from=${day}&to=${day}&view=sales&export=true`);
+  expect(report.body.csv.split('\r\n').find((row:string)=>row.includes(sale.reference))).toContain(Number(sale.total).toFixed(2));
+ }finally{await db.business.update({where:{id:business},data:{baseCurrency:'USD'}});}
+});

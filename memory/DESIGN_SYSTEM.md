@@ -1334,3 +1334,49 @@ pilot and cash/refund/closing permission and concurrency protections. Browser
 visual verification remains outstanding due to unavailable browser access; no
 production deployment. This completes the cash-closing simplification and
 automated checks, not a manual owner/cashier browser walkthrough.
+
+## Ten-role QA/accounting review — 23 November 2026
+
+User explicitly requested five QA and five accounting reviewers and added content
+simplicity/difficulty. Ran ten distinct AI reviewer agents in batches: QA access,
+imports, resilience, workflows, content; accounting sales, inventory, cash,
+reports, owner comprehension. These were simulated reviews, not hired people or
+independent accounting certification. Full result:
+artifacts/qa/platform-review-2026-11-23.html.
+
+Initial full backend run: 447 tests/36 suites pass. Initial frontend130 pass;
+after fixes132/24 suites pass. Backend typecheck and frontend build/prerender pass.
+Final targeted checks:49 workflow tests and10 payment-reversal tests pass. Reviewer
+access suite55 and parser suite15 also pass, overlapping baseline counts, not
+additional unique tests. Browser host remains unavailable; no visual sign-off.
+
+Fixed: linked customer/supplier settlement rejects source/base currency mismatch;
+individual sales/return/refund/receipt reports use original currency precision;
+customer-return drafts persist quantities/reason/key/fingerprint in existing scoped
+storage and refresh stale return availability without losing inputs. Regression
+proved currency defect before fix, and return persistence/recovery tests pass.
+Improved copy: payment correction, profit vs drawer cash, duplicate separate-product
+actions, and FIFO-specific stock valuation explanation.
+
+OPEN RELEASE BLOCKERS: aggregate/delivered financial reports mix historical
+currencies; FIFO consuming layers with changed currency precision can strand cost.
+Currency changes are an explicitly supported existing requirement: do not silently
+ban them or invent conversion rates. Also open P2: lost import preview responses
+consume five pending slots without recovery until expiry. Future work needs explicit
+currency grouping/conversion/operation guards and preview replay/recovery design.
+Content provisional7/10 overall, daily workflows8/10, advanced accounting4–5/10;
+source editorial scores only. Further priorities: accountant-only categories,
+profit details disclosure, direct return→refund action, clear initial-stock step,
+and previous cash close reference. No deployment or production sign-off.
+
+## Latest complete retest — 23 November 2026
+
+User requested further testing. Latest code:448 backend tests/36 suites and132
+frontend tests/24 suites pass; backend typecheck and diff check pass. Added a
+standalone synthetic reproducer scripts/qa-currency-regressions.mjs; it deliberately
+exits1 on two verified failures: original1.2300 FIFO value allocated as1.0000 after
+precision change, and USD10+AED10 summarized as20.0000. These failures are separate
+from the passing existing suite, not skipped or disguised as passing tests.
+Import pending-preview limit behavior is covered in the full import suite; lost
+response recovery remains unresolved. Updated HTML QA report. No production
+sign-off or deployment; existing browser-access limitation remains.
