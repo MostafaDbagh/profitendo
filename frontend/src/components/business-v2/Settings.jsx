@@ -1,4 +1,4 @@
-import Disclosure from './Disclosure';
+import Disclosure, {OptionalFields} from './Disclosure';
 import TimezoneField from './TimezoneField';
 import { OwnerPinUnlock } from './OwnerPin';
 import BusinessBackup from './BusinessBackup';
@@ -41,7 +41,7 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
   };
   return <div className="space-y-5"><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
     <h2 className="text-lg font-bold text-slate-900">{initialSetup ? (lang === 'ar' ? 'أكمل إعداد نشاطك التجاري' : 'Set up your business') : c('settings')}</h2>
-    {initialSetup && <p className="text-sm leading-relaxed text-slate-600">{lang === 'ar' ? 'اختر الدولة والعملة والمنطقة الزمنية لتسجيل معاملاتك. بعد الحفظ، سيساعدك دليل البداية على ترتيب تبويباتك وإضافة أول موقع.' : 'Choose your country, currency, and time zone for your records. After saving, the setup guide will help you arrange your tabs and add your first location.'}</p>}
+    {initialSetup && <p className="text-sm leading-relaxed text-slate-600">{lang === 'ar' ? 'اختر الدولة والعملة والمنطقة الزمنية لتسجيل معاملاتك. بعد الحفظ، سنساعدك على إضافة متجرك ومنتجاتك وأول عملية بيع.' : 'Choose your country, currency, and time zone for your records. Then we’ll help you add your shop, products and first sale.'}</p>}
     <div className="max-w-sm"><Select id="settings-language" label={lang === 'ar' ? 'لغة العرض' : 'Display language'} value={lang} onChange={event => setLang(event.target.value, false)}><option value="ar">العربية</option><option value="en">English</option></Select><p className="text-xs text-slate-500 mt-1.5">{lang === 'ar' ? 'تُطبّق فوراً وتُحفظ في هذا المتصفح.' : 'Applies immediately and is saved in this browser.'}</p></div>
     {!editable && <p className="text-sm text-slate-500">{c('readOnly')}</p>}
     <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} notice={notice} c={c} retry={reload} />
@@ -51,8 +51,10 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
       <div><Select id="business-currency" label={c('currency')} value={form.baseCurrency} onChange={set('baseCurrency')}>{(form.countryCode ? [...new Set([countryCurrencies[form.countryCode],'USD'])] : currencies).map(v => <option key={v}>{v}</option>)}</Select><p className="text-xs text-slate-500 mt-1.5">{c('currencyHint')}</p></div>
       {syria ? <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">{c('syriaTaxDisabled')}</div> : <div><Field id="business-tax" label={c('salesTaxRate')} type="number" dir="ltr" min="0" max="100" step="0.0001" value={form.salesTaxRate ?? '0'} onChange={set('salesTaxRate')} required aria-describedby="business-tax-hint" /><p id="business-tax-hint" className="text-xs text-slate-500 mt-1.5">{c('salesTaxHint')}</p></div>}
       <TimezoneField value={form.timezone} onChange={timezone=>setForm(current=>({...current,timezone}))} disabled={!editable || busy || error === 'REVISION_CONFLICT'} {...{c,lang}}/>
-      <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
-      <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
+      {initialSetup?<div className="sm:col-span-2"><OptionalFields>      <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
+      <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select></OptionalFields></div>:<>      <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
+      <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select></>}
+
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
   </form>{!initialSetup && permissions['migration.manage'] && <Disclosure title={lang==='ar'?'إعدادات المحاسبة':'Accounting settings'} className="max-w-3xl"><FifoSettings {...{context,api,c,lang}}/></Disclosure>}{!initialSetup && editable && context.role === 'OWNER' && <>

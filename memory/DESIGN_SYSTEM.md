@@ -1199,3 +1199,50 @@ behavior and existing payment/access checks; production build/prerender passes.
 Browser host unavailable at task start; no new screenshot-based visual sign-off.
 These shared changes cover operational components using business-v2 UI, not every
 legacy page or the independently styled public marketing site. Not deployed.
+
+## First-sale setup — 23 November 2026
+
+Replaced the five-step settings/supplier/category checklist with three owner
+steps: add shop, add products, first real sale. Buttons open the actual forms via
+an action=setup route; the workspace provides Back to setup steps. Setup location
+creation fixes kind to SHOP with a separate draft key; general location creation
+still allows warehouse/shop selection. Product and sale setup use existing forms
+and validation. No records or transactions are auto-created.
+
+The sale step explicitly explains that products alone create no stock and links
+to Receive goods (when permitted), where suppliers can be created. Receiving and
+stock validation remain required; no sale/stock protections are bypassed.
+Progress reads active shops, active products and COMPLETED sales only. Permission
+and visible-tab checks gate each read and action. Failed reads stay unknown with
+a retry action. Suppliers and categories are no longer required setup milestones.
+Help/support is in a disclosure. Initial business settings retain necessary
+country/currency/tax/timezone choices while date/number formats are optional.
+
+Validation: 83 frontend tests pass, including AR/EN setup navigation, three-step
+progress queries, real-sale completion, stock guidance, retry and staff/hidden-tab
+read restrictions. Production build/prerender passes. Browser host unavailable;
+fresh desktop/mobile visual screenshots remain outstanding. Not deployed.
+
+## Sale-first customer returns — 23 November 2026
+
+Customer returns now start with the original completed sale; eligible sale
+receipts expose Return items directly. The Returns page uses the same flow.
+Location comes from the source sale. Users select items, enter blank-by-default
+quantities and choose sellable/damaged condition. Exhausted lines are excluded;
+positive quantities and remaining limits are checked before submission, with
+server checks still authoritative. Review saves a draft and displays the server's
+exact credit and per-item stock deltas, retaining cumulative rounding rules.
+Approval remains capability-gated; copy distinguishes draft, completed and
+cancelled stock effects and explains that actual refunds are recorded separately
+in Payments. Duplicate submission/approval clicks are guarded. Failed submission
+preserves entry values and the retry key. Supplier returns/counts/damage continue
+through their existing editor and extracted shared detail component.
+
+Validation: all 94 frontend tests passed, then an additional approval test passed
+with the complete 12-test customer-return file. Production build/prerender passed.
+The workflow integration run revealed an outdated catalogue CSV header assertion;
+it now checks the existing human-readable Completed invoices header. Browser host
+unavailable: desktop/mobile screenshot verification remains outstanding. No deploy.
+After correcting that assertion, all 48 workflow integration tests passed against
+the isolated local test database, including tenant/location scoping, cumulative
+and concurrent returns, fractional money, damaged stock and refund limits.

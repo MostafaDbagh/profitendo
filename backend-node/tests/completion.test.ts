@@ -215,7 +215,7 @@ it('shows product sale frequency, scoped available stock, low stock and filtered
  const result=await insights('search=Insight%20test%20product');expect(result.status,result.text).toBe(200);const row=result.body.items.find((p:{id:string})=>p.id===productId);expect(row.saleCount).toBe(1);expect(row.unitsSold).toBe('3.0000');expect(row.available).toBe('97.0000');expect(row.onHand).toBe('97.0000');expect(row.lowStock).toBe(true);
  const top=await insights('filter=top&search=Insight%20test%20product');expect(top.body.items[0].id).toBe(productId);
  const low=await insights('filter=low&search=Insight%20test%20product');expect(low.body.total).toBe(1);
- const csv=await insights('export=true&search=Insight%20test%20product');expect(csv.body.csv).toContain('Insight test product');expect(csv.body.csv).toContain('saleCount');
+ const csv=await insights('export=true&search=Insight%20test%20product');expect(csv.body.csv).toContain('Insight test product');expect(csv.body.csv.split('\r\n')[0]).toContain('"Completed invoices"');
  expect((await insights('',foreign)).status).toBe(403);expect((await insights('',admin)).status).toBe(403);
  const restricted=await insights('search=Insight%20test%20product',unassigned);expect(restricted.status).toBe(200);expect(restricted.body.items[0].saleCount??0).toBe(0);expect(restricted.body.items[0].available??'0.0000').toBe('0.0000');
 });

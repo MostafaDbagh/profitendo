@@ -32,7 +32,7 @@ function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
   if (completed === steps.length) return null;
 
   const ar = lang === 'ar';
-  const title = ar ? 'إعداد مساحة العمل' : 'Set up your workspace';
+  const title = ar ? 'جهّز متجرك لأول عملية بيع' : 'Get ready for your first sale';
   const format = new Intl.NumberFormat(lang);
   const progressLabel = ar
     ? `اكتملت ${format.format(completed)} من ${format.format(steps.length)} خطوات`
@@ -57,7 +57,7 @@ function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
         <div>
           <h3 id="workspace-setup-title" className="font-bold text-slate-900">{title}</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            {ar ? 'أكمل إعداد نشاطك وأضف موقعك ومنتجاتك الأولى.' : 'Finish your business settings and add your first location and products.'}
+            {ar ? 'أضف متجرك ومنتجاتك، ثم سجّل أول عملية بيع.' : 'Add your shop and products, then record your first sale.'}
           </p>
         </div>
       </div>
