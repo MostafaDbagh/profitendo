@@ -1,4 +1,5 @@
-import {OptionalFields} from '../business-v2/Disclosure';
+import {cashClosingCopy} from './cashClosingCopy';
+import Disclosure,{OptionalFields} from '../business-v2/Disclosure';
 import {paymentFormCopy} from './paymentFormCopy';
 import { Plus } from 'lucide-react';
 import { currencyFormatter } from '../../lib/currencyFormat';
@@ -67,7 +68,8 @@ function WithdrawalHistory({api,c,text,location,root,money,timezone,lang,onDetai
  </section>;
 }
 
-function CashDay({context,api,c,lang,location,onDetails}) {
+export function CashDay({context,api,c:parentCopy,lang,location,onDetails}) {
+ const words=cashClosingCopy[lang==='ar'?'ar':'en'],c=key=>words[key]||parentCopy(key),posting=useRef(false);
  const {timezone} = context.business;
  const text = treasuryCopy[lang === 'ar' ? 'ar' : 'en'];
  const root = `/businesses/${context.business.id}/workflows`;
@@ -84,12 +86,13 @@ function CashDay({context,api,c,lang,location,onDetails}) {
   setDay(saved.day);setOpening(saved.opening);setCounted(saved.counted);setReason(saved.reason);setReview(null);
  });
  async function save() {
+  if(posting.current)return;posting.current=true;
   setBusy(true);setError('');
   try {
    await api(`${root}/cash`,{method:'POST',body:{locationId:location.id,day,opening,counted,expected,reason,confirm:true}});
    cashDraft.clear();setHistoryVersion(version=>version+1);
   } catch(failure) { setError(failure.message); }
-  finally {setReview(null);reload();setBusy(false);}
+  finally {posting.current=false;setReview(null);reload();setBusy(false);}
  }
  const breakdown=data?.breakdown;
  const expenseValue = value => value == null ? null : format(-scale(value));
@@ -100,12 +103,12 @@ function CashDay({context,api,c,lang,location,onDetails}) {
   [text.current,data.closed?.counted??expected],
  ] : [];
  return <div className="space-y-4">
-  <div className="max-w-xs"><Field id="cash-day" type="date" label={c('cashDay')} value={day} max={today} required onChange={event=>{
+  <div className="max-w-xs"><Field id="cash-day" type="date" label={c('cashDay')} disabled={busy} value={day} max={today} required onChange={event=>{
    if(event.target.value){setDay(event.target.value);setOpening('0');setCounted('');setReason('');setError('');}
   }}/></div>
   <Feedback c={c} error={error||loadError} retry={reload} />
   {!data && !loadError && <p role="status">{c('loading')}</p>}
-  {data && <>
+  {data && <Disclosure title={words.breakdown}>
    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
     {cards.map(([label,value],index)=><div key={label} className={`min-w-0 rounded-xl border p-3 shadow-sm sm:p-4 ${index===5?'border-emerald-700 bg-emerald-700 text-white':'border-slate-200 bg-white text-slate-900'}`}>
      <dt className={`text-sm ${index===5?'text-emerald-50':'text-slate-600'}`}>{label}</dt>
@@ -113,34 +116,34 @@ function CashDay({context,api,c,lang,location,onDetails}) {
     </div>)}
    </dl>
    {breakdown?.other && scale(breakdown.other)!==0n && <p className="text-sm text-slate-600">{text.other} <bdi>{money(breakdown.other,data.currency)}</bdi></p>}
-  </>}
-  <div className="grid items-start gap-4 xl:grid-cols-2">
+  </Disclosure>}
+  <div className="max-w-2xl mx-auto">
    <section className={`${panelClass} min-w-0 space-y-4`}>
-    <h3 className="text-lg font-bold">{c('closeCashDay')}</h3>
+    <h3 className="text-lg font-bold">{c('closeCashDay')}</h3><p className="text-sm text-slate-600">{words.intro}</p>
     <LocalDraftNotice draft={cashDraft} {...{lang,busy}} />
     {data?.closed ? <div className="space-y-2 text-sm">
      <p className="font-semibold text-emerald-800">{c('cashClosed')}</p>
      {['expected','counted','variance'].map(key=><p key={key}>{c(key)} <bdi>{money(data.closed[key],data.closed.currency)}</bdi></p>)}
      {data.closed.reason && <p>{data.closed.reason}</p>}
-    </div> : data && <form className="space-y-4" onSubmit={event=>{event.preventDefault();setReview(event.nativeEvent.submitter);}}>
+    </div> : data && <form className="space-y-4" onSubmit={event=>{event.preventDefault();if(!busy&&openingValue!==null&&openingValue>=0n&&countedValue!==null&&countedValue>=0n&&(!needsReason||reason.trim().length>=5))setReview(event.nativeEvent.submitter||event.currentTarget.querySelector('button[type=submit]'));}}>
      <p className="flex justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
       <span className="text-slate-600">{c('expected')}</span><bdi className="font-bold">{expected===null?'—':money(expected,data.currency)}</bdi>
      </p>
      <fieldset disabled={busy} className="space-y-3">
       <Field id="cash-opening" label={c('opening')} value={opening} onChange={event=>setOpening(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
-      <Field id="cash-counted" label={c('counted')} value={counted} onChange={event=>setCounted(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
-      <Field id="cash-reason" label={c('varianceReason')} placeholder={c('varianceExample')} value={reason} onChange={event=>setReason(event.target.value)} required={needsReason} minLength={needsReason?5:undefined} maxLength={2000} />
+      <p className="text-xs text-slate-500">{words.openingHint}</p>
+      <Field id="cash-counted" placeholder="0.00" label={c('counted')} value={counted} onChange={event=>setCounted(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
+      {needsReason?<Field id="cash-reason" label={c('varianceReason')} placeholder={c('varianceExample')} value={reason} onChange={event=>setReason(event.target.value)} required minLength={5} maxLength={2000} />:<OptionalFields><Field id="cash-reason" label={words.note} value={reason} onChange={event=>setReason(event.target.value)} maxLength={2000}/></OptionalFields>}
      </fieldset>
-     {variance!==null && <p role="status" className={variance===0n?'text-sm text-emerald-800':'text-sm text-amber-800'}>{c('variance')} <bdi>{money(format(variance),data.currency)}</bdi></p>}
-     <button className={`${primaryClass} w-full`} disabled={busy||expected===null||countedValue===null||needsReason&&reason.trim().length<5}>{c('closeCashDay')}</button>
+     {variance!==null && <p role="status" className={variance===0n?'text-sm text-emerald-800':'text-sm text-amber-800'}>{variance===0n?words.match:<>{variance<0n?words.short:words.extra} <bdi>{money(format(variance<0n?-variance:variance),data.currency)}</bdi></>}</p>}
+     <button type="submit" className={`${primaryClass} w-full`} disabled={busy||expected===null||openingValue<0n||countedValue===null||countedValue<0n||needsReason&&reason.trim().length<5}>{words.review}</button>
     </form>}
    </section>
-   <CashHistory key={historyVersion} {...{api,c,text,location,root,money}} />
   </div>
-  <WithdrawalHistory {...{api,c,text,location,root,money,timezone,lang,onDetails}} />
+  <Disclosure title={words.history}><CashHistory key={historyVersion} {...{api,c,text,location,root,money}} /><WithdrawalHistory {...{api,c,text,location,root,money,timezone,lang,onDetails}} /></Disclosure>
   {review && <Modal {...{c,lang,busy}} title={c('closeCashDay')} description={c('cashCloseConfirm')} returnFocus={review} close={()=>setReview(null)}>
    <p><bdi>{day}</bdi> · {location.name}</p>
-   <p className="my-3">{c('expected')} <bdi>{expected}</bdi> · {c('counted')} <bdi>{counted}</bdi></p>
+   <dl className="my-4 space-y-3">{[['expected',expected],['counted',counted],['variance',variance===null?null:format(variance)]].map(([label,value])=><div key={label} className="flex flex-wrap justify-between gap-2"><dt>{c(label)}</dt><dd className="font-semibold"><bdi>{value===null?'—':money(value,data.currency)}</bdi></dd></div>)}</dl>{reason&&<p className="mb-4 text-sm text-slate-600">{reason}</p>}
    <button type="button" className={primaryClass} disabled={busy} onClick={save}>{c('confirm')}</button>
   </Modal>}
  </div>;

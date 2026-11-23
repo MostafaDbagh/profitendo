@@ -1310,3 +1310,27 @@ updates, business switching, successive confirmations, safe reference escaping,
 and keeping only the newest toast. Existing transport/offline/timeout and failed
 save preservation tests pass. Browser access host remains unavailable, so this is
 DOM/integration coverage, not a mobile/desktop visual sign-off. No deployment.
+
+## Plain-language cash closing — 23 November 2026
+
+End-of-day cash closing now asks for starting cash and counted cash with plain
+AR/EN labels. Difference feedback explicitly says cash matches, cash is short,
+or there is extra cash, using an absolute amount for short/extra. Count stays
+blank until entered. Variance explanation is required only when amounts differ;
+otherwise notes are optional. Calculation cards and prior closings/withdrawals
+are available in disclosures; history still loads through existing scoped APIs.
+Review shows expected, counted and difference with currency, location/date and
+reason. The confirmation explicitly warns that closing blocks further cash
+transactions for the day. Added a synchronous duplicate-submit guard, date lock
+while saving, invalid/negative entry guards and a confirmed-closing success toast.
+Existing backend permissions, immutable closing and stale-total checks remain.
+
+Validation: all 130 frontend tests (24 suites) pass, including six new closing
+cases covering bilingual wording, match/short/extra, blank inputs, required
+reason, read-only review, double clicks, stale totals/input preservation, closed
+records and invalid counts. All 48 backend workflow integration tests pass against
+the isolated local database, including the receive/transfer/sale/return/reconcile
+pilot and cash/refund/closing permission and concurrency protections. Browser
+visual verification remains outstanding due to unavailable browser access; no
+production deployment. This completes the cash-closing simplification and
+automated checks, not a manual owner/cashier browser walkthrough.

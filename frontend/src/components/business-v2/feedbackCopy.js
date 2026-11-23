@@ -1,5 +1,6 @@
 export const feedbackCopy={
  en:{
+ cashClosed:"Cash drawer closed. The counted cash and any difference have been recorded.",
  FORBIDDEN:"You do not have permission for this action. Ask the business owner for access.",
  VALIDATION_ERROR:"Some details are missing or invalid. Check the required fields and try again.",
  NOT_FOUND:"This record is no longer available, or you do not have access to it. Reload the list.",
@@ -29,6 +30,7 @@ export const feedbackCopy={
  reopen:'Reopen screen',support:'Contact support',
  },
  ar:{
+ cashClosed:"تم إغلاق صندوق اليوم وتسجيل النقد المعدود وأي فرق.",
  FORBIDDEN:"ليس لديك صلاحية لهذا الإجراء. اطلب الصلاحية من مالك النشاط.",
  VALIDATION_ERROR:"بعض البيانات ناقصة أو غير صحيحة. راجع الحقول المطلوبة ثم حاول مجدداً.",
  NOT_FOUND:"هذا السجل لم يعد متاحاً أو ليس لديك صلاحية لعرضه. أعد تحميل القائمة.",

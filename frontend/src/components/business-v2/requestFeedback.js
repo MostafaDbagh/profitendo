@@ -12,6 +12,7 @@ export function successFor(path,body,data){
  const scope=path.match(/^\/businesses\/([^/]+)/)?.[1];
  if(!scope)return null;
  const base={scope,reference:data?.reference||''};
+ if(/\/workflows\/cash$/.test(path)&&data?.id)return {...base,key:'cashClosed'};
  if(/\/sales\/[^/]+\/checkout$/.test(path)&&data?.status==='COMPLETED')return {...base,key:'saleSaved'};
  if(/\/workflows\/payments$/.test(path)&&data?.id)return {...base,key:body?.kind==='CUSTOMER_REFUND'?'refundSaved':body?.kind==='EXPENSE'?'expenseSaved':'paymentSaved'};
  if(/\/workflows\/adjustments\/[^/]+\/status$/.test(path)&&data?.kind==='CUSTOMER_RETURN')return {...base,key:data.status==='COMPLETED'?'returnSaved':data.status==='CANCELLED'?'returnCancelled':null};
