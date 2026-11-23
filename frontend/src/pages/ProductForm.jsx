@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../lib/selectInputOnFocus';
+import RequiredMark from '../components/RequiredMark';
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -241,11 +243,11 @@ export default function ProductForm() {
             <h3 className="font-bold text-slate-900 mb-5">{t("requiredSection")}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                <label htmlFor="form-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">
                   {t("fName")}
-                  <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 align-middle">{t("requiredBadge")}</span>
-                </label>
-                <input
+
+                <RequiredMark/></label>
+                <input id="form-name-input"
                   data-testid="form-name-input"
                   value={form.name}
                   onChange={(e) => set("name", e.target.value)}
@@ -282,13 +284,13 @@ export default function ProductForm() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                <label htmlFor="form-product-cost-input" className="text-sm font-medium text-slate-700 mb-1.5 block">
                   {t("fCost")}
-                  <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 align-middle">{t("requiredBadge")}</span>
-                </label>
+
+                <RequiredMark/></label>
                 <div className="relative">
                   <span className="absolute top-1/2 -translate-y-1/2 start-3 text-slate-400 text-sm">$</span>
-                  <input
+                  <input id="form-product-cost-input"
                     data-testid="form-product-cost-input"
                     type="number" min="0" step="any" required
                     value={form.product_cost}
@@ -336,7 +338,7 @@ export default function ProductForm() {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <input
-                    data-testid="form-spec-quantity-input"
+                    data-testid="form-spec-quantity-input" {...selectInputOnFocus}
                     type="number" min="0" step="0.01"
                     value={form.spec_quantity}
                     onChange={(e) => set("spec_quantity", e.target.value)}
@@ -376,7 +378,7 @@ export default function ProductForm() {
                 <input
                   data-testid="form-min-stock-input"
                   type="number" min="0" step="1"
-                  value={form.minimum_stock_level}
+                  {...selectInputOnFocus} value={form.minimum_stock_level}
                   onChange={(e) => set("minimum_stock_level", e.target.value)}
                   placeholder="0"
                   className={`${inputCls} tabular`}

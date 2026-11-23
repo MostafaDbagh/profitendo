@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Handshake, Plus, Loader2, Pencil, AlertTriangle, Landmark, Percent } from "lucide-react";
 import { toast } from "sonner";
@@ -265,12 +266,12 @@ export default function Partners() {
           </DialogHeader>
           <form onSubmit={submitAdd} className="space-y-4" data-testid="partner-form">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")} *</label>
-              <input data-testid="partner-name-input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
+              <label htmlFor="partner-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")}<RequiredMark/></label>
+              <input id="partner-name-input" data-testid="partner-name-input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("ownershipLabel")} *</label>
-              <input data-testid="partner-ownership-input" type="number" min="0" max="100" step="0.01" required value={form.ownership_percentage} onChange={(e) => setForm((f) => ({ ...f, ownership_percentage: e.target.value }))} className={`${inputCls} tabular`} />
+              <label htmlFor="partner-ownership-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("ownershipLabel")}<RequiredMark/></label>
+              <input id="partner-ownership-input" data-testid="partner-ownership-input" type="number" min="0" max="100" step="0.01" required value={form.ownership_percentage} onChange={(e) => setForm((f) => ({ ...f, ownership_percentage: e.target.value }))} className={`${inputCls} tabular`} />
             </div>
             <div className="grid grid-cols-[1fr_90px] gap-3">
               <div>
@@ -304,12 +305,12 @@ export default function Partners() {
           </DialogHeader>
           <form onSubmit={submitEdit} className="space-y-4" data-testid="partner-edit-form">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")} *</label>
-              <input data-testid="partner-edit-name-input" required value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
+              <label htmlFor="partner-edit-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")}<RequiredMark/></label>
+              <input id="partner-edit-name-input" data-testid="partner-edit-name-input" required value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("ownershipLabel")} *</label>
-              <input data-testid="partner-edit-ownership-input" type="number" min="0" max="100" step="0.01" required value={editForm.ownership_percentage} onChange={(e) => setEditForm((f) => ({ ...f, ownership_percentage: e.target.value }))} className={`${inputCls} tabular`} />
+              <label htmlFor="partner-edit-ownership-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("ownershipLabel")}<RequiredMark/></label>
+              <input id="partner-edit-ownership-input" data-testid="partner-edit-ownership-input" type="number" min="0" max="100" step="0.01" required value={editForm.ownership_percentage} onChange={(e) => setEditForm((f) => ({ ...f, ownership_percentage: e.target.value }))} className={`${inputCls} tabular`} />
             </div>
             <div className="grid grid-cols-[1fr_90px] gap-3">
               <div>
@@ -355,8 +356,8 @@ export default function Partners() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")} *</label>
-                <input data-testid="txn-amount-input" type="number" min="0.01" step="0.01" required value={txnForm.amount} onChange={(e) => setTxnForm((f) => ({ ...f, amount: e.target.value }))} className={`${inputCls} tabular`} />
+                <label htmlFor="txn-amount-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")}<RequiredMark/></label>
+                <input id="txn-amount-input" data-testid="txn-amount-input" type="number" min="0.01" step="0.01" required value={txnForm.amount} onChange={(e) => setTxnForm((f) => ({ ...f, amount: e.target.value }))} className={`${inputCls} tabular`} />
               </div>
             </div>
             <div>

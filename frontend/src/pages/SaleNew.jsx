@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../lib/selectInputOnFocus';
+import RequiredMark from '../components/RequiredMark';
 import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation, useSearchParams, Navigate } from "react-router-dom";
@@ -211,7 +213,7 @@ export default function SaleNew() {
               return (
                 <div key={r.rowId} className="grid grid-cols-2 md:grid-cols-[minmax(0,2.4fr)_repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(240px,2.4fr)_72px_120px_112px_112px_40px] gap-3 items-end rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid={`sale-item-${i}`}>
                   <div className="col-span-2 md:col-span-3 xl:col-span-1">
-                    <label className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}</label>
+                    <label htmlFor={`sale-item-product-${i}`} className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}<RequiredMark/></label>
                     <ProductAutocomplete
                       products={products}
                       value={r.product_id}
@@ -222,13 +224,13 @@ export default function SaleNew() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}</label>
-                    <input data-testid={`sale-item-qty-${i}`} type="number" min="1" step="1" value={r.quantity}
+                    <label htmlFor={`sale-item-qty-${i}`} className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}<RequiredMark/></label>
+                    <input id={`sale-item-qty-${i}`} data-testid={`sale-item-qty-${i}`} {...selectInputOnFocus} type="number" min="1" step="1" value={r.quantity}
                       onChange={(e) => setItem(i, "quantity", e.target.value)} className={`${inputCls} tabular`} required />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">{t("unitType")} *</label>
-                    <select data-testid={`sale-item-unit-${i}`} value={r.unit_type} onChange={(e) => setItem(i, "unit_type", e.target.value)} className={`${inputCls} h-[42px]`} required>
+                    <label htmlFor={`sale-item-unit-${i}`} className="text-xs text-slate-500 mb-1 block">{t("unitType")}<RequiredMark/></label>
+                    <select id={`sale-item-unit-${i}`} data-testid={`sale-item-unit-${i}`} value={r.unit_type} onChange={(e) => setItem(i, "unit_type", e.target.value)} className={`${inputCls} h-[42px]`} required>
                       <option value="gram">{t("unitGram")}</option>
                       <option value="kilogram">{t("unitKilogram")}</option>
                       <option value="milliliter">{t("unitMilliliter")}</option>
@@ -252,7 +254,7 @@ export default function SaleNew() {
                     </button>
                   </div>
                   <div className="col-span-2 md:col-span-3 xl:col-span-6 xl:max-w-md">
-                    <label className="text-xs text-slate-500 mb-1 block">{t("lineTotal")} *</label>
+                    <label htmlFor={`sale-item-total-${i}`} className="text-xs text-slate-500 mb-1 block">{t("lineTotal")}<RequiredMark/></label>
                     <div className="flex items-stretch rounded-lg border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500 transition-shadow overflow-hidden h-[46px]">
                       <select data-testid={`sale-item-currency-${i}`} value={currency} onChange={(e) => setCurrency(e.target.value)}
                         className="shrink-0 w-14 border-0 border-e border-slate-200 bg-slate-50 pe-4 ps-3 text-sm tabular font-bold text-slate-600 focus:outline-none appearance-auto cursor-pointer" title={t("currencyLabel")}>
@@ -260,7 +262,7 @@ export default function SaleNew() {
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
-                      <input data-testid={`sale-item-total-${i}`} type="number" min="0" step="0.01" value={r.total}
+                      <input id={`sale-item-total-${i}`} data-testid={`sale-item-total-${i}`} type="number" min="0" step="0.01" value={r.total}
                         onChange={(e) => setItem(i, "total", e.target.value)} className="flex-1 min-w-0 border-0 px-4 text-lg font-extrabold tabular text-emerald-700 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" required placeholder="0" />
                     </div>
                   </div>

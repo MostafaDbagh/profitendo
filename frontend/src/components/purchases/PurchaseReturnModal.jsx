@@ -1,3 +1,4 @@
+import {selectInputOnFocus} from '../../lib/selectInputOnFocus';
 import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Undo2 } from "lucide-react";
@@ -111,9 +112,9 @@ export function PurchaseReturnModal({ open, onClose, purchases, preselect, onDon
                       <td className="py-2 px-2 text-center tabular text-slate-500">{l.returned_qty || 0}</td>
                       <td className="py-2 px-2 text-center tabular text-slate-500">{fmtMoney(l.unit_cost)}</td>
                       <td className="py-2 px-2">
-                        <input data-testid={`pr-qty-${l.product_id}`} type="number" min="0" max={maxFor(l)} step="1"
-                          value={qtys[l.product_id] || ""}
-                          onChange={(e) => setQtys({ ...qtys, [l.product_id]: Math.min(Math.max(0, Number(e.target.value) || 0), maxFor(l)) })}
+                        <input data-testid={`pr-qty-${l.product_id}`} {...selectInputOnFocus} type="number" min="0" max={maxFor(l)} step="1"
+                          value={qtys[l.product_id] ?? ""}
+                          onChange={(e) => setQtys({ ...qtys, [l.product_id]: e.target.value === "" ? "" : Math.min(Math.max(0, Number(e.target.value) || 0), maxFor(l)) })}
                           className={`${inputCls} text-center tabular py-1.5`} placeholder="0" />
                       </td>
                     </tr>

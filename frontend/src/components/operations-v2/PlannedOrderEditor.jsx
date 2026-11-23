@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../../lib/selectInputOnFocus';
+import {OptionalFields} from '../business-v2/Disclosure';
 import { ArrowRight, Plus, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { formatQuantity } from '@/lib/quantity';
@@ -52,7 +54,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     </button>
     <div>
       <h2 className="text-lg font-bold">{c(document?'editDocument':'newOrder')}</h2>
-      <p className="mt-1 text-sm text-slate-600">{ar?'ماذا تنوي شراءه مستقبلاً؟':'What do you plan to buy?'}</p>
+      <p className="mt-1 text-sm text-slate-600">{ar?'حدّد الأصناف والكميات. الطلب لا يضيف مخزوناً.':'Choose items and quantities. An order does not add stock.'}</p>
     </div>
     <LocalDraftNotice {...{draft,lang,busy}}/>
     <Feedback {...{error,c}}/>
@@ -62,7 +64,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
           <Field id={`planned-name-${index}`} label={ar?'اسم المنتج':'Product name'} placeholder={ar?'اكتب اسم المنتج':'Enter product name'}
             value={item.name} onChange={event=>editItem(item.key,'name',event.target.value)} required maxLength={160}/>
           <div className="flex items-start gap-2">
-           <div className="min-w-0 flex-1"><Field id={`planned-quantity-${index}`} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
+           <div className="min-w-0 flex-1"><Field id={`planned-quantity-${index}`} {...selectInputOnFocus} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
             value={item.quantity} onChange={event=>editItem(item.key,'quantity',event.target.value)} required/></div>
           {form.items.length>1&&<button type="button" className={`${buttonClass} mt-6 shrink-0`} aria-label={`${c('remove')} ${index+1}`}
             onClick={()=>change({items:form.items.filter(row=>row.key!==item.key)})}><X aria-hidden="true" className="h-4 w-4"/></button>}
@@ -85,10 +87,10 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
             </div>
           </div>
         </div>
-        <div>
+        <OptionalFields hasValue={Boolean(form.notes)}>
           <label htmlFor="planned-order-notes" className="mb-1.5 block text-sm font-medium text-slate-700">{ar?'ملاحظات (اختياري)':'Notes (optional)'}</label>
           <textarea id="planned-order-notes" className={inputClass} rows={2} maxLength={2000} value={form.notes} onChange={event=>change({notes:event.target.value})}/>
-        </div>
+        </OptionalFields>
         <button type="submit" className={primaryClass} disabled={!valid||!form.documentDate}>{c(busy?'saving':'saveDraft')}</button>
       </fieldset>
     </form>

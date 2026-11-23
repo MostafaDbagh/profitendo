@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import { Building2, Loader2 } from "lucide-react";
 import { COUNTRIES, CURRENCY_OPTIONS, CURRENCY_LABELS, countryByCode, countryName } from "../../lib/locale";
 
@@ -13,8 +14,8 @@ export function BusinessSection({ biz, setBiz, savingBiz, onSave, t, lang }) {
       </div>
       <form onSubmit={onSave} className="space-y-4" data-testid="business-form">
         <div>
-          <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizName")}</label>
-          <input data-testid="biz-name-input" value={biz.name} onChange={(e) => setBiz((b) => ({ ...b, name: e.target.value }))} required className={inputCls} />
+          <label htmlFor="biz-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizName")}<RequiredMark/></label>
+          <input id="biz-name-input" data-testid="biz-name-input" value={biz.name} onChange={(e) => setBiz((b) => ({ ...b, name: e.target.value }))} required className={inputCls} />
         </div>
         <div>
           <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("obBizType")}</label>

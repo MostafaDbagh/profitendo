@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { Wallet, Loader2, Banknote, ArrowDownToLine, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -129,8 +130,8 @@ export default function Cash() {
                 <span className="font-bold text-slate-900 tabular" data-testid="closing-expected">{fmtMoney(summary.balance)}</span>
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("actualCash")}</label>
-                <input data-testid="closing-actual-input" type="number" min="0" step="0.01" required value={actual}
+                <label htmlFor="closing-actual-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("actualCash")}<RequiredMark/></label>
+                <input id="closing-actual-input" data-testid="closing-actual-input" type="number" min="0" step="0.01" required value={actual}
                   onChange={(e) => setActual(e.target.value)} className={`${inputCls} tabular`} />
               </div>
               {diff !== null && (
@@ -205,12 +206,12 @@ export default function Cash() {
           <form onSubmit={submitWithdrawal} className="space-y-4" data-testid="withdrawal-form">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("personLabel")} *</label>
-                <input data-testid="withdrawal-person-input" required value={wdForm.person} onChange={(e) => setWdForm((f) => ({ ...f, person: e.target.value }))} placeholder={t("personPh")} className={inputCls} />
+                <label htmlFor="withdrawal-person-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("personLabel")}<RequiredMark/></label>
+                <input id="withdrawal-person-input" data-testid="withdrawal-person-input" required value={wdForm.person} onChange={(e) => setWdForm((f) => ({ ...f, person: e.target.value }))} placeholder={t("personPh")} className={inputCls} />
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")} *</label>
-                <input data-testid="withdrawal-amount-input" type="number" min="0.01" step="0.01" required value={wdForm.amount} onChange={(e) => setWdForm((f) => ({ ...f, amount: e.target.value }))} className={`${inputCls} tabular`} />
+                <label htmlFor="withdrawal-amount-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")}<RequiredMark/></label>
+                <input id="withdrawal-amount-input" data-testid="withdrawal-amount-input" type="number" min="0.01" step="0.01" required value={wdForm.amount} onChange={(e) => setWdForm((f) => ({ ...f, amount: e.target.value }))} className={`${inputCls} tabular`} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

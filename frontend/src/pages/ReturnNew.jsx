@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../lib/selectInputOnFocus';
+import RequiredMark from '../components/RequiredMark';
 import { formatQuantity } from '@/lib/quantity';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
@@ -215,8 +217,8 @@ export default function ReturnNew() {
             {items.map((r, i) => (
               <div key={r.rowId} className="grid grid-cols-2 md:grid-cols-[1fr_100px_40px] gap-3 items-end rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid={`return-item-${i}`}>
                 <div className="col-span-2 md:col-span-1">
-                  <label className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}</label>
-                  <select data-testid={`return-item-product-${i}`} value={r.product_id} onChange={(e) => setItem(i, "product_id", e.target.value)} className={inputCls} required>
+                  <label htmlFor={`return-item-product-${i}`} className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}<RequiredMark/></label>
+                  <select id={`return-item-product-${i}`} data-testid={`return-item-product-${i}`} value={r.product_id} onChange={(e) => setItem(i, "product_id", e.target.value)} className={inputCls} required>
                     <option value="">{t("selectProduct")}</option>
                     {(selectedSale ? selectedSale.items : []).map((l) => (
                       <option key={l.product_id} value={l.product_id}>
@@ -229,8 +231,8 @@ export default function ReturnNew() {
                   )}
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}</label>
-                  <input data-testid={`return-item-qty-${i}`} type="number" min="1" step="1" value={r.quantity} onChange={(e) => setItem(i, "quantity", e.target.value)} className={`${inputCls} tabular`} required />
+                  <label htmlFor={`return-item-qty-${i}`} className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}<RequiredMark/></label>
+                  <input id={`return-item-qty-${i}`} data-testid={`return-item-qty-${i}`} {...selectInputOnFocus} type="number" min="1" step="1" value={r.quantity} onChange={(e) => setItem(i, "quantity", e.target.value)} className={`${inputCls} tabular`} required />
                 </div>
                 <button type="button" data-testid={`return-item-remove-${i}`} onClick={() => setItems((rows) => rows.filter((_, j) => j !== i))}
                   className="p-2.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">

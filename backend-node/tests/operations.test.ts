@@ -239,3 +239,82 @@ it('plans unlisted items without a location or supplier and posts inventory only
  expect((await get(`/purchases/${orderId}`)).body).toMatchObject({status:'RECEIVED',plannedItems:[{receivedQuantity:'10.0000'}]});
  expect(await db.stockMovement.count({where:{businessId:business}})).toBe(movementCount+2);
 });
+
+const receiveDirect=(doc:any,who=owner,b=business)=>write(`/purchases/${doc.id}/status`,{revision:doc.revision,action:'receive',confirm:true},who,'post',b);
+it('receives a reviewed draft atomically, records its approver and safely replays concurrent requests',async()=>{
+ const doc=await draft({lines:[{productId:product,quantity:'2.5',unitCost:'1.2345'},{productId:secondProduct,quantity:'3',unitCost:'2'}]});
+ const before=await db.stockBalance.findFirstOrThrow({where:{businessId:business,locationId:location,productId:product}});
+ const result=await Promise.all([receiveDirect(doc),receiveDirect(doc)]);
+ expect(result.map(r=>r.status)).toEqual([200,200]);
+ expect(result[0]!.body).toMatchObject({status:'COMPLETED',revision:1,completedName:owner.user.name});
+ expect(await db.stockMovement.count({where:{businessId:business,sourceId:doc.id}})).toBe(2);
+ const after=await db.stockBalance.findFirstOrThrow({where:{id:before.id}});
+ expect(after.onHand.minus(before.onHand).toFixed(4)).toBe('2.5000');
+ expect(await db.authAudit.count({where:{businessId:business,targetId:doc.id,action:'purchase.status_changed'}})).toBe(1);
+ expect((await db.authAudit.findFirstOrThrow({where:{targetId:doc.id,action:'purchase.status_changed'}})).changes).toEqual({from:'DRAFT',to:'COMPLETED'});
+ expect((await receiveDirect(doc)).status).toBe(200);
+ expect((await write(`/purchases/${doc.id}`,{revision:1,documentDate:'2026-11-23',notes:'Cannot edit',lines:[{productId:product,quantity:'1'}]},owner,'patch')).body.error.code).toBe('DOCUMENT_STATE');
+});
+it('preserves receiving approval permissions, location scope and tenant isolation on direct receiving and replay',async()=>{
+ const member=await db.membership.findUniqueOrThrow({where:{businessId_userId:{businessId:business,userId:staff.user.id}}});
+ await db.locationAssignment.create({data:{businessId:business,locationId:location,membershipId:member.id}});
+ const doc=await draft();
+ expect((await receiveDirect(doc,staff)).status).toBe(403);
+ expect((await receiveDirect(doc,admin)).status).toBe(403);
+ expect((await receiveDirect(doc,foreign,other)).status).toBe(404);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'receiving.confirm':true,'receiving.create':false}}});
+ expect((await receiveDirect(doc,staff)).status).toBe(403);
+ // An approver without preparation permission can still approve a submitted receipt.
+ const pending=await submit(doc);
+ expect((await confirm(pending,staff)).status).toBe(200);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'receiving.confirm':true}}});
+ const direct=await draft();
+ const result=await receiveDirect(direct,staff);expect(result.status,result.text).toBe(200);expect(result.text).not.toContain('unitCost');
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{}}});
+ expect((await receiveDirect(direct,staff)).status).toBe(403);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{'receiving.confirm':true}}});
+ await db.location.update({where:{id:hiddenLocation},data:{archivedAt:null}});
+ const hidden=await draft({locationId:hiddenLocation});expect((await receiveDirect(hidden,staff)).status).toBe(404);
+ await db.locationAssignment.deleteMany({where:{membershipId:member.id}});
+ expect((await receiveDirect(direct,staff)).status).toBe(404);
+ await db.membership.update({where:{id:member.id},data:{permissionOverrides:{}}});
+});
+it('rejects stale reviews and wrong states without posting stock',async()=>{
+ const doc=await draft();
+ const edited=await write(`/purchases/${doc.id}`,{revision:doc.revision,documentDate:'2026-11-23',notes:'Changed since review',lines:[{productId:product,quantity:'1'}]},owner,'patch');expect(edited.status,edited.text).toBe(200);
+ expect((await receiveDirect(doc)).body.error.code).toBe('REVISION_CONFLICT');
+ const pending=await submit(edited.body);
+ expect((await receiveDirect(pending)).body.error.code).toBe('DOCUMENT_STATE');
+ const order=await draft({kind:'ORDER'});expect((await receiveDirect(order)).body.error.code).toBe('DOCUMENT_STATE');
+ const cancelled=await draft();const cancel=await write(`/purchases/${cancelled.id}/status`,{revision:cancelled.revision,action:'cancel',confirm:true});
+ expect((await receiveDirect(cancel.body)).body.error.code).toBe('DOCUMENT_STATE');
+ expect(await db.stockMovement.count({where:{sourceId:{in:[doc.id,order.id,cancelled.id]}}})).toBe(0);
+ expect((await write(`/purchases/${doc.id}/status`,{revision:pending.revision,action:'receive'})).status).toBe(422);
+});
+it('revalidates active records and subscription before direct receiving, leaving failed drafts untouched',async()=>{
+ const doc=await draft();
+ await db.supplier.update({where:{id:supplier},data:{active:false}});
+ try{expect((await receiveDirect(doc)).body.error.code).toBe('SUPPLIER_INACTIVE');}finally{await db.supplier.update({where:{id:supplier},data:{active:true}});}
+ await db.product.update({where:{id:product},data:{active:false}});
+ try{expect((await receiveDirect(doc)).body.error.code).toBe('PRODUCT_INACTIVE');}finally{await db.product.update({where:{id:product},data:{active:true}});}
+ await db.location.update({where:{id:location},data:{archivedAt:new Date()}});
+ try{expect((await receiveDirect(doc)).body.error.code).toBe('LOCATION_ARCHIVED');}finally{await db.location.update({where:{id:location},data:{archivedAt:null}});}
+ await db.businessSubscription.update({where:{businessId:business},data:{trialEndsAt:new Date(Date.now()-1000)}});
+ try{expect((await receiveDirect(doc)).body.error.code).toBe('SUBSCRIPTION_REQUIRED');}finally{await db.businessSubscription.update({where:{businessId:business},data:{trialEndsAt:new Date(Date.now()+86400000)}});}
+ expect((await get(`/purchases/${doc.id}`)).body).toMatchObject({status:'DRAFT',revision:0});
+ expect(await db.stockMovement.count({where:{sourceId:doc.id}})).toBe(0);
+ expect((await receiveDirect(doc)).status).toBe(200);
+});
+it('updates linked order quantities on direct receiving and rejects concurrent over-receiving',async()=>{
+ const order=await submit(await draft({kind:'ORDER',lines:[{productId:product,quantity:'5'}]}));
+ const a=await draft({orderId:order.id,lines:[{productId:product,quantity:'4'}]});
+ const b=await draft({orderId:order.id,lines:[{productId:product,quantity:'4'}]});
+ const result=await Promise.all([receiveDirect(a),receiveDirect(b)]);
+ expect(result.map(r=>r.status).sort()).toEqual([200,409]);
+ expect(result.find(r=>r.status===409)!.body.error.code).toBe('ORDER_QUANTITY_EXCEEDED');
+ expect((await get(`/purchases/${order.id}`)).body).toMatchObject({status:'PARTIAL',lines:[{receivedQuantity:'4.0000'}]});
+ expect(await db.stockMovement.count({where:{sourceId:{in:[a.id,b.id]}}})).toBe(1);
+ const rest=await draft({orderId:order.id,lines:[{productId:product,quantity:'1'}]});
+ expect((await receiveDirect(rest)).status).toBe(200);
+ expect((await get(`/purchases/${order.id}`)).body.status).toBe('RECEIVED');
+});

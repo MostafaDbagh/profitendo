@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import { Loader2, X } from "lucide-react";
 
 const inputCls = "w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white";
@@ -21,13 +22,13 @@ export function AccountFormModal({ modal, form, setForm, parentOptions, subgroup
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountCode")} *</label>
-              <input data-testid="account-code-input" value={form.code} disabled={sysEdit}
+              <label htmlFor="account-code-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountCode")}<RequiredMark/></label>
+              <input id="account-code-input" data-testid="account-code-input" value={form.code} disabled={sysEdit}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
                 className={`${inputCls} tabular`} dir="ltr" required maxLength={20} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountType")} *</label>
+              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountType")}<RequiredMark/></label>
               <select data-testid="account-group-select" value={form.group} disabled={sysEdit || modal.mode === "edit"}
                 onChange={(e) => setForm({ ...form, group: e.target.value, parent_id: "", subgroup: "" })}
                 className={inputCls}>
@@ -36,11 +37,11 @@ export function AccountFormModal({ modal, form, setForm, parentOptions, subgroup
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountName")} *</label>
+            <label htmlFor="account-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("accountName")}<RequiredMark/></label>
             {sysEdit ? (
               <input value={acctName(modal.account)} disabled className={`${inputCls} bg-slate-50`} />
             ) : (
-              <input data-testid="account-name-input" value={form.name}
+              <input id="account-name-input" data-testid="account-name-input" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className={inputCls} required maxLength={120} />
             )}

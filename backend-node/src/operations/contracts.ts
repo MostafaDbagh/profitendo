@@ -28,6 +28,6 @@ const planningFields=z.object({
 export const documentSchema=z.union([planningFields.extend({clientKey:z.uuid(),kind:z.literal('ORDER')}),inventoryDocument]);
 export const documentPatch=z.union([planningFields.extend({revision:z.number().int().nonnegative()}),inventoryPatch]);
 export type InventoryDocumentInput=z.infer<typeof inventoryDocument>;
-export const transitionSchema=z.object({revision:z.number().int().nonnegative(),action:z.enum(['submit','reopen','confirm','cancel']),confirm:z.literal(true)}).strict();
+export const transitionSchema=z.object({revision:z.number().int().nonnegative(),action:z.enum(['submit','reopen','confirm','receive','cancel']),confirm:z.literal(true)}).strict();
 export type DocumentInput=z.infer<typeof documentSchema>;
 export type DocumentPatch=z.infer<typeof documentPatch>;

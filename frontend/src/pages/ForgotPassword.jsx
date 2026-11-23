@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, Loader2, ArrowLeft, CheckCircle2, TrendingUp } from "lucide-react";
@@ -60,9 +61,10 @@ export default function ForgotPassword() {
           <h1 className="text-xl font-bold text-slate-100" data-testid="forgot-title">{t("forgotTitle")}</h1>
           <p className="text-sm text-slate-400 mt-1 mb-6">{t("forgotDesc")}</p>
           <form onSubmit={submit} className="space-y-4" data-testid="forgot-form">
+            <label htmlFor="forgot-email-input" className="block text-sm font-medium text-slate-300">{t("email")}<RequiredMark/></label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="forgot-email-input" type="email" required value={email}
+              <input id="forgot-email-input" data-testid="forgot-email-input" type="email" required value={email}
                 onChange={(e) => setEmail(e.target.value)} placeholder={t("emailPh")} className={inputCls} dir="ltr" />
             </div>
             {error && <p className="text-xs text-red-400" data-testid="forgot-error">{error}</p>}

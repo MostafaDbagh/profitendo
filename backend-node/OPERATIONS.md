@@ -69,6 +69,12 @@ be cancelled to close remaining work, but outstanding draft/pending receipts
 must be cancelled first. Cancellation never reverses previously received stock.
 
 Receipts: DRAFT -> PENDING -> COMPLETED; PENDING may return to DRAFT.
+The review screen also supports DRAFT -> COMPLETED with `action: receive`,
+requiring both receiving.create and receiving.confirm. This is one atomic
+transition using the same posting checks, ledger, order updates and audit trail.
+Users without confirmation permission still submit with `action: submit` and
+wait for an authorized approver. An approver without preparation permission may
+confirm a PENDING receipt but cannot use direct receiving.
 DRAFT/PENDING may be cancelled. Neither saving nor submitting increases stock.
 Completed receipts cannot be edited/cancelled. Corrections will use linked
 reversals/returns in later services, not edits to stock history.

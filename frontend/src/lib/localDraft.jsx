@@ -112,14 +112,15 @@ export function useLocalDraft(name, values, restore) {
 export function LocalDraftNotice({draft, lang, busy}) {
   const ar = lang === 'ar';
   const problem = ['error', 'conflict'].includes(draft.status);
+  if(draft.status==='idle'&&!draft.restored&&draft.online)return null;
   const text = problem
     ? (ar ? 'تعذّر حفظ المسودة على هذا الجهاز. قد تكون مساحة التخزين ممتلئة أو المسودة مفتوحة في تبويب آخر. لا تغلق الصفحة قبل حفظ عملك.' : 'Draft could not be saved on this device. Storage may be unavailable or another tab may have changed it. Keep this page open until you save your work.')
     : draft.restored
       ? (ar ? 'تمت استعادة عملك غير المكتمل. راجعه قبل الإرسال.' : 'Your unfinished work was restored. Review it before submitting.')
       : draft.status === 'saved'
-        ? (ar ? 'تم حفظ المسودة تلقائياً على هذا الجهاز.' : 'Draft saved automatically on this device.')
-        : (ar ? 'يُحفظ إدخالك تلقائياً كمسودة في هذا المتصفح. افتح نفس نموذج الإدخال للمتابعة لاحقاً.' : 'Your entries are saved as a draft in this browser. Reopen the same entry form to continue later.');
-  return <div className={`rounded-lg border p-3 text-sm space-y-2 ${problem ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-700'}`} data-testid="local-draft-notice">
+        ? (ar ? 'تم حفظ المسودة على هذا الجهاز.' : 'Draft saved on this device.')
+        : (ar ? 'لم تُرسل البيانات بعد.' : 'Changes have not been submitted.');
+  return <div className={`text-xs flex flex-wrap items-center justify-between gap-2 ${problem ? 'rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900' : 'text-slate-500'}`} data-testid="local-draft-notice">
     <p role={problem ? 'alert' : 'status'}>{text}{!draft.online && <> {ar ? 'أنت غير متصل؛ الإرسال يحتاج إلى الإنترنت.' : 'You are offline; submitting requires internet.'}</>}</p>
     {draft.status !== 'idle' && <button type="button" disabled={busy} className="underline underline-offset-4 font-medium" onClick={draft.discard}>{ar ? 'حذف المسودة' : 'Discard draft'}</button>}
   </div>;

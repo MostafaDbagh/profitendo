@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../lib/selectInputOnFocus';
+import RequiredMark from '../components/RequiredMark';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useState } from "react";
@@ -246,8 +248,8 @@ export default function Inventory() {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("adjustQty")}</label>
-              <input data-testid="adjust-qty-input" type="number" step="1" required value={adjForm.quantity}
+              <label htmlFor="adjust-qty-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("adjustQty")}<RequiredMark/></label>
+              <input id="adjust-qty-input" data-testid="adjust-qty-input" {...selectInputOnFocus} type="number" step="1" required value={adjForm.quantity}
                 onChange={(e) => setAdjForm((f) => ({ ...f, quantity: e.target.value }))} className={`${inputCls} tabular`} />
               <p className="text-xs text-slate-400 mt-1">{t("currentStock")}: {adjustFor?.stock_qty}</p>
             </div>

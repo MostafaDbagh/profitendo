@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Receipt, Pencil, Trash2, Loader2 } from "lucide-react";
@@ -193,8 +194,8 @@ export default function Expenses() {
           <form onSubmit={submit} className="space-y-4" data-testid="expense-form">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")} *</label>
-                <input data-testid="expense-amount-input" type="number" min="0.01" step="0.01" required value={form.amount}
+                <label htmlFor="expense-amount-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("amountLabel")}<RequiredMark/></label>
+                <input id="expense-amount-input" data-testid="expense-amount-input" type="number" min="0.01" step="0.01" required value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} className={`${inputCls} tabular`} />
               </div>
               <div>

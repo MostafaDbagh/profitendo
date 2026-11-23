@@ -996,3 +996,91 @@ Baseline: user screenshot and prior `tmp/import-signoff-production`. After:
 `tmp/import-simple-review` and `tmp/import-simple-production`. Inspected Arabic mobile
 empty state; production-build owner/accountant import and recovery flows passed,
 including AR/EN at 320/390/768/1440px and no page/dialog overflow.
+
+## Simpler purchasing, forms, checkout and tables (2026-11-23)
+
+User explicitly selected these four simplifications. Preserved the existing slate/
+white surfaces, emerald actions, typography, component sizes and RTL behavior.
+
+- Purchasing actions now read “Order from supplier” / “Receive stock”, with a
+  short distinction from opening stock. Ordering and receiving keep their existing
+  draft, review, permission and stock-confirmation rules.
+- Idle draft explanations are hidden; saved drafts use a compact status. Restored
+  work, storage conflicts, offline status and discard controls remain available.
+  Product, supplier and purchasing forms put essential fields first. Optional
+  sections reveal existing values and reopen automatically for browser validation.
+- Sales show Add products → Take payment → Receipt. Discounts and customer/notes
+  are optional sections. Mobile checkout shows the amount and payment form first;
+  stock checks, discount reasons, payment references and retry keys are unchanged.
+- Shared table filters and current-page CSV exports live under More options. Main
+  server searches replace duplicate table searches on suppliers, locations,
+  inventory, transfers and platform lists. Product filters and full-result export
+  share More options; purchases/sales/supplier/location server filters use the same
+  disclosure. Active filters remain marked, and controls remain mounted through
+  loading/errors so users can recover without losing filter/search state.
+
+Validation: 34 frontend tests, 45 purchase/receiving/sales/tax API tests against an
+isolated local database, production build and public-page prerender passed. Local
+Chrome fixture checks cover AR/EN at 320/390/768/1024/1440px, no runtime errors or
+page/dialog overflow, keyboard disclosure, optional-field validation, restored
+sale drafts, payment failure/retry, receipt transition, CSV download, filter error
+recovery, product save and order/receiving draft payloads. Browser API writes were
+intercepted; this is local verification, not a production deployment or live-client
+usability signoff. Before/after screenshots and logs: `tmp/simple-flows/`.
+
+## Quantity entry and required markers (2026-11-23)
+
+Audited 15 quantity controls across operational and legacy forms. They now share
+select-on-entry behavior: the first typed/pasted value replaces the existing
+quantity; focus alone leaves saved values intact, later clicks preserve caret
+placement, and clearing stays empty. Extended the helper to handle initial touch
+clicks while preserving native number-spinner actions. Applied it to planned
+orders, packs, minimum-stock fields, legacy sales/purchases/returns and inventory,
+in addition to the existing receiving/sales/transfer/adjustment controls. Fixed
+legacy purchase-return empty input being coerced back to zero while editing.
+
+Shared Field/Select and native required labels now use a single red RequiredMark.
+Conditional requirements follow their existing validation conditions; optional
+fields stay unmarked. Removed duplicate manual product/location markers and old
+required badges, added labels to previously unlabeled scanner/password-recovery
+inputs, and associated legacy required labels with existing stable input IDs.
+Required location choices on sales/receiving/transfers use the same visual cue.
+No accounting rules, permissions or server validation were changed.
+
+Validation: source coverage for all 15 quantity controls and 50 native required
+controls (the product autocomplete's label lives in its callers), 37 frontend
+tests, successful production build/prerender, and local Chrome checks passed.
+Browser checks covered AR/EN, mouse/keyboard/touch replacement, decimals, clearing,
+pasting, caret editing, unchanged values on focus, and conditional indicators.
+Before/after screenshots for ten representative screens at 390/1440px are in
+`tmp/input-review/`, alongside the audit and test logs. Screens have no page
+horizontal overflow or runtime errors; browser API data was fixture-only.
+
+
+## Receiving simplification — 23 November 2026
+
+Receiving now presents Enter items → Review → Add stock (or Approval for
+staff without confirmation permission). Product selection is the primary input;
+barcode scanning and its mode selector live in an optional disclosure. Barcode
+validation belongs to its separate scanner form and never blocks receipt review.
+The primary editor action saves the draft and opens review; it never posts stock.
+The review table shows all lines without search/filter/export controls.
+
+Users with both preparation and confirmation permissions can confirm a reviewed
+draft in one explicit final dialog listing supplier, location and quantities.
+The backend executes this atomically with the same authorization, subscription,
+quantity, order, ledger, replay and audit protections as pending confirmation.
+Staff without approval permission see Send for approval; stock stays unchanged.
+Pending/completed messages explicitly explain the stock effect. Existing shared
+components, emerald actions, required markers and RTL/LTR styles are preserved.
+
+Validation: 48 frontend tests pass, including editor/review behavior in Arabic
+and English, separate barcode validation, quantity replacement, permission-based
+actions, failed request recovery and repeated clicks. The 19 operations tests
+and 21 FIFO/operations-audit tests pass against the isolated test database;
+backend typecheck and frontend production build pass.
+Live visual verification is incomplete: the browser access host was unavailable,
+and native screenshot capture returned a blank image. The old editor was read
+through native accessibility, but no valid new before/after screenshots or
+desktop/mobile visual sign-off are claimed. Local fixture setup/backups are in
+`tmp/receiving-simple/`. No production deployment was performed.

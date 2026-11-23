@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -91,8 +92,8 @@ export function BusinessStep({ t, lang, user, busy, onNext, onBack }) {
       <StepHeader title={t("obBizStep")} sub={t("obBizStepSub")} testid="ob-biz-title" />
       <form onSubmit={submit} className="space-y-4" data-testid="ob-biz-form">
         <div>
-          <label className="text-sm font-medium text-slate-300 mb-1.5 block">{t("bizName")}</label>
-          <input data-testid="ob-biz-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required className={inputCls} />
+          <label htmlFor="ob-biz-name" className="text-sm font-medium text-slate-300 mb-1.5 block">{t("bizName")}<RequiredMark/></label>
+          <input id="ob-biz-name" data-testid="ob-biz-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required className={inputCls} />
         </div>
         <div>
           <label className="text-sm font-medium text-slate-300 mb-1.5 block">{t("obBizType")}</label>

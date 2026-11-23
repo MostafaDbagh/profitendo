@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import { useState } from 'react';
 
 export default function OwnerPinField({ id, label, hint, value, onChange, disabled, children }) {
@@ -7,7 +8,7 @@ export default function OwnerPinField({ id, label, hint, value, onChange, disabl
 
   return (
     <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">{label}</label>
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700">{label}<RequiredMark/></label>
       <div className={children ? 'flex flex-col gap-3 sm:flex-row sm:items-center' : undefined}>
         <div dir="ltr" className="relative min-w-0 flex-1">
           <input

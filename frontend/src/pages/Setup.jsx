@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useMemo, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { TrendingUp, Loader2 } from "lucide-react";
@@ -72,8 +73,8 @@ export default function Setup() {
           <p className="text-slate-500 text-sm mt-1 mb-6">{t("setupDesc")}</p>
           <form onSubmit={submit} className="space-y-4" data-testid="setup-form">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizName")}</label>
-              <input
+              <label htmlFor="setup-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizName")}<RequiredMark/></label>
+              <input id="setup-name-input"
                 data-testid="setup-name-input"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}

@@ -185,7 +185,7 @@ export class PurchasingService{
    return present(await tx.purchaseDocument.findUniqueOrThrow({where:{id},include:details}),access.permissions['catalogue.cost']);
   });
  }
- async transition(ctx:AuthContext,businessId:string,id:string,input:{revision:number;action:'submit'|'reopen'|'confirm'|'cancel'}){
+ async transition(ctx:AuthContext,businessId:string,id:string,input:{revision:number;action:'submit'|'reopen'|'confirm'|'receive'|'cancel'}){
   return this.auth.transaction(async tx=>{
    await requireBusiness(this.auth,tx,ctx,businessId,'purchasing.view');
    await tx.$queryRaw`SELECT id FROM purchase_documents WHERE business_id=${businessId}::uuid AND id=${id}::uuid FOR UPDATE`;
@@ -193,12 +193,15 @@ export class PurchasingService{
    if(!doc)throw new ApiError(404,'NOT_FOUND','Document not found');
    const locationId=doc.locationId;
    const supplierId=doc.supplierId;
-   const actionPermission=doc.kind==='ORDER'?'purchasing.manage':input.action==='confirm'?'receiving.confirm':'receiving.create';
+   if(input.action==='receive'&&doc.kind!=='RECEIPT')throw stateError();
+   const actionPermission=doc.kind==='ORDER'?'purchasing.manage':['confirm','receive'].includes(input.action)?'receiving.confirm':'receiving.create';
    const locationAccess=locationId?await requireLocation(this.auth,tx,ctx,businessId,locationId,actionPermission,false):null;
    const access=locationAccess??await requireBusiness(this.auth,tx,ctx,businessId,actionPermission);
    if(!locationId)checkPlanAccess(access,doc);
+   // Direct receiving combines preparation and approval; neither permission is optional.
+   if(input.action==='receive'&&!access.permissions['receiving.create'])throw new ApiError(403,'FORBIDDEN','Receiving preparation permission required');
    // Durable confirm replay is authorized but independent of current trial/status revision.
-   if(input.action==='confirm'&&doc.kind==='RECEIPT'&&doc.status==='COMPLETED')return present(doc,access.permissions['catalogue.cost']);
+   if(['confirm','receive'].includes(input.action)&&doc.kind==='RECEIPT'&&doc.status==='COMPLETED')return present(doc,access.permissions['catalogue.cost']);
    if(doc.revision!==input.revision)throw conflict();
    let status:string;
    if(input.action==='cancel'){
@@ -215,7 +218,7 @@ export class PurchasingService{
     if(await tx.product.count({where:{businessId,id:{in:doc.lines.map(l=>l.productId)},active:true}})!==doc.lines.length)throw new ApiError(409,'PRODUCT_INACTIVE','Product inactive');
     if(input.action==='submit'){if(doc.status!=='DRAFT')throw stateError();status=doc.kind==='ORDER'?'OPEN':'PENDING';}
     else{
-     if(doc.kind!=='RECEIPT'||doc.status!=='PENDING'||!locationId||!supplierId)throw stateError();
+     if(doc.kind!=='RECEIPT'||doc.status!==(input.action==='receive'?'DRAFT':'PENDING')||!locationId||!supplierId)throw stateError();
      const order=await this.order(tx,businessId,doc.orderId,supplierId,locationId,doc.lines.map(l=>({productId:l.productId,plannedItemId:l.plannedItemId,baseQuantity:l.baseQuantity.toFixed(4)})),access);
      // Consistent product ordering reduces lock contention between documents.
      for(const line of [...doc.lines].sort((a,b)=>a.productId.localeCompare(b.productId))){

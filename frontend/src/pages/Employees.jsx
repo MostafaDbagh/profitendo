@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { Users, UserPlus, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -191,8 +192,8 @@ export default function Employees() {
           <form onSubmit={submitAdd} className="space-y-4" data-testid="employee-form">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")} *</label>
-                <input data-testid="employee-name-input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
+                <label htmlFor="employee-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")}<RequiredMark/></label>
+                <input id="employee-name-input" data-testid="employee-name-input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("roleLabel")}</label>

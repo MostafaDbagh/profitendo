@@ -1,3 +1,5 @@
+import {selectInputOnFocus} from '../lib/selectInputOnFocus';
+import RequiredMark from '../components/RequiredMark';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
@@ -199,8 +201,8 @@ export default function PurchaseNew() {
       <form onSubmit={submit} className="space-y-6" data-testid="purchase-form">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("supplier")} *</label>
-            <input data-testid="purchase-supplier-input" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder={t("supplierPh")} required className={inputCls} />
+            <label htmlFor="purchase-supplier-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("supplier")}<RequiredMark/></label>
+            <input id="purchase-supplier-input" data-testid="purchase-supplier-input" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder={t("supplierPh")} required className={inputCls} />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("invoiceNumber")}</label>
@@ -236,7 +238,7 @@ export default function PurchaseNew() {
             {items.map((r, i) => (
               <div key={r.rowId} className="grid grid-cols-2 md:grid-cols-[1fr_100px_130px_110px_40px] gap-3 items-end rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid={`purchase-item-${i}`}>
                 <div className="col-span-2 md:col-span-1">
-                  <label className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}</label>
+                  <label htmlFor={`purchase-item-product-${i}`} className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}<RequiredMark/></label>
                   <ProductAutocomplete
                     products={products}
                     value={r.product_id}
@@ -251,12 +253,12 @@ export default function PurchaseNew() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}</label>
-                  <input data-testid={`purchase-item-qty-${i}`} type="number" min="1" step="1" value={r.quantity} onChange={(e) => setItem(i, "quantity", e.target.value)} className={`${inputCls} tabular`} required />
+                  <label htmlFor={`purchase-item-qty-${i}`} className="text-xs text-slate-500 mb-1 block">{t("qtyLabel")}<RequiredMark/></label>
+                  <input id={`purchase-item-qty-${i}`} data-testid={`purchase-item-qty-${i}`} {...selectInputOnFocus} type="number" min="1" step="1" value={r.quantity} onChange={(e) => setItem(i, "quantity", e.target.value)} className={`${inputCls} tabular`} required />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">{t("unitCostLabel")}</label>
-                  <input data-testid={`purchase-item-cost-${i}`} type="number" min="0" step="any" value={r.unit_cost} onChange={(e) => setItem(i, "unit_cost", e.target.value)} className={`${inputCls} tabular`} required />
+                  <label htmlFor={`purchase-item-cost-${i}`} className="text-xs text-slate-500 mb-1 block">{t("unitCostLabel")}<RequiredMark/></label>
+                  <input id={`purchase-item-cost-${i}`} data-testid={`purchase-item-cost-${i}`} type="number" min="0" step="any" value={r.unit_cost} onChange={(e) => setItem(i, "unit_cost", e.target.value)} className={`${inputCls} tabular`} required />
                 </div>
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">{t("lineTotal")}</label>

@@ -1,7 +1,7 @@
 export const operationsCopy={
  en:{recordSearchPlaceholder:'Search by name or code',editDocument:'Edit draft',
  inventory:'Inventory',inventoryHint:'Stock is tracked separately at every warehouse and shop. Only confirmed receiving adds quantities.',
- suppliers:'Suppliers',suppliersHint:'Keep supplier contacts and purchase history together.',purchases:'Purchasing & receiving',purchasesHint:'Save a draft, review the delivery, then confirm actual quantities once.',
+ suppliers:'Suppliers',suppliersHint:'Keep supplier contacts and purchase history together.',purchases:'Purchasing & receiving',purchasesHint:'Order goods for later, or receive goods that have arrived.',
  'inventory.view':'View stock and movements','suppliers.view':'View suppliers','suppliers.manage':'Manage suppliers','purchasing.view':'View purchase documents','purchasing.manage':'Manage purchase orders','receiving.create':'Prepare receiving documents','receiving.confirm':'Confirm receiving and add stock',
  supplierName:'Supplier name',supplierCode:'Supplier code',contact:'Contact person',phone:'Phone',email:'Email',address:'Address',notes:'Notes',supplierReference:'Supplier invoice/reference',
  supplierNamePlaceholder:'e.g. Gulf Food Supplies',contactPlaceholder:'e.g. Ahmed — delivery coordinator',phonePlaceholder:'+971 50 123 4567',emailPlaceholder:'orders@example.com',addressPlaceholder:'Building, street and city',notesPlaceholder:'Delivery instructions or useful details',supplierReferencePlaceholder:'e.g. INV-2026-1042',
@@ -9,7 +9,7 @@ export const operationsCopy={
  chooseLocation:'Choose location',chooseSupplier:'Choose supplier',chooseRecord:'Choose a record',chooseHint:'Search by name or code. Only records you can access are listed.',selectedLocation:'Location',selectedSupplier:'Supplier',change:'Change',
  balances:'Stock balances',movements:'Movement history',onHand:'On hand',reserved:'Reserved',available:'Available',lowStock:'Low stock',reference:'Reference',quantity:'Quantity',movement:'Movement',PURCHASE_RECEIPT:'Purchase received',stockEmptyHint:'Products appear here after their first stock movement. Registering a product does not create stock.',
  RECEIPT:'Receiving',ORDER:'Purchase orders',DRAFT:'Draft',PENDING:'Awaiting confirmation',OPEN:'Open',PARTIAL:'Partially received',RECEIVED:'Fully received',COMPLETED:'Completed',CANCELLED:'Cancelled',
- newReceiptTooltip:'Record goods that have arrived. Choose the supplier and location, then scan a barcode or select an inventory product and enter the quantity received. Confirm the receipt to update stock.',newOrderTooltip:'List the items and quantities you want to buy later.',newReceipt:'Receive goods',newOrder:'Plan a purchase',openDocument:'Open document',back:'Back',documentDate:'Document date',orderDate:'Purchase request date',duplicatePlannedProduct:'This product is already on this receipt. Use a separate receipt for a different planned item with the same product.',saveDraft:'Save draft',submitDocument:'Send for confirmation',releaseOrder:'Open purchase order',confirmReceipt:'Confirm receiving',reopenDraft:'Return to draft',cancelDocument:'Cancel document',receiveRemaining:'Receive remaining items',
+ newReceiptTooltip:'Record goods that have arrived. Choose the supplier and location, then scan a barcode or select an inventory product and enter the quantity received. Confirm the receipt to update stock.',newOrderTooltip:'List the items and quantities you want to buy later.',newReceipt:'Receive stock',newOrder:'Order from supplier',openDocument:'Open document',back:'Back',documentDate:'Document date',orderDate:'Purchase request date',duplicatePlannedProduct:'This product is already on this receipt. Use a separate receipt for a different planned item with the same product.',saveDraft:'Save draft',submitDocument:'Send for confirmation',releaseOrder:'Open purchase order',confirmReceipt:'Confirm receiving',reopenDraft:'Return to draft',cancelDocument:'Cancel document',receiveRemaining:'Receive remaining items',
  documentHint:'Enter actual quantities. Saving a draft or submitting it does not change stock.',orderHint:'A purchase order records what you intend to buy. Stock changes only when a linked delivery is confirmed.',
  quantitiesBase:'Quantities and costs below use the product’s base unit. Different units are not added together.',unitCost:'Cost per base unit',baseQuantity:'Base quantity',receivedQuantity:'Received quantity',remainingQuantity:'Remaining quantity',totalValue:'Total value',remove:'Remove',addLine:'Add product to document',
  scanMode:'Scanning mode',scanOnce:'Scan once, then enter quantity',scanRepeated:'Each scan adds one base unit',receivingBarcode:'Barcode or SKU',scanPlaceholder:'Scan or type a barcode, then press Enter',lineAdded:'Product added or quantity updated.',noLines:'Add at least one product before saving.',scanBusy:'Looking up product…',searchProductHint:'Search by name, SKU or barcode, or use the scanner above.',selectProduct:'Select product',lineQuantityPlaceholder:'e.g. 12',costPlaceholder:'e.g. 2.5000',
@@ -21,7 +21,7 @@ export const operationsCopy={
  },
  ar:{recordSearchPlaceholder:'ابحث بالاسم أو الرمز',editDocument:'تعديل المسودة',
  inventory:'المخزون',inventoryHint:'يُتابع المخزون بشكل مستقل لكل مستودع ومتجر. تُضاف الكميات فقط بعد تأكيد الاستلام.',
- suppliers:'الموردون',suppliersHint:'المورد هو الجهة التي تشتري منها البضاعة، مثل شركة أو مندوب شركة. احفظ بيانات التواصل وتابع سجل مشترياتك من كل مورد.',purchases:'الشراء والاستلام',purchasesHint:'احفظ مسودة، راجع البضاعة، ثم أكّد الكميات الفعلية مرة واحدة.',
+ suppliers:'الموردون',suppliersHint:'بيانات الموردين وسجل مشترياتك منهم.',purchases:'الشراء والاستلام',purchasesHint:'اطلب بضاعة لاحقاً، أو سجّل بضاعة وصلت بالفعل.',
  'inventory.view':'عرض المخزون والحركات','suppliers.view':'عرض الموردين','suppliers.manage':'إدارة الموردين','purchasing.view':'عرض مستندات الشراء','purchasing.manage':'إدارة أوامر الشراء','receiving.create':'إعداد مستندات الاستلام','receiving.confirm':'تأكيد الاستلام وإضافة المخزون',
  supplierName:'اسم المورد',supplierCode:'رمز المورد',contact:'مسؤول التواصل',phone:'الهاتف',email:'البريد الإلكتروني',address:'العنوان',notes:'ملاحظات',supplierReference:'رقم فاتورة المورد / المرجع',
  supplierNamePlaceholder:'مثال: الخليج للمواد الغذائية',contactPlaceholder:'مثال: أحمد — مسؤول التوصيل',phonePlaceholder:'+971 50 123 4567',emailPlaceholder:'orders@example.com',addressPlaceholder:'المبنى والشارع والمدينة',notesPlaceholder:'تعليمات التسليم أو تفاصيل مفيدة',supplierReferencePlaceholder:'مثال: INV-2026-1042',
@@ -29,7 +29,7 @@ export const operationsCopy={
  chooseLocation:'اختيار الموقع',chooseSupplier:'اختيار المورد',chooseRecord:'اختيار سجل',chooseHint:'ابحث بالاسم أو الرمز. تُعرض فقط السجلات المتاحة لك.',selectedLocation:'الموقع',selectedSupplier:'المورد',change:'تغيير',
  balances:'أرصدة المخزون',movements:'سجل الحركات',onHand:'الكمية الموجودة',reserved:'المحجوز',available:'المتاح',lowStock:'مخزون منخفض',reference:'المرجع',quantity:'الكمية',movement:'الحركة',PURCHASE_RECEIPT:'استلام مشتريات',stockEmptyHint:'تظهر المنتجات بعد أول حركة مخزون. تسجيل المنتج لا يضيف مخزونًا.',
  RECEIPT:'الاستلام',ORDER:'أوامر الشراء',DRAFT:'مسودة',PENDING:'بانتظار التأكيد',OPEN:'مفتوح',PARTIAL:'مستلم جزئيًا',RECEIVED:'مستلم بالكامل',COMPLETED:'مكتمل',CANCELLED:'ملغي',
- newReceiptTooltip:'سجّل البضاعة التي استلمتها فعليًا. يتحدّث المخزون عند تأكيد الاستلام.',newOrderTooltip:'حدّد المنتجات التي تنوي شراءها مستقبلاً.',newReceipt:'استلام بضاعة',newOrder:'طلب شراء مستقبلي',openDocument:'فتح المستند',back:'رجوع',documentDate:'تاريخ المستند',orderDate:'تاريخ طلب الشراء',duplicatePlannedProduct:'هذا المنتج موجود في الاستلام الحالي. استخدم استلاماً منفصلاً لربطه بصنف آخر من الطلب.',saveDraft:'حفظ المسودة',submitDocument:'إرسال للتأكيد',releaseOrder:'فتح أمر الشراء',confirmReceipt:'تأكيد الاستلام',reopenDraft:'إعادة إلى مسودة',cancelDocument:'إلغاء المستند',receiveRemaining:'استلام الكميات المتبقية',
+ newReceiptTooltip:'سجّل البضاعة التي استلمتها فعليًا. يتحدّث المخزون عند تأكيد الاستلام.',newOrderTooltip:'حدّد المنتجات التي تنوي شراءها مستقبلاً.',newReceipt:'استلام مخزون',newOrder:'طلب من المورد',openDocument:'فتح المستند',back:'رجوع',documentDate:'تاريخ المستند',orderDate:'تاريخ طلب الشراء',duplicatePlannedProduct:'هذا المنتج موجود في الاستلام الحالي. استخدم استلاماً منفصلاً لربطه بصنف آخر من الطلب.',saveDraft:'حفظ المسودة',submitDocument:'إرسال للتأكيد',releaseOrder:'فتح أمر الشراء',confirmReceipt:'تأكيد الاستلام',reopenDraft:'إعادة إلى مسودة',cancelDocument:'إلغاء المستند',receiveRemaining:'استلام الكميات المتبقية',
  documentHint:'أدخل الكميات الفعلية. حفظ المسودة أو إرسالها لا يغير المخزون.',orderHint:'يسجّل أمر الشراء ما تنوي شراءه. لا يتغير المخزون إلا عند تأكيد استلام مرتبط به.',
  quantitiesBase:'الكميات والتكاليف أدناه بوحدة المنتج الأساسية. لا تُجمع الوحدات المختلفة معًا.',unitCost:'تكلفة الوحدة الأساسية',baseQuantity:'الكمية الأساسية',receivedQuantity:'الكمية المستلمة',remainingQuantity:'الكمية المتبقية',totalValue:'القيمة الإجمالية',remove:'إزالة',addLine:'إضافة المنتج للمستند',
  scanMode:'طريقة المسح',scanOnce:'مسح واحد ثم إدخال الكمية',scanRepeated:'كل مسح يضيف وحدة أساسية',receivingBarcode:'الباركود أو رمز الصنف',scanPlaceholder:'امسح الباركود أو اكتبه ثم اضغط Enter',lineAdded:'أُضيف المنتج أو حُدّثت كميته.',noLines:'أضف منتجًا واحدًا على الأقل قبل الحفظ.',scanBusy:'جارٍ البحث عن المنتج…',searchProductHint:'ابحث بالاسم أو رمز الصنف أو الباركود، أو استخدم القارئ أعلاه.',selectProduct:'اختيار المنتج',lineQuantityPlaceholder:'مثال: ١٢',costPlaceholder:'مثال: 2.5000',
@@ -40,3 +40,24 @@ export const operationsCopy={
  'supplier.created':'إضافة مورد','supplier.updated':'تحديث مورد','purchase.created':'إنشاء مستند شراء','purchase.updated':'تعديل مسودة شراء','purchase.status_changed':'تغيير حالة مستند شراء','product.pack_created':'إضافة عبوة للمنتج',
  }
 };
+
+Object.assign(operationsCopy.en,{
+ receiptItems:'Enter items',receiptReview:'Review',receiptStock:'Add stock',receiptApproval:'Approval',
+ receiptEntryHint:'Choose the goods received and enter their quantities. Review before adding stock.',
+ reviewReceipt:'Review receipt',scanOptional:'Use a barcode scanner (optional)',
+ receiveNow:'Confirm & add stock',sendForApproval:'Send for approval',
+ receiptReviewHint:'Review the supplier, location and quantities. Stock has not changed yet.',
+ receiptPendingHint:'Sent for approval. Stock will change only after an authorized user confirms.',
+ receiptCompletedHint:'Stock added. This receipt is complete.',
+ receiptConfirmTitle:'Add these items to stock?',receiptSent:'Sent for approval. Stock has not changed.',
+});
+Object.assign(operationsCopy.ar,{
+ receiptItems:'إدخال الأصناف',receiptReview:'مراجعة',receiptStock:'إضافة المخزون',receiptApproval:'الموافقة',
+ receiptEntryHint:'اختر البضاعة المستلمة وأدخل كمياتها، ثم راجع الاستلام قبل إضافة المخزون.',
+ reviewReceipt:'مراجعة الاستلام',scanOptional:'استخدام قارئ الباركود (اختياري)',
+ receiveNow:'تأكيد وإضافة المخزون',sendForApproval:'إرسال للموافقة',
+ receiptReviewHint:'راجع المورد والموقع والكميات. لم يتغير المخزون بعد.',
+ receiptPendingHint:'أُرسل للموافقة. يتغير المخزون فقط بعد تأكيد مستخدم مخوّل.',
+ receiptCompletedHint:'أُضيف المخزون. اكتمل هذا الاستلام.',
+ receiptConfirmTitle:'إضافة هذه الأصناف إلى المخزون؟',receiptSent:'أُرسل للموافقة. لم يتغير المخزون.',
+});

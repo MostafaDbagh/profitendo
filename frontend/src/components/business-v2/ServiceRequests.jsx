@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import {useState} from 'react';
 import {Lightbulb,Send} from 'lucide-react';
 import {Field,inputClass} from '../auth-v2/Fields';
@@ -22,7 +23,7 @@ export default function ServiceRequests({context,api,lang}){
    <fieldset disabled={busy} className="space-y-4">
     <Select id="service-request-type" label={ar?'نوع الطلب':'Request type'} value={category} onChange={e=>setCategory(e.target.value)} disabled={busy}><option value="SERVICE">{c('SERVICE')}</option><option value="FEATURE">{c('FEATURE')}</option></Select>
     <Field id="service-request-subject" label={ar?'عنوان الطلب':'Request title'} placeholder={ar?'مثال: إضافة تقرير أرباح شهري':'e.g. Add a monthly profit report'} value={subject} onChange={e=>setSubject(e.target.value)} required minLength={3} maxLength={160}/>
-    <div><label htmlFor="service-request-description" className="block text-sm font-medium text-slate-700 mb-1.5">{ar?'التفاصيل وكيف سيساعدك الطلب':'Details and how this would help'}</label><textarea id="service-request-description" className={`${inputClass} min-h-36 resize-y`} rows={5} required minLength={2} maxLength={5000} value={body} onChange={e=>setBody(e.target.value)} placeholder={ar?'اشرح الخدمة أو الميزة المطلوبة والمشكلة التي تريد حلها…':'Describe the service or feature you need and the problem it would solve…'}/></div>
+    <div><label htmlFor="service-request-description" className="block text-sm font-medium text-slate-700 mb-1.5">{ar?'التفاصيل وكيف سيساعدك الطلب':'Details and how this would help'}<RequiredMark/></label><textarea id="service-request-description" className={`${inputClass} min-h-36 resize-y`} rows={5} required minLength={2} maxLength={5000} value={body} onChange={e=>setBody(e.target.value)} placeholder={ar?'اشرح الخدمة أو الميزة المطلوبة والمشكلة التي تريد حلها…':'Describe the service or feature you need and the problem it would solve…'}/></div>
    </fieldset>
    <button type="submit" className={primaryClass} disabled={busy||subject.trim().length<3||body.trim().length<2}><Send className="h-4 w-4" aria-hidden="true"/>{busy?(ar?'جارٍ الإرسال…':'Sending…'):(ar?'إرسال الطلب':'Send request')}</button>
   </form>

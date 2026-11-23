@@ -1,3 +1,4 @@
+import RequiredMark from '../components/RequiredMark';
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Lock, Loader2, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
@@ -71,14 +72,16 @@ export default function ResetPassword() {
           <h1 className="text-xl font-bold text-slate-100" data-testid="reset-title">{t("resetTitle")}</h1>
           <p className="text-sm text-slate-400 mt-1 mb-6">{t("resetDesc")}</p>
           <form onSubmit={submit} className="space-y-4" data-testid="reset-form">
+            <label htmlFor="reset-password-input" className="block text-sm font-medium text-slate-300">{t("newPassword")}<RequiredMark/></label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="reset-password-input" type="password" required minLength={6} value={password}
+              <input id="reset-password-input" data-testid="reset-password-input" type="password" required minLength={6} value={password}
                 onChange={(e) => setPassword(e.target.value)} placeholder={t("newPassword")} className={inputCls} />
             </div>
+            <label htmlFor="reset-confirm-input" className="block text-sm font-medium text-slate-300">{t("confirmPassword")}<RequiredMark/></label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="reset-confirm-input" type="password" required minLength={6} value={confirm}
+              <input id="reset-confirm-input" data-testid="reset-confirm-input" type="password" required minLength={6} value={confirm}
                 onChange={(e) => setConfirm(e.target.value)} placeholder={t("confirmPassword")} className={inputCls} />
             </div>
             {error && <p className="text-xs text-red-400" data-testid="reset-error">{error}</p>}

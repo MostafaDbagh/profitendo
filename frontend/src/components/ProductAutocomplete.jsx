@@ -53,7 +53,7 @@ export function ProductAutocomplete({ products, value, onPick, onAdd, index, pre
       <div className="relative">
         <Package className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
         <input
-          data-testid={`${prefix}-product-${index}`}
+          id={`${prefix}-product-${index}`} data-testid={`${prefix}-product-${index}`}
           type="text"
           autoComplete="off"
           value={open ? query : selected?.name || ""}

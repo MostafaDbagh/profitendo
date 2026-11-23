@@ -1,3 +1,4 @@
+import RequiredMark from '../RequiredMark';
 import { Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -22,20 +23,20 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
       <form onSubmit={onSubmit} className="space-y-4" data-testid="auth-form">
         {mode === "register" && (
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")}</label>
+            <label htmlFor="auth-name-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("name")}<RequiredMark/></label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="auth-name-input" type="text" required value={form.name} onChange={set("name")}
+              <input id="auth-name-input" data-testid="auth-name-input" type="text" required value={form.name} onChange={set("name")}
                 placeholder={t("namePh")} className={inputCls} />
             </div>
           </div>
         )}
         {mode === "kiosk" || mode === "owner-setup" ? (
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("usernameLabel")}</label>
+            <label htmlFor="auth-username-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("usernameLabel")}<RequiredMark/></label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="auth-username-input" type="text" required value={form.username} onChange={set("username")}
+              <input id="auth-username-input" data-testid="auth-username-input" type="text" required value={form.username} onChange={set("username")}
                 placeholder={t("usernameLabel")} className={inputCls} dir="ltr" />
             </div>
           </div>
@@ -43,20 +44,20 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
           <p className="text-center text-sm font-semibold text-slate-700" dir="ltr" data-testid="kiosk-setup-username">@{form.username}</p>
         ) : (
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{mode === "register" ? t("email") : t("emailOrUsername")}</label>
+            <label htmlFor="auth-email-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{mode === "register" ? t("email") : t("emailOrUsername")}<RequiredMark/></label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="auth-email-input" type={mode === "register" ? "email" : "text"} required value={form.email}
+              <input id="auth-email-input" data-testid="auth-email-input" type={mode === "register" ? "email" : "text"} required value={form.email}
                 onChange={set("email")} placeholder={mode === "register" ? t("emailPh") : t("emailOrUsername")}
                 className={inputCls} dir="ltr" />
             </div>
           </div>
         )}
         <div>
-          <label className="text-sm font-medium text-slate-700 mb-1.5 block">{isSetup ? t("newPassword") : t("password")}</label>
+          <label htmlFor="auth-password-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{isSetup ? t("newPassword") : t("password")}<RequiredMark/></label>
           <div className="relative">
             <Lock className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-            <input data-testid="auth-password-input" type="password" required minLength={6} value={form.password}
+            <input id="auth-password-input" data-testid="auth-password-input" type="password" required minLength={6} value={form.password}
               onChange={set("password")} placeholder={t("passwordPh")} className={inputCls} />
           </div>
           {mode === "login" && (
@@ -70,10 +71,10 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
         </div>
         {isSetup && (
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("confirmPassword")}</label>
+            <label htmlFor="auth-confirm-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("confirmPassword")}<RequiredMark/></label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input data-testid="auth-confirm-input" type="password" required minLength={6} value={form.confirm}
+              <input id="auth-confirm-input" data-testid="auth-confirm-input" type="password" required minLength={6} value={form.confirm}
                 onChange={set("confirm")} placeholder={t("confirmPassword")} className={inputCls} />
             </div>
           </div>
