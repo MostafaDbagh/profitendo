@@ -1,6 +1,6 @@
 export const completionCopy={
   "en": {
-    "FIFO_REVIEW_REQUIRED": "Stock quantities and FIFO cost layers need review. Ask the business owner to review inventory costing.",
+    "FIFO_REVIEW_REQUIRED": "Stock quantities and recorded purchase costs need review. Ask the business owner to review inventory costing.",
     "returns": "Customer & supplier returns",
     "counts": "Stock counts", "damage":"Damaged stock", "damageHint":"Record damaged quantities and reasons. Approval deducts them from inventory.", "newCount":"New stock count", "newDamage":"Record damaged stock", "damage.view":"View damaged stock", "damage.create":"Record damaged stock", "damage.approve":"Approve damaged stock", "damage.delete":"Cancel draft damage records",
     "payments": "Payments & daily cash",
@@ -108,7 +108,7 @@ export const completionCopy={
     "reportUtcHint": "Activity includes both selected dates in your business timezone:",
     "balanceAsOfNow": "Balances are current, across all receipt dates. Date filters do not limit outstanding balances.",
     "stockAsOfNow": "Stock is current. Date filters do not change current quantities. Values use the current catalogue cost.",
-    "profitEstimateHint": "Estimated profit uses sale cost snapshots, sellable return recovery, recorded damage, transfer losses and expenses. It includes stock-count gains and losses at the recorded cost, plus supplier credits minus the FIFO value of returned stock. Tax is not included.",
+    "profitEstimateHint": "Estimated profit uses sale cost snapshots, sellable return recovery, recorded damage, transfer losses and expenses. It includes stock-count gains and losses at the recorded cost, plus supplier credits minus the recorded cost of returned stock. Tax is not included.",
     "exportCsv": "Export CSV",
     "metric_purchases": "Purchases received",
     "metric_saleCount": "Completed sales",
@@ -216,7 +216,7 @@ export const completionCopy={
     "report.exported": "Report exported"
   },
   "ar": {
-    "FIFO_REVIEW_REQUIRED": "تحتاج كميات المخزون وطبقات تكلفة FIFO إلى مراجعة. اطلب من مالك النشاط مراجعة تكلفة المخزون.",
+    "FIFO_REVIEW_REQUIRED": "تحتاج كميات المخزون وتكاليف الشراء المسجلة إلى مراجعة. اطلب من مالك النشاط مراجعة تكلفة المخزون.",
     "returns": "مرتجعات العملاء والموردين",
     "counts": "الجرد", "damage":"التالف", "damageHint":"سجّل الكميات التالفة وأسباب التلف. تُخصم من المخزون عند الاعتماد.", "newCount":"جرد جديد", "newDamage":"تسجيل تالف", "damage.view":"عرض التالف", "damage.create":"تسجيل التالف", "damage.approve":"اعتماد التالف", "damage.delete":"إلغاء مسودات التالف",
     "payments": "الدفعات والصندوق اليومي",
@@ -324,7 +324,7 @@ export const completionCopy={
     "reportUtcHint": "يشمل النشاط تاريخي البداية والنهاية بتوقيت نشاطك:",
     "balanceAsOfNow": "الأرصدة حالية وتشمل كل تواريخ الاستلام؛ لا يقيّدها مرشح التاريخ.",
     "stockAsOfNow": "المخزون حالي؛ لا تغيّر التواريخ الكميات الحالية. تستخدم القيم تكلفة الدليل الحالية.",
-    "profitEstimateHint": "الربح التقديري يستخدم تكلفة البيع المحفوظة واسترداد المرتجعات الصالحة والتلف وفاقد التحويلات والمصروفات المسجلة. يشمل أرباح وخسائر الجرد بالتكلفة المسجلة، وفروق رصيد المورد عن قيمة المخزون المرتجع وفق FIFO. لا يشمل الضرائب.",
+    "profitEstimateHint": "الربح التقديري يستخدم تكلفة البيع المحفوظة واسترداد المرتجعات الصالحة والتلف وفاقد التحويلات والمصروفات المسجلة. يشمل أرباح وخسائر الجرد بالتكلفة المسجلة، وفروق رصيد المورد عن التكلفة المسجلة للمخزون المرتجع. لا يشمل الضرائب.",
     "exportCsv": "تصدير CSV",
     "metric_purchases": "المشتريات المستلمة",
     "metric_saleCount": "المبيعات المكتملة",

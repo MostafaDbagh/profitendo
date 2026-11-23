@@ -1084,3 +1084,73 @@ and native screenshot capture returned a blank image. The old editor was read
 through native accessibility, but no valid new before/after screenshots or
 desktop/mobile visual sign-off are claimed. Local fixture setup/backups are in
 `tmp/receiving-simple/`. No production deployment was performed.
+
+## Settings and permission simplification — 23 November 2026
+
+Business settings now precede FIFO. Existing FIFO review/activation is unchanged
+and sits inside a closed Accounting settings disclosure, shown only with the
+existing migration.manage permission and omitted from initial setup.
+
+TimezoneField replaces typed IANA identifiers with a labelled city selector and
+search dialog. Common regional cities have Arabic/English labels; other zones
+use readable city/region names. Choices retain the IANA identifier for the API.
+Searching or closing never changes the saved value; selecting changes only the
+form until Save. UTC and saved aliases stay available. The browser's supported
+zone enumeration provides worldwide choices, with common zones/current value as
+an older-browser fallback. Uses the shared Modal, required mark and field styles.
+
+Roles now appear as a compact list with expandable permission details instead of
+a wide permission matrix. Custom-role creation starts with the existing role
+selector, then name; granular grants are under Customize permissions and grouped
+by task. Employee editing shows role/status first, with a visible indication of
+custom exceptions and collapsed groups. Closing details never clears overrides;
+changing role still resets them as before. Existing grantable-key filtering,
+manager grant restrictions, backend authorization and session revocation remain.
+The member default-option text is now a single string, avoiding invalid nested
+spans from the development instrumentation.
+
+Validation: 64 frontend tests pass, including Arabic/English timezone selection,
+settings order, optional FIFO disclosure, existing timezone preservation, UTC and
+alias fallback, no write on search, read-only controls, failed-save recovery,
+role templates, preserved member overrides and grant restrictions. All 35
+business integration tests pass against the dedicated local test database.
+Production build/prerender passes. Browser host remained unavailable, so fresh
+before/after screenshots and desktop/mobile visual sign-off are outstanding.
+Source baselines are in tmp/settings-simple/. No production changes or deployment.
+
+## Plain-language stock costing — 23 November 2026
+
+User explicitly requires language understandable without accounting knowledge.
+Client-facing FIFO wording is replaced with “How we calculate your profit” /
+“كيف نحسب ربحك”. Explain purchase cost versus selling price with a bottle bought
+for 5 and sold for 9 (profit 4 before other expenses), then explain using the
+new purchase cost after older stock runs out. Review and activation buttons use
+plain action labels. Review instructions explain checking quantities and purchase
+bills; prior sales and selling prices remain unchanged. Related report error/help
+and audit-event labels also remove FIFO jargon. API identifiers, accounting rules,
+permissions and required activation review remain unchanged. Browser visual
+verification is still unavailable; source copy and production build were checked.
+
+## Owner dashboard and money follow-up — 23 November 2026
+
+Dashboard now defaults to Today (business timezone), with This month available.
+Primary figures are sales, expenses and estimated profit; chart detail is in a
+closed disclosure. Locked owner views omit sensitive figures and charts. The
+receiving shortcut says Receive goods. Money follow-up links route to supplier
+balances and customer refunds with existing permission checks and report PIN gate.
+No customer receivables are invented: this backend tracks supplier outstanding /
+refund balances and refunds owed to customers, not unpaid customer sales.
+
+Balance/refund reports lead with the remaining amounts and explicit direction
+(You owe supplier / Supplier owes you / Still owed to customer). Full invoice and
+payment columns remain in expandable details; exports retain the full report.
+Date presets are hidden for these current-balance reports. Record payment opens
+the existing entry/review flow; Record refund opens customer refund directly,
+with its own local draft namespace to avoid restoring supplier payment input.
+No backend calculations, write contracts or permissions were changed.
+
+Validation: 73 frontend tests and production build/prerender pass. New checks
+cover daily/monthly requests, Arabic/English dashboard, financial lock protection,
+permission-filtered links, compact balance details, PIN-blocked report requests,
+and correct refund navigation/form default. Browser host remained unavailable;
+no new desktop/mobile screenshots or visual sign-off are claimed. Not deployed.

@@ -7,8 +7,48 @@ import {useResource} from './useBusinessApi';
 import {Field} from '../auth-v2/Fields';
 import {Feedback,Modal,buttonClass,panelClass,primaryClass} from './UI';
 const copy={
- en:{title:'Inventory costing',review:'Review opening stock for FIFO',hint:'FIFO uses the oldest received stock costs first. Review each location’s quantity and opening unit cost before activation. Past sales keep their recorded costs.',openingHint:'Each product and location starts with one reviewed opening layer. Correct quantities through a stock count first. Suggested costs come from the product catalogue; verify them against your records.',active:'FIFO is active',confirm:'I verified every opening quantity and unit cost. Start FIFO for future stock movements.',activate:'Activate FIFO',location:'Location',product:'Product',quantity:'Opening quantity',cost:'Opening unit cost',blocked:'Finish all in-transit transfers before activating FIFO.',empty:'There is no stock on hand. Future receipts will create FIFO cost layers.',FIFO_REVIEW_REQUIRED:'Review every opening quantity and cost before continuing.',FIFO_TRANSFERS_OPEN:'Finish in-transit transfers, then refresh this review.',FIFO_REVIEW_TOO_LARGE:'This business has more than 1,000 stocked product/location rows. A staged opening-stock migration is required.',success:'FIFO activated. Historical transactions are unchanged.'},
- ar:{title:'تكلفة المخزون',review:'مراجعة المخزون الافتتاحي لتفعيل FIFO',hint:'تُحتسب تكلفة المخزون الأقدم أولاً وفق FIFO. راجع الكمية وتكلفة الوحدة الافتتاحية لكل موقع قبل التفعيل. تحتفظ المبيعات السابقة بتكاليفها المسجلة.',openingHint:'يبدأ كل منتج في كل موقع بطبقة افتتاحية واحدة مُراجعة. صحح الكميات بالجرد أولاً. التكاليف المقترحة مأخوذة من دليل المنتجات؛ تحقق منها مقابل سجلاتك.',active:'FIFO مفعّل',confirm:'تحققت من جميع الكميات وتكاليف الوحدات الافتتاحية. أوافق على تطبيق FIFO على حركات المخزون القادمة.',activate:'تفعيل FIFO',location:'الموقع',product:'المنتج',quantity:'الكمية الافتتاحية',cost:'تكلفة الوحدة الافتتاحية',blocked:'أكمل جميع التحويلات قيد النقل قبل تفعيل FIFO.',empty:'لا يوجد مخزون متاح حالياً. ستنشئ الاستلامات القادمة طبقات تكلفة FIFO.',FIFO_REVIEW_REQUIRED:'راجع جميع الكميات والتكاليف الافتتاحية قبل المتابعة.',FIFO_TRANSFERS_OPEN:'أكمل التحويلات قيد النقل ثم حدّث المراجعة.',FIFO_REVIEW_TOO_LARGE:'يتجاوز هذا النشاط ١٬٠٠٠ صف مخزون للمنتجات والمواقع. يلزم ترحيل افتتاحي على مراحل.',success:'تم تفعيل FIFO مع الحفاظ على المعاملات التاريخية.'}
+  "en": {
+    "title": "How we calculate your profit",
+    "review": "Check quantities and purchase costs",
+    "hint": "When you sell an item, we subtract its purchase cost from its selling price. We use the cost of the items you received first.",
+    "example": "Example: you bought a bottle for 5 and sold it for 9. Your profit is 4 before other expenses. If your next bottles cost 7, we start using 7 after the older bottles run out.",
+    "openingHint": "Check how many items you have and what you paid for each one. The costs shown come from your product list; check them against your purchase bills. If a quantity is wrong, correct it in Stock count first.",
+    "effect": "Starts from now. Earlier sales and your selling prices stay the same.",
+    "active": "This method is on.",
+    "confirm": "I checked the quantities and purchase costs. Use them from now on.",
+    "activate": "Start using this method",
+    "location": "Location",
+    "product": "Product",
+    "quantity": "Current quantity",
+    "cost": "Purchase cost per item",
+    "blocked": "Complete all stock transfers that are still on the way before enabling this calculation.",
+    "empty": "There is no stock to review. Costs will be recorded when you receive stock.",
+    "FIFO_REVIEW_REQUIRED": "Check every stock quantity and cost before continuing.",
+    "FIFO_TRANSFERS_OPEN": "Complete stock transfers that are still on the way, then refresh this review.",
+    "FIFO_REVIEW_TOO_LARGE": "There are too many product and location entries to set up at once. Contact support to complete setup in stages.",
+    "success": "This method is now on. Earlier sales stay the same."
+  },
+  "ar": {
+    "title": "كيف نحسب ربحك",
+    "review": "مراجعة الكميات وتكلفة الشراء",
+    "hint": "عندما تبيع قطعة، نطرح تكلفة شرائها من سعر بيعها لحساب ربحك. نبدأ بتكلفة البضاعة التي استلمتها أولاً.",
+    "example": "مثال: اشتريت عبوة بـ 5 وبعتها بـ 9. ربحك 4 قبل المصروفات الأخرى. إذا اشتريت عبوات جديدة بـ 7، نبدأ بحساب تكلفتها بـ 7 بعد نفاد العبوات القديمة.",
+    "openingHint": "راجع عدد القطع الموجودة وتكلفة شراء القطعة. التكاليف المعروضة مأخوذة من قائمة منتجاتك؛ تأكد منها باستخدام فواتير الشراء. إذا كان عدد القطع خاطئاً، صححه من شاشة الجرد أولاً.",
+    "effect": "يبدأ العمل بها من الآن. لا تتغير المبيعات السابقة أو أسعار البيع.",
+    "active": "هذه الطريقة مفعّلة.",
+    "confirm": "راجعت الكميات وتكلفة الشراء وأوافق على استخدامها من الآن.",
+    "activate": "بدء استخدام هذه الطريقة",
+    "location": "الموقع",
+    "product": "المنتج",
+    "quantity": "الكمية الحالية",
+    "cost": "تكلفة شراء القطعة",
+    "blocked": "أكمل جميع تحويلات المخزون التي لا تزال في الطريق قبل التفعيل.",
+    "empty": "لا يوجد مخزون لمراجعته. ستُسجل التكاليف عند استلام البضاعة.",
+    "FIFO_REVIEW_REQUIRED": "راجع جميع كميات المخزون وتكاليفه قبل المتابعة.",
+    "FIFO_TRANSFERS_OPEN": "أكمل تحويلات المخزون التي لا تزال في الطريق، ثم حدّث المراجعة.",
+    "FIFO_REVIEW_TOO_LARGE": "عدد المنتجات والمواقع كبير لإعدادها دفعة واحدة. تواصل مع الدعم لإكمال الإعداد على مراحل.",
+    "success": "تم بدء استخدام هذه الطريقة. بقيت المعاملات السابقة كما هي."
+  }
 };
 function OpeningReview({context,api,c,lang,close,done,returnFocus}){
  const {data,error,reload}=useResource(api,`/businesses/${context.business.id}/operations/fifo-review`),[costs,setCosts]=useState({}),[confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false),[failure,setFailure]=useState('');
@@ -21,5 +61,5 @@ export default function FifoSettings({context,api,c:parentCopy,lang}){
  const [trigger,setTrigger]=useState(null),[activated,setActivated]=useState(false),c=key=>copy[lang]?.[key]||copy.en[key]||parentCopy(key);
  if(!context.permissions['migration.manage'])return null;
  const active=activated||context.business.fifoStartedAt;
- return <section className={`${panelClass} space-y-3 max-w-3xl`} data-testid="fifo-settings"><h2 className="text-lg font-bold">{c('title')}</h2><p className="text-sm text-slate-500">{c('hint')}</p>{active?<p role="status" className="text-emerald-800">{c(activated?'success':'active')}</p>:<button className={buttonClass} onClick={e=>setTrigger(e.currentTarget)}>{c('review')}</button>}{trigger&&<OpeningReview {...{context,api,c,lang}} returnFocus={trigger} close={()=>setTrigger(null)} done={()=>{setActivated(true);setTrigger(null);}}/>}</section>;
+ return <section className={`${panelClass} space-y-3 max-w-3xl`} data-testid="fifo-settings"><h2 className="text-lg font-bold">{c('title')}</h2><p className="text-sm text-slate-500">{c('hint')}</p><p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{c('example')}</p><p className="text-xs text-slate-500">{c('effect')}</p>{active?<p role="status" className="text-emerald-800">{c(activated?'success':'active')}</p>:<button className={buttonClass} onClick={e=>setTrigger(e.currentTarget)}>{c('review')}</button>}{trigger&&<OpeningReview {...{context,api,c,lang}} returnFocus={trigger} close={()=>setTrigger(null)} done={()=>{setActivated(true);setTrigger(null);}}/>}</section>;
 }

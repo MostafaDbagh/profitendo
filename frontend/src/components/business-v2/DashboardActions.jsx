@@ -3,7 +3,7 @@ import { Plus, Receipt, RotateCcw, ShoppingBag, ShoppingCart, Truck } from 'luci
 const actions = [
   { tab: 'catalogue', action: 'new', Icon: Plus, permissions: ['catalogue.create', 'catalogue.cost'], ar: 'إضافة منتج', en: 'Add product' },
   { tab: 'suppliers', action: 'new', Icon: Truck, permissions: ['suppliers.create'], ar: 'إضافة مورد', en: 'Add supplier' },
-  { tab: 'purchases', action: 'new', Icon: ShoppingBag, permissions: ['receiving.create'], ar: 'إضافة مشتريات', en: 'Add purchase' },
+  { tab: 'purchases', action: 'new', Icon: ShoppingBag, permissions: ['receiving.create'], ar: 'استلام بضاعة', en: 'Receive goods' },
   { tab: 'returns', action: 'customer', Icon: RotateCcw, permissions: ['returns.create', 'sales.view'], ar: 'تسجيل مرتجع', en: 'Record customer return' },
   { tab: 'expenses', action: 'new', Icon: Receipt, permissions: ['payments.manage'], ar: 'إضافة مصروف', en: 'Add expense' },
   { tab: 'sales', action: 'new', Icon: ShoppingCart, permissions: ['sales.create'], ar: 'تسجيل بيع', en: 'Record sale' },

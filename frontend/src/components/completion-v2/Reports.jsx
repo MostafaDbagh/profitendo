@@ -1,3 +1,4 @@
+import Disclosure from '../business-v2/Disclosure';
 import { OwnerPinUnlock } from '../business-v2/OwnerPin';
 import { useState } from 'react';
 import { currencyFormatter } from '../../lib/currencyFormat';
@@ -36,7 +37,7 @@ function ReportCell({ name, value, lang, timezone, c }) {
   return quantities.includes(name) ? formatQuantity(value) : value;
 }
 
-export default function Reports({ context, api, c, lang, pinLocked, onPinStatus }) {
+export default function Reports({ context, api, c, lang, pinLocked, onPinStatus, initialAction, onSection, visibleTabs=[] }) {
   const { timezone } = context.business;
   const permissions = context.permissions;
   const purchase = permissions['catalogue.cost'] && permissions['purchasing.view'];
@@ -52,10 +53,11 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus 
   const [preset, setPreset] = useState('recent');
   const [range, setRange] = useState(() => presetRange(today, 'recent'));
   const [draft, setDraft] = useState(range);
-  const [view, setView] = useState('sales');
+  const [view, setView] = useState(()=>['balances','refunds'].includes(initialAction)&& (initialAction==='balances'?purchase:payments)?initialAction:'sales');
   const [location, setLocation] = useState(null), [page, setPage] = useState(1), [low, setLow] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const path = `/businesses/${context.business.id}/workflows/reports?view=${view}&from=${range.from}&to=${range.to}&page=${page}&lowStock=${view === 'stock' && low}${location ? `&locationId=${location.id}` : ''}`;
+  const moneyView=['balances','refunds'].includes(view);
   const restricted = pinLocked && ['profit','payments','expenses','cash','balances','refunds'].includes(view);
   const {data, error: loadError, reload} = useResource(api, restricted ? null : `${path}`);
   const safeData = pinLocked && view === 'summary' && data
@@ -88,12 +90,13 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus 
         className={view === key ? primaryClass : buttonClass} onClick={() => changeView(key)}>{c(`report_${key}`)}</button>)}
     </div>
     <div className={`${panelClass} space-y-4`}>
-      <div className="flex flex-wrap gap-2" role="group" aria-label={c('reportPeriod')}>
+      {!moneyView&&<div className="flex flex-wrap gap-2" role="group" aria-label={c('reportPeriod')}>
         {presets.map(key => <button key={key} type="button" aria-pressed={preset === key}
           className={`${buttonClass} ${preset === key ? '!border-slate-900 !bg-slate-900 !text-white' : ''}`}
           onClick={() => changePreset(key)}>{c(`reportRange_${key}`)}</button>)}
       </div>
-      {preset === 'custom' && <form className="flex flex-wrap items-end gap-3" onSubmit={event => {
+      }
+      {!moneyView && preset === 'custom' && <form className="flex flex-wrap items-end gap-3" onSubmit={event => {
         event.preventDefault(); applyRange(draft);
       }}>
         <Field id="report-from" type="date" label={c('dateFrom')} value={draft.from} max={draft.to}
@@ -136,11 +139,13 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus 
       </dl>
       {safeData.estimatedProfit !== undefined && <p className="text-sm text-slate-500">{c(data.unvaluedTransferLosses ? 'profitMissingLossCosts' : 'profitEstimateHint')}</p>}
     </> : <>
-      <Table c={key => c(`column_${key}`,key)} headers={data.headers} empty={!data.items.length}>
-        {data.items.map((row, index) => <tr key={index}>{data.headers.map(name => <td key={name} className="whitespace-nowrap p-4">
+      {moneyView&&<div className="mb-4 space-y-2"><h3 className="text-lg font-semibold">{lang==='ar'?(view==='balances'?'مبالغ الموردين':'مبالغ يجب إعادتها للعملاء'):(view==='balances'?'Supplier money owed':'Customer refunds to pay')}</h3>{context.permissions['payments.manage']&&visibleTabs.includes('payments')&&(view!=='balances'||context.permissions['purchasing.manage'])&&<button type="button" className={primaryClass} onClick={()=>onSection('payments',view==='refunds'?'refund':'new')}>{view==='refunds'?(lang==='ar'?'تسجيل رد المبلغ':'Record refund'):c('recordPayment')}</button>}</div>}
+      <Table tools={!moneyView} c={key => moneyView&&key==='outstanding'?(lang==='ar'?(view==='balances'?'عليك للمورد':'المتبقي للعميل'):(view==='balances'?'You owe supplier':'Still owed to customer')):moneyView&&key==='refundDue'?(lang==='ar'?'المورد مدين لك':'Supplier owes you'):c(`column_${key}`,key)} headers={moneyView?data.headers.filter(key=>['reference','supplier','location','outstanding','refundDue','currency'].includes(key)):data.headers} empty={!data.items.length}>
+        {data.items.map((row, index) => <tr key={index}>{(moneyView?data.headers.filter(key=>['reference','supplier','location','outstanding','refundDue','currency'].includes(key)):data.headers).map(name => <td key={name} className="whitespace-nowrap p-4">
           <ReportCell {...{name,lang,timezone,c}} value={row[name]} />
         </td>)}</tr>)}
       </Table>
+      {moneyView&&<Disclosure title={lang==='ar'?'تفاصيل الفواتير والدفعات':'Invoice and payment details'}><Table tools={false} c={key=>c(`column_${key}`,key)} headers={data.headers} empty={!data.items.length}>{data.items.map((row,index)=><tr key={index}>{data.headers.map(name=><td key={name} className="whitespace-nowrap p-4"><ReportCell {...{name,lang,timezone,c}} value={row[name]}/></td>)}</tr>)}</Table></Disclosure>}
       <Pager {...{data,setPage,c}} />
     </>)}
     {!pinLocked && <ClosingReports {...{context,api,c,lang,range,location}} />}

@@ -1,3 +1,5 @@
+import Disclosure from './Disclosure';
+import {customizeLabel,permissionGroupLabels} from './PermissionDetails';
 import MemberLocations from './MemberLocations';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { UserPlus } from 'lucide-react';
@@ -8,7 +10,7 @@ import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass } from
 import { staffRoles } from './copy';
 function EditMember({ member, api, path, c, lang, close, done, returnFocus, permissionKeys, actorPermissions, isOwner, roleDefaults }) {
   const [role, setRole] = useState(member.customRoleId || member.role), [active, setActive] = useState(member.active), [overrides, setOverrides] = useState(member.permissionOverrides || {});
-  const groupLabels={business:'settings',team:'team',roles:'roles',audit:'audit',locations:'locations',catalogue:'catalogue',suppliers:'suppliers',purchasing:'purchases',receiving:'purchases',sales:'sales',transfers:'transfers',inventory:'inventory',returns:'returns',counts:'counts',damage:'damage',payments:'payments',cash:'payments',reports:'reports'};
+
   const groups=[...new Set(permissionKeys.map(key=>key.split('.')[0]))];
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
  const draft=useLocalDraft(`member:${member.id}:${member.revision}`,{role,active,overrides},saved=>{setRole(saved.role);setActive(saved.active);setOverrides(saved.overrides);});
@@ -22,8 +24,11 @@ function EditMember({ member, api, path, c, lang, close, done, returnFocus, perm
       <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error === 'REVISION_CONFLICT' ? () => done(false) : undefined} />
       <fieldset disabled={busy || error === 'REVISION_CONFLICT'} className="space-y-4">
         <Select id="member-role" label={c('role')} value={role} onChange={e => { setRole(e.target.value); setOverrides({}); }}>{staffRoles.map(r => <option key={r} value={r}>{c(r)}</option>)}{roleDefaults.filter(r => r.custom).map(r => <option key={r.role} value={r.role}>{r.name}</option>)}</Select>
+        <p className="text-sm text-slate-500">{Object.keys(overrides).length
+          ? (lang==='ar'?'توجد استثناءات مخصصة لهذا الموظف. افتح تخصيص الصلاحيات لمراجعتها.':'This employee has custom exceptions. Open Customize permissions to review them.')
+          : (lang==='ar'?'تُطبّق صلاحيات الدور المختار تلقائياً.':'The selected role’s permissions apply automatically.')}</p>
         <div><label className="flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" className="h-4 w-4 accent-emerald-600" checked={active} disabled={member.accountDisabled} onChange={e => setActive(e.target.checked)} />{c('active')}</label><p className="text-xs text-slate-500 mt-1.5">{c(member.accountDisabled ? 'accountDisabled' : 'activeHint')}</p></div>
-        <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-900 mb-3">{c('custom')}</legend>{groups.map(group=><details key={group} open className="rounded-xl border border-slate-200 p-3 space-y-3"><summary className="cursor-pointer font-semibold text-sm focus-visible:ring-2 focus-visible:ring-emerald-500">{c(groupLabels[group]||group)}</summary>{permissionKeys.filter(key=>key.startsWith(group+'.')).map(key => <Select key={key} id={`permission-${key}`} label={c(key)} value={typeof overrides[key] === 'boolean' ? String(overrides[key]) : 'default'} onChange={e => setOverrides(current => { const next = { ...current }; if (e.target.value === 'default') delete next[key]; else next[key] = e.target.value === 'true'; return next; })}><option value="default">{c('default')} · {c(roleDefaults.find(r=>r.role===role)?.permissions[key]?'allow':'deny')}</option><option value="true" disabled={!isOwner&&!actorPermissions[key]}>{c('allow')}</option><option value="false">{c('deny')}</option></Select>)}</details>)}</fieldset>
+        <Disclosure title={`${customizeLabel(lang)}${Object.keys(overrides).length?' ('+Object.keys(overrides).length+')':''}`}><fieldset className="space-y-3"><legend className="sr-only">{c('custom')}</legend>{groups.map(group=><Disclosure key={group} title={`${c(permissionGroupLabels[group]||group)}${Object.keys(overrides).some(key=>key.startsWith(group+'.'))?(lang==='ar'?' · مخصص':' · Customized'):''}`}>{permissionKeys.filter(key=>key.startsWith(group+'.')).map(key => <Select key={key} id={`permission-${key}`} label={c(key)} value={typeof overrides[key] === 'boolean' ? String(overrides[key]) : 'default'} onChange={e => setOverrides(current => { const next = { ...current }; if (e.target.value === 'default') delete next[key]; else next[key] = e.target.value === 'true'; return next; })}><option value="default">{`${c('default')} · ${c(roleDefaults.find(r=>r.role===role)?.permissions[key]?'allow':'deny')}`}</option><option value="true" disabled={!isOwner&&!actorPermissions[key]}>{c('allow')}</option><option value="false">{c('deny')}</option></Select>)}</Disclosure>)}</fieldset></Disclosure>
       </fieldset>
       <div className="flex flex-wrap justify-end gap-2 rtl:flex-row-reverse"><button type="button" className={buttonClass} disabled={busy} onClick={close}>{c('cancel')}</button><button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT'}>{c(busy ? 'saving' : 'save')}</button></div>
     </form>

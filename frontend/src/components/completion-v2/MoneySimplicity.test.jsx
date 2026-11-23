@@ -1,0 +1,21 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import Reports from './Reports';
+import Payments from './Payments';
+import {LanguageProvider} from '../../context/LanguageContext';
+jest.mock('react-router-dom',()=>({useNavigate:()=>()=>{}}),{virtual:true});
+jest.mock('@/lib/quantity',()=>({formatQuantity:v=>v}),{virtual:true});
+jest.mock('./ClosingReports',()=>()=>null);
+jest.mock('./PaymentReversal',()=>()=>null);
+jest.mock('../business-v2/OwnerPin',()=>({OwnerPinUnlock:()=> <p>Unlock required</p>}));
+jest.mock('../ui/dialog',()=>({Dialog:()=>null,DialogContent:()=>null,DialogTitle:()=>null,DialogDescription:()=>null}));
+jest.mock('./Shared',()=>({LocationChoice:()=>null,DocumentPicker:()=>null,decimalPattern:'[0-9]+',downloadCsv:()=>{},scale:()=>0n,format:String}));
+global.IS_REACT_ACT_ENVIRONMENT=true;
+let host,root,api,onSection;
+beforeEach(()=>{Object.defineProperty(window,'crypto',{configurable:true,value:{randomUUID:()=> 'test'}});host=document.createElement('div');document.body.append(host);root=createRoot(host);api=jest.fn(async()=>({headers:['reference','supplier','outstanding','refundDue','paid','currency'],items:[{reference:'R1',supplier:'Supplier',outstanding:'10',refundDue:'0',paid:'5',currency:'USD'}],page:1,pageSize:25,total:1}));onSection=jest.fn();});
+afterEach(()=>{act(()=>root.unmount());host.remove();});
+async function render(Component,props={}){await act(async()=>root.render(<LanguageProvider><Component context={{business:{id:'b',timezone:'Asia/Dubai',baseCurrency:'USD'},permissions:{'catalogue.cost':true,'purchasing.view':true,'purchasing.manage':true,'payments.view':true,'payments.manage':true}}} c={(key,fallback)=>fallback||key} lang="en" visibleTabs={['payments']} {...{api,onSection,...props}}/></LanguageProvider>));}
+test('supplier balances show clear directions and hide payment calculations in details',async()=>{await render(Reports,{initialAction:'balances'});expect(api.mock.calls[0][0]).toContain('view=balances');expect(host.textContent).toContain('You owe supplier');expect(host.textContent).toContain('Supplier owes you');expect(host.querySelector('table thead').textContent).not.toContain('paid');expect(host.querySelector('details table').textContent).toContain('paid');expect(host.querySelector('details').open).toBe(false);expect(host.querySelector('[aria-label="reportPeriod"]')).toBeNull();});
+test('refund action opens refund entry rather than supplier payment',async()=>{await render(Reports,{initialAction:'refunds'});act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Record refund').click());expect(onSection).toHaveBeenCalledWith('payments','refund');});
+test('locked balances never request or display financial report data',async()=>{await render(Reports,{initialAction:'balances',pinLocked:true});expect(api).not.toHaveBeenCalled();expect(host.textContent).toContain('Unlock required');expect(host.querySelector('table')).toBeNull();});
+test('refund entry starts on customer refund without writing anything',async()=>{await render(Payments,{initialAction:'refund'});expect(host.querySelector('#money-kind').value).toBe('CUSTOMER_REFUND');expect(api.mock.calls.every(([,options])=>!options?.method)).toBe(true);});
