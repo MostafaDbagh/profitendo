@@ -43,3 +43,8 @@ test('clearing table search restores matching rows, keeps the column filter and 
  expect(host.querySelector('[role="status"]').textContent).toContain('1 of 2');
  act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Clear column filter').click());expect(host.querySelectorAll('tbody tr')).toHaveLength(2);
 });
+test('inventory can expose export without expanding additional options',()=>{
+ render(table({exportVisible:true,searchable:false}));
+ const button=[...host.querySelectorAll('button')].find(b=>b.textContent.includes('CSV'));
+ expect(button).toBeDefined();expect(button.closest('details')).toBeNull();expect(button.disabled).toBe(false);
+});
