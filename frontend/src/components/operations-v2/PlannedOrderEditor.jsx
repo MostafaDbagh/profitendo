@@ -1,7 +1,7 @@
 import {selectInputOnFocus} from '../../lib/selectInputOnFocus';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { ArrowRight, Plus, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatQuantity } from '@/lib/quantity';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { Field, inputClass } from '../auth-v2/Fields';
@@ -11,7 +11,7 @@ import RecordPicker from './RecordPicker';
 const newItem = () => ({key:crypto.randomUUID(),name:'',quantity:''});
 const quantityPattern = '(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
 
-export default function PlannedOrderEditor({context,api,c,lang,document,initialSupplier,close,done}) {
+export default function PlannedOrderEditor({context,api,c,lang,document,initialSupplier,close,done,embedded=false,onBusyChange}) {
   const ar=lang==='ar';
   const path=`/businesses/${context.business.id}/operations`;
   const [form,setForm]=useState(()=>({
@@ -48,13 +48,14 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     finally{setBusy(false);}
   }
 
+  useEffect(()=>{onBusyChange?.(busy);return ()=>onBusyChange?.(false);},[busy,onBusyChange]);
   return <section className="max-w-2xl space-y-5">
     <button type="button" className={buttonClass} disabled={busy} onClick={close}>
-      <ArrowRight aria-hidden="true" className="h-4 w-4 ltr:rotate-180"/>{c('back')}
+      <ArrowRight aria-hidden="true" className="h-4 w-4 ltr:rotate-180"/>{embedded?(ar?'عرض سجل المشتريات':'Show purchase history'):c('back')}
     </button>
-    <div>
+    {!embedded&&<div>
       <h2 className="text-lg font-bold">{c(document?'editDocument':'newOrder')}</h2>
-    </div>
+    </div>}
     <LocalDraftNotice {...{draft,lang,busy}}/>
     <Feedback {...{error,c}}/>
     <form className={panelClass} onSubmit={save}>

@@ -39,12 +39,12 @@ export class PurchasingService{
    return present(doc,access.permissions['catalogue.cost']);
   });
  }
- async list(ctx:AuthContext,businessId:string,query:{page:number;kind:'ORDER'|'RECEIPT';locationId?:string;supplierId?:string;status?:string}){
+ async list(ctx:AuthContext,businessId:string,query:{page:number;kind:'ALL'|'ORDER'|'RECEIPT';locationId?:string;supplierId?:string;status?:string}){
   return this.auth.transaction(async tx=>{
    const access=await requireBusiness(this.auth,tx,ctx,businessId,'purchasing.view');
    if(!access.permissions['locations.view'])throw new ApiError(403,'FORBIDDEN','Location access required');
    if(query.locationId)await requireLocation(this.auth,tx,ctx,businessId,query.locationId,'purchasing.view',false);
-   const where:Prisma.PurchaseDocumentWhereInput={businessId,kind:query.kind,...(query.locationId?{locationId:query.locationId}:{}),...(query.supplierId?{supplierId:query.supplierId}:{}),...(query.status?{status:query.status}:{}),...(access.permissions['locations.all']?{}:{OR:[{location:{assignments:{some:{businessId,membershipId:access.membership.id}}}},{locationId:null,actorId:access.user.id}]} )};
+   const where:Prisma.PurchaseDocumentWhereInput={businessId,...(query.kind==='ALL'?{}:{kind:query.kind}),...(query.locationId?{locationId:query.locationId}:{}),...(query.supplierId?{supplierId:query.supplierId}:{}),...(query.status?{status:query.status}:{}),...(access.permissions['locations.all']?{}:{OR:[{location:{assignments:{some:{businessId,membershipId:access.membership.id}}}},{locationId:null,actorId:access.user.id}]} )};
    const rows=await tx.purchaseDocument.findMany({where,skip:(query.page-1)*25,take:25,orderBy:[{createdAt:'desc'},{id:'desc'}]});
    return {page:query.page,pageSize:25,total:await tx.purchaseDocument.count({where}),items:rows.map(({requestHash,clientKey,...row})=>({...row,documentDate:row.documentDate.toISOString().slice(0,10)}))};
   });
@@ -66,7 +66,7 @@ export class PurchasingService{
   }
   return output;
  }
- private async order(tx:Tx,businessId:string,orderId:string|undefined|null,supplierId:string,locationId:string,lines:{productId:string;baseQuantity:string;plannedItemId?:string|null}[],access:BusinessAccess){
+ private async order(tx:Tx,businessId:string,orderId:string|undefined|null,supplierId:string|null|undefined,locationId:string,lines:{productId:string;baseQuantity:string;plannedItemId?:string|null}[],access:BusinessAccess){
   if(!orderId){
    if(lines.some(line=>line.plannedItemId))throw new ApiError(422,'ORDER_MISMATCH','Link planned items to their purchase order');
    return null;
@@ -138,13 +138,13 @@ export class PurchasingService{
     return present(previous,access.permissions['catalogue.cost']);
    }
    await entitled(tx,businessId);
-   const supplier=await tx.supplier.findFirst({where:{id:input.supplierId,businessId,active:true}});
-   if(!supplier)throw new ApiError(409,'SUPPLIER_INACTIVE','Choose an active supplier');
+   const supplier=input.supplierId?await tx.supplier.findFirst({where:{id:input.supplierId,businessId,active:true}}):null;
+   if(input.supplierId&&!supplier)throw new ApiError(409,'SUPPLIER_INACTIVE','Choose an active supplier');
    const lines=await this.lines(tx,businessId,input.lines,access.permissions['catalogue.cost']);
    const order=await this.order(tx,businessId,input.orderId,input.supplierId,input.locationId,lines,access);
    if(order?.locationId)for(const line of lines){if(input.lines.find(l=>l.productId===line.productId)?.unitCost===undefined)line.unitCost=order.lines.find(l=>l.productId===line.productId)!.unitCost.toFixed(4);}
    const id=randomUUID(),{lines:ignored,...data}=input;
-   const doc=await tx.purchaseDocument.create({data:{...data,id,businessId,requestHash:hash,reference:`${input.kind==='ORDER'?'PO':'RCV'}-${id}`,supplierName:supplier.name,locationName:access.location.name,currency:access.business.baseCurrency,
+   const doc=await tx.purchaseDocument.create({data:{...data,id,businessId,requestHash:hash,reference:`${input.kind==='ORDER'?'PO':'RCV'}-${id}`,supplierId:supplier?.id??null,supplierName:supplier?.name??'',locationName:access.location.name,currency:access.business.baseCurrency,
     documentDate:new Date(input.documentDate),actorId:ctx.user.id,actorName:ctx.user.name}});
    await tx.purchaseLine.createMany({data:lines.map(l=>({...l,documentId:id}))});
    if(!access.business.currencyLockedAt)await tx.business.update({where:{id:businessId},data:{currencyLockedAt:new Date(),revision:{increment:1}}});
@@ -164,7 +164,7 @@ export class PurchasingService{
     if(doc.kind!=='ORDER'||doc.locationId)throw stateError();
     return this.savePlan(tx,ctx,businessId,input,doc);
    }
-   if(!doc.locationId||!doc.supplierId)throw stateError();
+   if(!doc.locationId||(doc.kind==='ORDER'&&!doc.supplierId))throw stateError();
    const access=await requireLocation(this.auth,tx,ctx,businessId,doc.locationId,doc.kind==='ORDER'?'purchasing.manage':'receiving.create');
    if(doc.revision!==input.revision)throw conflict();
    if(doc.status!=='DRAFT')throw stateError();
@@ -218,7 +218,7 @@ export class PurchasingService{
     if(await tx.product.count({where:{businessId,id:{in:doc.lines.map(l=>l.productId)},active:true}})!==doc.lines.length)throw new ApiError(409,'PRODUCT_INACTIVE','Product inactive');
     if(input.action==='submit'){if(doc.status!=='DRAFT')throw stateError();status=doc.kind==='ORDER'?'OPEN':'PENDING';}
     else{
-     if(doc.kind!=='RECEIPT'||doc.status!==(input.action==='receive'?'DRAFT':'PENDING')||!locationId||!supplierId)throw stateError();
+     if(doc.kind!=='RECEIPT'||doc.status!==(input.action==='receive'?'DRAFT':'PENDING')||!locationId)throw stateError();
      const order=await this.order(tx,businessId,doc.orderId,supplierId,locationId,doc.lines.map(l=>({productId:l.productId,plannedItemId:l.plannedItemId,baseQuantity:l.baseQuantity.toFixed(4)})),access);
      // Consistent product ordering reduces lock contention between documents.
      for(const line of [...doc.lines].sort((a,b)=>a.productId.localeCompare(b.productId))){

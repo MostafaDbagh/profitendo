@@ -11,11 +11,11 @@ export const supplierSchema=z.object({
 export const supplierPatch=supplierSchema.omit({code:true}).partial().extend({active:z.boolean().optional(),revision:z.number().int().nonnegative()}).strict();
 const line=z.object({productId:z.uuid(),quantity:positive,packId:z.uuid().optional(),plannedItemId:z.uuid().optional(),unitCost:decimal.optional()}).strict();
 const inventoryDocument=z.object({
- clientKey:z.uuid(),kind:z.enum(['ORDER','RECEIPT']),locationId:z.uuid(),supplierId:z.uuid(),
+ clientKey:z.uuid(),kind:z.enum(['ORDER','RECEIPT']),locationId:z.uuid(),supplierId:z.uuid().nullable().optional(),
  orderId:z.uuid().optional(),documentDate:z.iso.date(),supplierReference:z.string().trim().max(120).default(''),
  notes:z.string().trim().max(2000).default(''),lines:z.array(line).min(1).max(100)
  .refine(lines=>new Set(lines.map(l=>l.productId)).size===lines.length),
-}).strict().refine(v=>v.kind!=='ORDER'||!v.orderId);
+}).strict().refine(v=>v.kind!=='ORDER'||(!v.orderId&&Boolean(v.supplierId)));
 const inventoryPatch=z.object({
  revision:z.number().int().nonnegative(),documentDate:z.iso.date(),supplierReference:z.string().trim().max(120).default(''),
  notes:z.string().trim().max(2000).default(''),lines:z.array(line).min(1).max(100)

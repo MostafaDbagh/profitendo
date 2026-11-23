@@ -33,7 +33,7 @@ export function operationsRouter(auth:AuthService){
   res.json(await inventory.list(ctx(res),bid(req),q.data.locationId,q.data.page,q.data.search,q.data.view==='movements'));
  });
  router.get('/purchases',async(req,res)=>{
-  const q=z.object({page,kind:z.enum(['ORDER','RECEIPT']).default('RECEIPT'),locationId:z.uuid().optional(),supplierId:z.uuid().optional(),status:z.enum(['DRAFT','PENDING','OPEN','PARTIAL','RECEIVED','COMPLETED','CANCELLED']).optional()}).strict().safeParse(req.query);
+  const q=z.object({page,kind:z.enum(['ALL','ORDER','RECEIPT']).default('RECEIPT'),locationId:z.uuid().optional(),supplierId:z.uuid().optional(),status:z.enum(['DRAFT','PENDING','OPEN','PARTIAL','RECEIVED','COMPLETED','CANCELLED']).optional()}).strict().safeParse(req.query);
   if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');
   res.json(await purchasing.list(ctx(res),bid(req),q.data));
  });

@@ -318,3 +318,22 @@ it('updates linked order quantities on direct receiving and rejects concurrent o
  expect((await receiveDirect(rest)).status).toBe(200);
  expect((await get(`/purchases/${order.id}`)).body.status).toBe('RECEIVED');
 });
+it('receives goods without a supplier, preserving review and stock posting',async()=>{
+ const doc=await draft({supplierId:null});
+ expect(doc.supplierId).toBeNull();expect(doc.supplierName).toBe('');
+ const edited=await write(`/purchases/${doc.id}`,{revision:doc.revision,documentDate:'2026-11-11',lines:[{productId:product,quantity:'2',unitCost:'1.2345'}]},owner,'patch');
+ expect(edited.status,edited.text).toBe(200);
+ const pending=await submit(edited.body),posted=await confirm(pending);
+ expect(posted.status,posted.text).toBe(200);expect(posted.body.status).toBe('COMPLETED');
+ expect(await db.stockMovement.count({where:{businessId:business,sourceId:doc.id,type:'PURCHASE_RECEIPT'}})).toBe(1);
+ const withoutField=await draft({supplierId:undefined});expect(withoutField.supplierId).toBeNull();
+ const invalid=await write('/purchases',input({supplierId:randomUUID()}));expect(invalid.status).toBe(409);
+});
+it('all operation types includes both orders and receipts without crossing tenants',async()=>{
+ const receipt=await draft(),order=await draft({kind:'ORDER'});
+ const all=await get('/purchases?kind=ALL');expect(all.status,all.text).toBe(200);
+ expect(all.body.items.some((row:any)=>row.id===receipt.id)).toBe(true);
+ expect(all.body.items.some((row:any)=>row.id===order.id)).toBe(true);
+ expect(all.body.items.every((row:any)=>row.businessId===business)).toBe(true);
+ const receipts=await get('/purchases?kind=RECEIPT');expect(receipts.body.items.every((row:any)=>row.kind==='RECEIPT')).toBe(true);
+});

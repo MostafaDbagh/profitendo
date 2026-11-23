@@ -1,3 +1,4 @@
+import LocationChips from '../business-v2/LocationChips';
 import ReceiptCsv from './ReceiptCsv';
 import RequiredMark from '../RequiredMark';
 import Disclosure, {OptionalFields} from '../business-v2/Disclosure';
@@ -18,7 +19,7 @@ import { Feedback, buttonClass, primaryClass, panelClass } from '../business-v2/
 import RecordPicker from './RecordPicker';
 const scaled=v=>{const [w,f='']=v.split('.');return BigInt(w)*10000n+BigInt(f.padEnd(4,'0'));};
 const fixed=n=>`${n/10000n}.${String(n%10000n).padStart(4,'0')}`;
-export default function DocumentEditor({context,api,c,lang,kind,document:doc,seed,close,done}){
+export default function DocumentEditor({context,api,c,lang,kind,document:doc,seed,close,done,embedded=false,onBusyChange}){
  const cost=context.permissions['catalogue.cost'],root=`/businesses/${context.business.id}`,source=doc||seed;
  const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?.locationId?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?.supplierId?{id:source.supplierId,name:source.supplierName}:null);
  const [date,setDate]=useState(doc?.documentDate||new Date().toLocaleDateString('en-CA')),[reference,setReference]=useState(doc?.supplierReference||''),[notes,setNotes]=useState(doc?.notes||'');
@@ -26,6 +27,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  const [picker,setPicker]=useState(''),[scan,setScan]=useState(''),[mode,setMode]=useState('once'),[scanning,setScanning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [addingSupplier,setAddingSupplier]=useState(false);
  const [importing,setImporting]=useState(false);
+ useEffect(()=>{onBusyChange?.(busy||scanning||importing);return ()=>onBusyChange?.(false);},[busy,scanning,importing,onBusyChange]);
  const [plannedItem,setPlannedItem]=useState(null);
  const plannedReceipt=Boolean(seed?.plannedItems?.length||doc?.lines.some(line=>line.plannedItemId));
  const canChooseSupplier=!doc&&!seed?.supplierId;
@@ -59,14 +61,15 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
   }catch(e){setError(e.message);}finally{setBusy(false);}
  }
  const validNumber='(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
- return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning||importing} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2></div>
+ return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning||importing} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{embedded?(lang==='ar'?'عرض سجل المشتريات':'Show purchase history'):c('back')}</button>{!embedded&&<div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2></div>}
+ {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><div className="mb-2 flex flex-wrap items-center justify-between gap-2">
- <p className="text-sm font-medium">{c(key==='location'?'selectedLocation':'selectedSupplier')}<RequiredMark/></p>
+ <p className="text-sm font-medium">{c(key==='location'?'selectedLocation':'selectedSupplier')}{key==='supplier'&&kind==='RECEIPT'?(lang==='ar'?' (اختياري)':' (optional)'):<RequiredMark/>}</p>
  {key==='supplier'&&canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning||importing}
   className="rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}
- </div><button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||importing||!!doc||Boolean(key==='location'?seed?.locationId:seed?.supplierId)} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button></div>)}</div></div>
+ </div>{key==='location'?<LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing||!!doc||Boolean(seed?.locationId)}/>:<button type="button" className={`${buttonClass} w-full !justify-between min-h-11 text-start`} disabled={busy||importing||!!doc||Boolean(key==='location'?seed?.locationId:seed?.supplierId)} onClick={e=>{trigger.current=e.currentTarget;setPicker(key);}}><span className="min-w-0 truncate">{value?.name||c(label)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true"/></button>}</div>)}</div></div>
  {seed?.plannedItems?.length>0&&<div className={`${panelClass} space-y-3`}>
   <h3 className="font-semibold">{lang==='ar'?'أصناف طلب الشراء':'Planned items'}</h3>
   <p className="text-sm text-slate-600">{lang==='ar'?'اختر منتج المخزون المقابل لكل صنف استلمته.':'Choose the inventory product for each planned item you received.'}</p>
@@ -80,7 +83,6 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {!seed&&!plannedReceipt&&<div className={`${panelClass} space-y-3`}>
 
  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-3"><button type="button" className={buttonClass} disabled={busy||importing} onClick={e=>{trigger.current=e.currentTarget;setPicker('product');}}>{c('selectProduct')}</button><p className="text-xs text-slate-500">{lang==='ar'?'اختر المنتج، ثم أدخل الكمية في صفّه أدناه.':'Choose a product, then enter its quantity below.'}</p></div><ProductEntryHelp compact lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/></div>
- {kind==='RECEIPT'&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  <Disclosure title={c('scanOptional')} hasValue={Boolean(scan)||mode==='repeat'}>
  <form onSubmit={lookup} className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)] items-end">
  <ScanModeSelect value={mode} onChange={setMode} disabled={busy||scanning||importing} {...{c,lang}}/>
@@ -96,7 +98,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {!lines.length&&<p className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-center text-slate-500">{c('noLines')}</p>}
  <OptionalFields hasValue={Boolean(reference||notes)}><Field id="supplier-reference" label={c('supplierReference')} placeholder={c('supplierReferencePlaceholder')} value={reference} maxLength={120} disabled={busy||importing} onChange={e=>setReference(e.target.value)}/><div><label htmlFor="document-notes" className="block text-sm font-medium mb-1.5">{c('notes')}</label><textarea rows={2} id="document-notes" className={inputClass} placeholder={c('notesPlaceholder')} maxLength={2000} value={notes} disabled={busy||importing} onChange={e=>setNotes(e.target.value)}/></div></OptionalFields>
  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-4">
-  <button type="submit" className={primaryClass} disabled={busy||scanning||importing||!location||!supplier||!lines.length}>
+  <button type="submit" className={primaryClass} disabled={busy||scanning||importing||!location||(kind==='ORDER'&&!supplier)||!lines.length}>
    {c(busy?'saving':kind==='RECEIPT'?'reviewReceipt':'saveDraft')}
   </button>
   {lines.length>0&&<Totals {...{lines,c,cost}} currency={context.business.baseCurrency}/>}
@@ -104,7 +106,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {addingSupplier&&<SupplierForm path={`${root}/operations/suppliers`} {...{api,c,lang}}
   returnFocus={trigger.current} close={()=>setAddingSupplier(false)}
   done={saved=>{setSupplier(saved);setAddingSupplier(false);}}/>}
- {picker&&<RecordPicker {...{api,c,lang}} path={picker==='location'?`${root}/locations?state=active`:picker==='supplier'?`${root}/operations/suppliers?state=active`:`${root}/products?state=active`} onAddSupplier={picker==='supplier'&&canChooseSupplier&&context.permissions['suppliers.create']?()=>{setPicker('');setAddingSupplier(true);}:undefined} emptyHelp={picker==='product'?<ProductEntryHelp lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>:null} title={c(picker==='location'?'chooseLocation':picker==='supplier'?'chooseSupplier':'selectProduct')} returnFocus={trigger.current} close={()=>{setPicker('');setPlannedItem(null);}} onSelect={row=>{if(picker==='location')setLocation(row);else if(picker==='supplier')setSupplier(row);else if(plannedItem){
+ {picker&&<RecordPicker {...{api,c,lang}} path={picker==='supplier'?`${root}/operations/suppliers?state=active`:`${root}/products?state=active`} onAddSupplier={picker==='supplier'&&canChooseSupplier&&context.permissions['suppliers.create']?()=>{setPicker('');setAddingSupplier(true);}:undefined} emptyHelp={picker==='product'?<ProductEntryHelp lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>:null} title={c(picker==='supplier'?'chooseSupplier':'selectProduct')} returnFocus={trigger.current} close={()=>{setPicker('');setPlannedItem(null);}} onSelect={row=>{if(picker==='supplier')setSupplier(row);else if(plannedItem){
    if(lines.some(line=>line.productId===row.id)){setError('duplicatePlannedProduct');setPicker('');setPlannedItem(null);return;}
    setError('');
    setLines(current=>[...current,{productId:row.id,plannedItemId:plannedItem.id,name:row.name,sku:row.sku,unit:row.unit,

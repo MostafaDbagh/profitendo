@@ -10,6 +10,7 @@ import { ApiError, validateBody } from '../errors.js';
 import { CatalogueService } from './service.js';
 import { barcode, productSchema, patchSchema } from './contracts.js';
 const createProductSchema=productSchema.extend({
+  unit:productSchema.shape.unit.default('PIECE'),
   sku:productSchema.shape.sku.default(()=>`PRD-${randomUUID().toUpperCase()}`),
 });
 export function catalogueRouter(auth:AuthService){

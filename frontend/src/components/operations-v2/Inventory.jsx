@@ -7,7 +7,7 @@ import { useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, Pager, Select, Table, buttonClass } from '../business-v2/UI';
-import RecordPicker from './RecordPicker';
+import LocationChips from '../business-v2/LocationChips';
 function MovementDetails({row, location, timezone, c, lang, close, returnFocus}) {
  const ar=lang==='ar';
  const fields=[
@@ -54,11 +54,11 @@ function StockRows({context,api,c,lang,location}){
 }
 export default function Inventory({context,api,c,lang}){
  const [importing,setImporting]=useState(false);
- const [location,setLocation]=useState(null),[choosing,setChoosing]=useState(false),trigger=useRef(null);
+ const [location,setLocation]=useState(null);
  if(importing)return <section className="space-y-5"><button className={buttonClass} onClick={()=>setImporting(false)}>{c('back')}</button><Migration {...{context,api,c,lang}} initialLocation={location}/></section>;
- return <section className="space-y-5"><div><h2 className="font-bold text-lg">{c('inventory')}</h2></div><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setChoosing(true);}}>{location?`${c('selectedLocation')}: ${location.name}`:c('chooseLocation')}</button>
- {context.permissions['migration.manage']&&<div><button type="button" className={buttonClass} onClick={()=>setImporting(true)}>{lang==='ar'?'استيراد رصيد افتتاحي CSV':'Import opening stock CSV'}</button></div>}
+ return <section className="space-y-5"><div><h2 className="font-bold text-lg">{c('inventory')}</h2></div><LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} all/>
+ {location&&context.permissions['migration.manage']&&<div><button type="button" className={buttonClass} onClick={()=>setImporting(true)}>{lang==='ar'?'استيراد رصيد افتتاحي CSV':'Import opening stock CSV'}</button></div>}
  {location&&<StockRows key={location.id} {...{context,api,c,lang,location}}/>}
- {choosing&&<RecordPicker {...{api,c,lang}} path={`/businesses/${context.business.id}/locations?state=all`} title={c('chooseLocation')} selectedId={location?.id} returnFocus={trigger.current} close={()=>setChoosing(false)} onSelect={row=>{setLocation(row);setChoosing(false);}}/>}
+
  </section>;
 }

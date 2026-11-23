@@ -45,3 +45,10 @@ test('failed draft save preserves entered quantity for retry',async()=>{
  await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api.mock.calls[1][1].body.lines[0].quantity).toBe('7');expect(done).toHaveBeenCalledTimes(1);
 });
+test('receipt can be reviewed without a supplier and labels it optional',async()=>{
+ const supplierless={...doc,supplierId:null,supplierName:''};
+ await act(async()=>root.render(<LanguageProvider><DocumentEditor context={{business:{id:'business',baseCurrency:'USD'},permissions:{'catalogue.cost':true}}} api={api} c={key=>operationsCopy.en[key]||key} lang="en" kind="RECEIPT" document={supplierless} close={()=>{}} done={done}/></LanguageProvider>));
+ const review=button(operationsCopy.en.reviewReceipt);expect(review.disabled).toBe(false);expect(host.textContent).toContain('Supplier (optional)');
+ await act(async()=>review.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api).toHaveBeenCalledTimes(1);expect(done).toHaveBeenCalled();
+});
