@@ -23,10 +23,10 @@ test('idle draft notice is absent; errors, restoration and offline state remain 
  render(<LocalDraftNotice draft={{...draft,status:'saved',restored:true}} lang="en"/>);expect(host.textContent).toContain('restored');
  render(<LocalDraftNotice draft={{...draft,online:false}} lang="en"/>);expect(host.textContent).toContain('offline');
 });
-test('table suppresses duplicate search and keeps export under closed options',()=>{
+test('table suppresses duplicate search and keeps export outside closed options',()=>{
  render(table({searchable:false,filters:<select aria-label="Status"><option>All</option></select>,filtersActive:true}));
  expect(host.querySelectorAll('input').length).toBe(0);expect(host.querySelector('details').open).toBe(false);
- expect(host.querySelector('summary').textContent).toContain('Filtered');expect(host.querySelector('details button').textContent).toContain('CSV');
+ expect(host.querySelector('summary').textContent).toContain('Filtered');expect(host.querySelector('details button')).toBeNull();expect([...host.querySelectorAll('button')].find(b=>b.textContent.includes('CSV')).closest('details')).toBeNull();
  expect(host.querySelectorAll('select').length).toBe(1);
 });
 test('table column filter still filters rows and identifies active filters when collapsed',()=>{

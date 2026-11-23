@@ -33,8 +33,8 @@ export function Pager({ data, setPage, c }) {
   const Previous=lang==='ar'?ChevronRight:ChevronLeft,Next=lang==='ar'?ChevronLeft:ChevronRight;
   return <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-sm text-slate-600"><span>{c('page')} {data.page} · {c('total')} {data.total}</span><div className="flex gap-2"><button className={buttonClass} disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}><Previous aria-hidden="true"/>{c('previous')}</button><button className={buttonClass} disabled={data.page * data.pageSize >= data.total} onClick={() => setPage(data.page + 1)}>{c('next')}<Next aria-hidden="true"/></button></div></div>;
 }
-export function Table({ headers, children, empty, c, tableClassName = '', tools = true, searchable = true, exportVisible = false, filters, filtersActive = false, showRows = true }) {
-  if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
+export function Table({ headers, children, empty, c, tableClassName = '', tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, showRows = true }) {
+  if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
   return showRows?<PlainTable {...{headers,children,empty,c,tableClassName}}/>:null;
 }
 function PlainTable({headers,children,empty,c,tableClassName}){

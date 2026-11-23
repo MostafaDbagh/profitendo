@@ -2,7 +2,7 @@ import RequiredMark from '../RequiredMark';
 import SaleSteps from './SaleSteps';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Check } from 'lucide-react';
+import { Check, Store, Barcode, Search, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import { useResource } from '../business-v2/useBusinessApi';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
@@ -43,10 +43,10 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  const insufficientStock=rows.some(row=>exceedsStock(row.productId));
  async function save(e){e.preventDefault();if(insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <div className="space-y-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-bold">{c(doc?'saleEdit':'newSale')}</h2><button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button></div><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
- <section className={`${panelClass} space-y-4`}><fieldset className="min-w-0 space-y-2">
-  <legend className="text-sm font-medium">
-   {c('chooseShop')} <RequiredMark/>
+ return <div className="mx-auto w-full max-w-5xl space-y-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-bold">{c(doc?'saleEdit':'newSale')}</h2><button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button></div><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
+ <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5"><fieldset className="min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2">
+  <legend className="mb-2 text-xs font-semibold text-slate-500">
+   {lang==='ar'?'المتجر':'Store'} <RequiredMark/>
   </legend>
   {!shopLocked&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
   {!shopLocked&&!shops.data&&!shops.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
@@ -55,20 +55,33 @@ export default function Editor({context,api,c,lang,doc,done,close}){
    {shopOptions.map(option=>{
     const selected=option.id===shop?.id;
     return <button key={option.id} type="button" aria-pressed={selected} disabled={shopLocked}
-     className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+     className={`inline-flex max-w-full min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
      onClick={()=>setShop(option)}>
-     {selected&&<Check aria-hidden="true" className="h-4 w-4 shrink-0"/>}
-     <bdi>{option.name}</bdi>
-     {option.kind&&<span className="text-xs opacity-75">{option.kind==='WAREHOUSE'?(lang==='ar'?'مستودع':'Warehouse'):(lang==='ar'?'متجر':'Shop')}</span>}
+     <Store aria-hidden="true" className="h-4 w-4 shrink-0"/>
+     <bdi className="min-w-0 break-words">{option.name}</bdi>{selected&&<Check aria-hidden="true" className="h-4 w-4 shrink-0"/>}
+
     </button>;
    })}
   </div>
   {!shopLocked&&shops.data?.total>shops.data?.pageSize&&<Pager data={shops.data} setPage={setShopPage} c={c}/>}
- </fieldset><p className="text-sm text-slate-500">{c('posHint')}</p>
- <form ref={scanner} onSubmit={scan} className="flex flex-wrap gap-2 items-end"><div className="w-full sm:flex-1 min-w-0"><Field id="pos-barcode" label={c('scanBarcode')} placeholder={c('saleScanPlaceholder')} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100} /></div><button className={buttonClass} disabled={!shop||busy}>{c('saleAddBarcode')}</button><button type="button" className={buttonClass} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}>{c('searchProducts')}</button></form>{pending>0&&<p role="status">{c('loading')}</p>}</section>
- <form onSubmit={save} className="space-y-5"><fieldset disabled={busy||pending>0} className="space-y-4 min-w-0"><legend className="font-semibold mb-3">{c('saleItems')} ({rows.length})</legend>{!rows.length&&<p className={`${panelClass} text-sm text-slate-500`}>{c('saleEmpty')}</p>}
- {rows.map((r,i)=><div key={r.key} className={`${panelClass} space-y-4`}><div className="flex justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold break-words">{r.name}</h3><p className="text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode> · {c('salePrice')}: <bdi>{r.unitPrice} {context.business.baseCurrency}</bdi></p></div><button type="button" className={buttonClass} aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}>{c('saleRemove')}</button></div>
- <div className="grid sm:grid-cols-2 gap-4"><Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} {...selectInputOnFocus} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
+ </fieldset></div>
+ <div className="space-y-3 p-4 sm:p-5">
+  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShoppingBasket className="h-4 w-4 text-emerald-600" aria-hidden="true"/>{lang==='ar'?'إضافة منتجات للبيع':'Add sale items'}</div>
+  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+   <form ref={scanner} onSubmit={scan} className="min-w-0">
+    <label htmlFor="pos-barcode" className="mb-1.5 block text-xs font-medium text-slate-600">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}</label>
+    <div className="flex gap-2"><div className="relative min-w-0 flex-1"><Barcode aria-hidden="true" className="pointer-events-none absolute start-3 top-3.5 h-5 w-5 text-slate-400"/><input id="pos-barcode" className="h-12 w-full rounded-lg border border-slate-200 bg-white ps-10 pe-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder={lang==='ar'?'امسح الباركود أو اكتب الرمز':'Scan barcode or enter code'} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100}/></div>
+    <button className={`${buttonClass} h-12 shrink-0`} disabled={!shop||busy||!barcode.trim()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة':'Add'}</button></div>
+   </form>
+   <button type="button" className={`${primaryClass} min-h-12 w-full lg:w-auto`} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}><Search className="h-4 w-4" aria-hidden="true"/>{c('searchProducts')}</button>
+  </div>
+  {pending>0&&<p role="status" className="text-xs text-emerald-700">{c('loading')}</p>}
+ </div></section>
+
+ <form onSubmit={save} className="space-y-5"><fieldset disabled={busy||pending>0} className="space-y-4 min-w-0"><legend className="font-semibold mb-3">{c('saleItems')} ({rows.length})</legend>{!rows.length&&<div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{c('saleEmpty')}</p></div>}
+ {rows.map((r,i)=><div key={r.key} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"><div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-start">
+ <div className="min-w-0 sm:col-span-2 xl:col-span-1"><p className="mb-2 text-xs font-medium text-slate-500">{lang==='ar'?'المنتج':'Product'}</p><h3 className="font-semibold break-words text-slate-900">{r.name}</h3><div className="mt-1 text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode></div></div>
+ <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} {...selectInputOnFocus} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
  {available.has(r.productId)&&<span className="block text-xs text-slate-600">
   {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
  </span>}
@@ -76,7 +89,10 @@ export default function Editor({context,api,c,lang,doc,done,close}){
   {lang==='ar'?'الكمية المطلوبة أكبر من المتاح في هذا الموقع.':'Requested quantity exceeds available stock at this location.'}{' '}
   {c('saleAvailable')}: <bdi>{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
  </p>}</div>
- {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2" title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
- <OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'} hasValue={Boolean(customer||notes)}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></OptionalFields></fieldset><button className={primaryClass} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></form>
+ <div><p className="mb-1.5 text-sm font-medium text-slate-700">{lang==='ar'?'سعر الوحدة الأساسية':'Base-unit price'}</p><div className="min-h-11 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700"><bdi>{r.unitPrice}</bdi> <span className="text-xs font-normal">{context.business.baseCurrency}</span></div></div>
+ <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 xl:mt-7" aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
+ {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 xl:col-span-5" title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
+ <button type="button" className={`${buttonClass} border-dashed !text-emerald-700`} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
+ <OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'} hasValue={Boolean(customer||notes)}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></OptionalFields></fieldset><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-4"><span className="text-sm text-slate-600">{c('saleItems')}: <bdi className="font-bold text-slate-900">{rows.length}</bdi></span><button className={`${primaryClass} min-h-11`} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></div></form>
  {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/products?locationId=${shop.id}`} title={c('searchProducts')} close={()=>setPicker(null)} returnFocus={picker.focus} onSelect={row=>{add(row);setPicker(null);}}/>}</div>;
 }

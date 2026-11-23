@@ -27,7 +27,7 @@ export default function Purchases({context,api,c,lang,initialSupplier,initialAct
   : <DocumentEditor embedded onBusyChange={setEditorBusy} {...{context,api,c,lang,close}} kind={screen.kind} document={screen.doc} seed={screen.seed} done={doc=>setScreen({type:'detail',id:doc.id,notice:'documentSaved'})}/>):null;
  if(screen?.type==='detail')return <DocumentDetail {...{context,api,c,lang,close}} id={screen.id} notice={screen.notice} edit={doc=>setScreen({type:'edit',kind:doc.kind,doc})} receive={seed=>setScreen({type:'edit',kind:'RECEIPT',seed})}/>;
  return <section className="space-y-5"><h2 className="font-bold text-lg">{c('purchases')}</h2>
- {(context.permissions['purchasing.manage']||context.permissions['receiving.create'])&&<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4" dir={lang==='ar'?'rtl':'ltr'}>
+ {(context.permissions['purchasing.manage']||context.permissions['receiving.create'])&&<div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4" dir={lang==='ar'?'rtl':'ltr'}>
   {context.permissions['purchasing.manage']&&<PurchaseAction selected={screen?.kind==='ORDER'} disabled={editorBusy} icon={ShoppingCart} label={lang==='ar'?'طلب من المورد':'Order from supplier'} hint={lang==='ar'?'إنشاء طلب شراء':'Create a purchase order'} onClick={()=>{if(screen?.kind!=='ORDER')setScreen({type:'edit',kind:'ORDER'});}}/>}
   {context.permissions['receiving.create']&&<PurchaseAction selected={screen?.kind==='RECEIPT'} disabled={editorBusy} icon={PackageCheck} label={lang==='ar'?'استلام مخزون':'Receive stock'} hint={lang==='ar'?'تسجيل البضاعة المستلمة':'Record received goods'} onClick={()=>{if(screen?.kind!=='RECEIPT')setScreen({type:'edit',kind:'RECEIPT'});}}/>}
  </div>}
