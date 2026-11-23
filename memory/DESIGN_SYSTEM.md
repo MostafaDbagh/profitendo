@@ -1154,3 +1154,48 @@ cover daily/monthly requests, Arabic/English dashboard, financial lock protectio
 permission-filtered links, compact balance details, PIN-blocked report requests,
 and correct refund navigation/form default. Browser host remained unavailable;
 no new desktop/mobile screenshots or visual sign-off are claimed. Not deployed.
+
+## Plain payment entry — 23 November 2026
+
+Payment entry now asks What happened? with first-person supplier payment/refund,
+customer refund, expense and till cash choices in Arabic/English. Expense-only
+entry omits the redundant type selector and asks What did you pay for? Required
+reason validation stays intact. Cash references are in Optional details; card /
+transfer references stay visible and required, retaining their entered value.
+Document selection explicitly names supplier receipts or customer returns.
+Review/save wording explains that the app records money already paid/received,
+not a bank transfer. Existing review, permissions and backend validation remain.
+A synchronous posting guard prevents double confirmation clicks. Changing a
+linked payment's location clears the old document, balance and suggested amount.
+Restored entry types are constrained to the form's available types.
+
+Validation: 77 frontend tests and production build/prerender pass. Added coverage
+for AR/EN expense entry, optional versus required references, value preservation,
+no write before confirmation, double-click protection and failed-save recovery.
+Live visual verification remains outstanding due to unavailable browser access.
+No production deployment was performed.
+
+## Shared table and icon polish — 23 November 2026
+
+User expanded frontend-engineering scope from payments to tables/icons generally.
+Shared operational tables now use slate header surfaces, stronger column labels,
+column scope semantics, aligned cells, tabular numbers, subtle hover/focus-within
+row highlighting, and an Inbox empty-state icon with existing text. Horizontal
+scroll regions have a labelled keyboard focus target and visible emerald ring.
+Button tokens retain established colors/radii with 44px minimum height and
+consistent 16px nonshrinking icons. Pager arrows mirror for Arabic. Common add,
+edit, search, import, history and staff/location actions have explicit Lucide icons
+beside their existing labels. No text labels were replaced with icon-only actions.
+
+Shared table search adds a leading search icon, labelled clear action with focus
+return, matching-row count for active local searches/filters, and a column-filter
+reset that preserves the search. Export has a download icon and still clearly
+states current-page scope. Existing page/server filters and CSV contents remain.
+Payment entry uses a bounded 3xl layout, clearer amount typography, full-width
+reason, and separated responsive primary-action footer.
+
+Validation: all 78 frontend tests pass, including clear-search/filter/focus
+behavior and existing payment/access checks; production build/prerender passes.
+Browser host unavailable at task start; no new screenshot-based visual sign-off.
+These shared changes cover operational components using business-v2 UI, not every
+legacy page or the independently styled public marketing site. Not deployed.

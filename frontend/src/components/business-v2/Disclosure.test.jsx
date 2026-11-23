@@ -34,3 +34,12 @@ test('table column filter still filters rows and identifies active filters when 
  expect(host.querySelectorAll('tbody tr').length).toBe(1);expect(host.querySelector('tbody').textContent).toContain('Bread');expect(host.querySelector('summary').textContent).toContain('Filtered');
  change(host.querySelectorAll('select')[1],'');expect(host.querySelectorAll('tbody tr').length).toBe(2);
 });
+test('clearing table search restores matching rows, keeps the column filter and returns focus',()=>{
+ render(table());change(host.querySelector('select'),'1');change(host.querySelectorAll('select')[1],'Inactive');
+ const input=host.querySelector('input');act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Milk');input.dispatchEvent(new Event('input',{bubbles:true}));});
+ expect(host.querySelectorAll('tbody tr')).toHaveLength(0);
+ act(()=>host.querySelector('button[aria-label="Clear search"]').click());
+ expect(host.querySelectorAll('tbody tr')).toHaveLength(1);expect(host.querySelector('tbody').textContent).toContain('Bread');expect(document.activeElement).toBe(input);
+ expect(host.querySelector('[role="status"]').textContent).toContain('1 of 2');
+ act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Clear column filter').click());expect(host.querySelectorAll('tbody tr')).toHaveLength(2);
+});

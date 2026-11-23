@@ -1,3 +1,4 @@
+import {Pencil,Plus,Upload} from 'lucide-react';
 import RequiredMark from '../RequiredMark';
 import {MoreOptions} from '../business-v2/Disclosure';
 import CopyableCode from '@/components/CopyableCode';
@@ -34,8 +35,8 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {create&&cost&&<>
-          <button type="button" className={primaryClass} onClick={e=>open(e,null)}>{c('addProduct')}</button>
-          <button type="button" className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setImporting(true);}}>{c('importProducts')}</button>
+          <button type="button" className={primaryClass} onClick={e=>open(e,null)}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addProduct')}</button>
+          <button type="button" className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setImporting(true);}}><Upload aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('importProducts')}</button>
         </>}
 
       </div>
@@ -65,7 +66,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
           <Info aria-hidden="true" className="h-4 w-4"/>
         </button>
       </div>
-    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?p.barcodes.map(barcode=><span key={barcode} className="block font-mono text-sm leading-6"><CopyableCode kind="barcode">{barcode}</CopyableCode></span>):<span className="text-xs text-slate-400">{lang==='ar'?'لم يُضف باركود':'No barcode added'}</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular"><span dir="ltr">{p[k]}</span></td>)}{sales&&<td className="px-5 py-3">{p.saleCount}</td>}<td className="px-5 py-3">{c(p.active?'active':'inactive')}</td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button className={buttonClass} onClick={e=>open(e,p)}>{c('editProduct')}</button><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{lang==='ar'?'العبوات والصورة':'Packs & image'}</button></div></td>}</tr>)}</Table><Pager {...{data,setPage,c}}/></>}
+    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?p.barcodes.map(barcode=><span key={barcode} className="block font-mono text-sm leading-6"><CopyableCode kind="barcode">{barcode}</CopyableCode></span>):<span className="text-xs text-slate-400">{lang==='ar'?'لم يُضف باركود':'No barcode added'}</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular"><span dir="ltr">{p[k]}</span></td>)}{sales&&<td className="px-5 py-3">{p.saleCount}</td>}<td className="px-5 py-3">{c(p.active?'active':'inactive')}</td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button className={buttonClass} onClick={e=>open(e,p)}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('editProduct')}</button><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{lang==='ar'?'العبوات والصورة':'Packs & image'}</button></div></td>}</tr>)}</Table><Pager {...{data,setPage,c}}/></>}
     {stock&&stockProduct&&<Modal title={stockProduct.name} description={lang==='ar'?'المخزون المتاح حسب الموقع':'Available stock by location'}
       {...{c,lang}} returnFocus={trigger.current} close={()=>setStockProduct(null)}>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
