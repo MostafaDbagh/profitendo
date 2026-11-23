@@ -24,7 +24,7 @@ export default function TabPreferences({ context, api, c, lang, availableTabs, h
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   return <form onSubmit={save} className={`${panelClass} space-y-5 max-w-3xl`} data-testid="tab-preferences">
-    <div><h2 className="text-lg font-bold">{ar ? 'تخصيص تبويبات لوحتي' : 'Customize my dashboard tabs'}</h2><p className="text-sm text-slate-500 mt-2">{ar ? 'اختر التبويبات التي تحتاجها في هذا النشاط. تُحفظ اختياراتك لحسابك فقط على جميع أجهزتك. إخفاء التبويب لا يحذف بياناته ولا يغيّر صلاحيات الفريق.' : 'Choose the tabs you need for this business. Your choices apply only to your account, across devices. Hiding a tab does not delete its data or change team permissions.'}</p></div>
+    <div><h2 className="text-lg font-bold">{ar ? 'تخصيص تبويبات لوحتي' : 'Customize my dashboard tabs'}</h2></div>
     {context.role === 'OWNER' && <div className="rounded-xl border border-slate-200 p-4">
       <label className="flex items-center gap-3 text-sm font-semibold cursor-pointer" htmlFor="owner-as-cashier">
         <input id="owner-as-cashier" type="checkbox" checked={cashier} disabled={busy} onChange={e => {setCashier(e.target.checked);setNotice('');}} aria-describedby="owner-as-cashier-hint" className="h-5 w-5 shrink-0 accent-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500" />

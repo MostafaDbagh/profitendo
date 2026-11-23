@@ -17,7 +17,7 @@ export default function ServiceRequests({context,api,lang}){
  }
  return <section className="space-y-5 max-w-3xl" aria-labelledby="service-request-heading">
   <form className={`${panelClass} space-y-5`} onSubmit={submit}>
-   <div className="flex items-start gap-3"><span className="rounded-lg bg-emerald-50 p-2 text-emerald-700"><Lightbulb className="h-5 w-5" aria-hidden="true"/></span><div><h2 id="service-request-heading" className="text-lg font-bold text-slate-900">{ar?'طلب خدمة أو ميزة جديدة':'Request a service or feature'}</h2><p className="mt-1 text-sm text-slate-500">{ar?'أخبرنا بما يساعد نشاطك. سيصل طلبك إلى إدارة المنصة، ويمكنك متابعة الرد هنا.':'Tell us what would help your business. Your request goes to the platform team, and you can follow replies here.'}</p></div></div>
+   <div className="flex items-start gap-3"><span className="rounded-lg bg-emerald-50 p-2 text-emerald-700"><Lightbulb className="h-5 w-5" aria-hidden="true"/></span><div><h2 id="service-request-heading" className="text-lg font-bold text-slate-900">{ar?'طلب خدمة أو ميزة جديدة':'Request a service or feature'}</h2></div></div>
    <Feedback error={error} c={c}/>
    {sent&&<p role="status" className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">{ar?'تم إرسال طلبك. يمكنك متابعته ضمن طلباتك أدناه.':'Request sent. You can follow it in your requests below.'}</p>}
    <fieldset disabled={busy} className="space-y-4">

@@ -14,7 +14,7 @@ export default function Security({api,lang,context,c:businessCopy,onPinStatus}){
  const set=key=>e=>setForm(f=>({...f,[key]:e.target.value}));
  async function run(work){setBusy(true);setError('');try{await work();}catch(e){setError(e.message);}finally{setBusy(false);}}
  async function leave(path){await api(path,{method:'POST',body:{}});navigate('/auth-v2',{replace:true});}
- return <section className="w-full max-w-2xl space-y-5" data-testid="account-security"><h2 className="text-xl font-bold">{c('accountTitle')}</h2><p className="text-sm text-slate-500">{c('accountHint')}</p><Feedback error={error||account.error||sessions.error} c={c} retry={()=>{account.reload();sessions.reload();}}/>{account.data&&<div className={`${panelClass} flex items-start gap-3 text-start`}>
+ return <section className="w-full max-w-2xl space-y-5" data-testid="account-security"><h2 className="text-xl font-bold">{c('accountTitle')}</h2><Feedback error={error||account.error||sessions.error} c={c} retry={()=>{account.reload();sessions.reload();}}/>{account.data&&<div className={`${panelClass} flex items-start gap-3 text-start`}>
   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
    <UserRound className="h-5 w-5" aria-hidden="true" />
   </span>

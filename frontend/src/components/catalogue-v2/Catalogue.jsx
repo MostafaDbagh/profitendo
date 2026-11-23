@@ -31,7 +31,6 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="text-lg font-bold">{c('catalogue')}</h2>
-        <p className="mt-1 text-sm text-slate-500">{c('catalogueHint')}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {create&&cost&&<>

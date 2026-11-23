@@ -54,7 +54,6 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     </button>
     <div>
       <h2 className="text-lg font-bold">{c(document?'editDocument':'newOrder')}</h2>
-      <p className="mt-1 text-sm text-slate-600">{ar?'حدّد الأصناف والكميات. الطلب لا يضيف مخزوناً.':'Choose items and quantities. An order does not add stock.'}</p>
     </div>
     <LocalDraftNotice {...{draft,lang,busy}}/>
     <Feedback {...{error,c}}/>

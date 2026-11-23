@@ -84,7 +84,7 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
   }
 
   return <section className="space-y-5">
-    <div><h2 className="text-xl font-bold">{c('reports')}</h2><p className="mt-1 text-sm text-slate-600">{c('reportsHint')}</p></div>
+    <div><h2 className="text-xl font-bold">{c('reports')}</h2></div>
     <div className="flex flex-wrap gap-2" role="group" aria-label={c('reportView')}>
       {primary.map(key => <button key={key} type="button" aria-pressed={view === key}
         className={view === key ? primaryClass : buttonClass} onClick={() => changeView(key)}>{c(`report_${key}`)}</button>)}

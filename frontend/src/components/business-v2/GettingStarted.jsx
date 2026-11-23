@@ -12,7 +12,7 @@ export default function GettingStarted({context,api,lang,onSection,visibleTabs})
  const text=copy[lang==='ar'?'ar':'en'],steps=useWorkspaceSetup(context,api,visibleTabs),next=steps.find(step=>step.complete!==true);
  const [version,setVersion]=useState(0),[sent,setSent]=useState(false);
  return <div className="mx-auto max-w-3xl space-y-5"><section className={`${panelClass} space-y-5`}>
-  <div><h2 className="text-xl font-bold">{steps.length?text.title:text.support}</h2><p className="mt-2 text-sm text-slate-600">{steps.length?text.intro:text.help}</p></div>
+  <div><h2 className="text-xl font-bold">{steps.length?text.title:text.support}</h2></div>
   {steps.length>0&&!next&&<p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-800">{steps.some(step=>step.id==='sale'&&step.complete)?text.complete:text.done}</p>}
   <ol className="space-y-3">{steps.map(step=>{const [title,hint,action]=text[step.id],Icon=step.complete?CheckCircle2:step.Icon;return <li key={step.id} className={`rounded-xl border p-4 space-y-3 ${step.id===next?.id?'border-emerald-200 bg-emerald-50/30':'border-slate-200 bg-white'}`}>
    <div className="flex gap-3 items-start"><Icon aria-hidden="true" className="mt-1 h-5 w-5 shrink-0 text-emerald-700"/><div><h3 className="font-semibold">{step.number}. {title}</h3><p className="mt-1 text-sm text-slate-600">{hint}</p></div></div>

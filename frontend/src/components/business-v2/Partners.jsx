@@ -161,7 +161,7 @@ export default function Partners({ context, api, c, lang }) {
   if (selected) return <PartnerHistory id={selected} {...{path,context,api,lang,text}} c={t} close={() => {setSelected(null); reload();}} />;
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-xl font-bold">{text.title}</h2><p className="mt-1 text-sm text-slate-600">{text.intro}</p></div>
+      <div><h2 className="text-xl font-bold">{text.title}</h2></div>
       <button type="button" className={primaryClass} onClick={openAdd => open(openAdd)}><Plus className="h-4 w-4" aria-hidden="true" />{text.add}</button>
     </div>
     <Feedback error={error} retry={reload} c={t} />

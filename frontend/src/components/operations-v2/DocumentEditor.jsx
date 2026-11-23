@@ -59,7 +59,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
   }catch(e){setError(e.message);}finally{setBusy(false);}
  }
  const validNumber='(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
- return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning||importing} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2><p className="text-sm text-slate-500 mt-1">{c(kind==='ORDER'?'orderHint':'receiptEntryHint')}</p></div>
+ return <section className="space-y-5"><button type="button" className={buttonClass} disabled={busy||scanning||importing} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(kind==='ORDER'?'newOrder':'newReceipt')}</h2></div>
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={panelClass}><div className="grid gap-4 sm:grid-cols-2">{[['location',location,'chooseLocation'],['supplier',supplier,'chooseSupplier']].map(([key,value,label])=><div key={key}><div className="mb-2 flex flex-wrap items-center justify-between gap-2">
  <p className="text-sm font-medium">{c(key==='location'?'selectedLocation':'selectedSupplier')}<RequiredMark/></p>

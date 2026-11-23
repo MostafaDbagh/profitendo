@@ -101,7 +101,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
 
   return <section className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-xl font-bold sm:text-2xl">{text.title}</h2><p className="mt-1 text-sm text-slate-600">{text.intro}</p></div>
+      <div><h2 className="text-xl font-bold sm:text-2xl">{text.title}</h2></div>
       <button type="button" className={primaryClass} disabled={busy} onClick={event=>open(event,'edit')}>
         <Plus className="h-4 w-4" aria-hidden="true" />{text.add}
       </button>

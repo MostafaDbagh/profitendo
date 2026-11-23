@@ -18,7 +18,6 @@ export default function Migration({context,api,c,lang,initialLocation=null}){
  return <div className="space-y-5">
   <header>
    <h2 className="text-xl font-bold">{c('migration')}</h2>
-   <p className="mt-1 text-sm text-slate-600">{c('migrationHint')}</p>
    <details className="mt-3 max-w-4xl rounded-lg border border-slate-200 bg-white px-4 text-sm">
     <summary className="cursor-pointer rounded py-2.5 font-medium text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
      {ar?'ما هو الرصيد الافتتاحي؟':'What is opening stock?'}
