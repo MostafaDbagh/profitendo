@@ -1,3 +1,4 @@
+import {feedbackCopy} from '../business-v2/feedbackCopy';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import DocumentDetail from './DocumentDetail';
@@ -54,7 +55,7 @@ test('failed confirmation keeps review visible and retry uses the same receipt r
  api=jest.fn(async(path,options)=>{if(options?.method&&!failed){failed=true;throw Error('NETWORK_ERROR');}return original(path,options);});
  await render();await act(async()=>button('Confirm & add stock').click());
  await act(async()=>button('Confirm & add stock',host.querySelector('[role="dialog"]')).click());
- expect(host.querySelector('[role="alert"]').textContent).toContain('NETWORK_ERROR');expect(doc.status).toBe('DRAFT');
+ expect(host.querySelector('[role="alert"]').textContent).toContain(feedbackCopy.ar.NETWORK_ERROR);expect(doc.status).toBe('DRAFT');
  await act(async()=>button('Confirm & add stock',host.querySelector('[role="dialog"]')).click());
  expect(writes()).toHaveLength(2);expect(writes()[0][1].body).toEqual(writes()[1][1].body);
  expect(host.textContent).toContain(operationsCopy.en.receiptCompletedHint);

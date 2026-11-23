@@ -34,8 +34,8 @@ export function ReturnItems({source,api,c,lang,root,done,onBusy=()=>{}}){
  async function review(e){
   e.preventDefault();if(posting.current)return;
   const selected=rows.filter(r=>r.selected);
-  if(!selected.length||selected.some(r=>scale(r.quantity)===null||scale(r.quantity)<=0n||scale(r.quantity)>scale(r.remaining))){setError(ar?'أدخل كمية أكبر من صفر ولا تتجاوز الكمية المتاحة للإرجاع.':'Enter a quantity above zero, within the remaining returnable amount.');return;}
-  if(reason.trim().length<5){setError(ar?'اكتب سبب الإرجاع (٥ أحرف على الأقل).':'Enter a return reason (at least 5 characters).');return;}
+  if(!selected.length||selected.some(r=>scale(r.quantity)===null||scale(r.quantity)<=0n||scale(r.quantity)>scale(r.remaining))){setError('RETURN_INPUT_QUANTITY');return;}
+  if(reason.trim().length<5){setError('RETURN_INPUT_REASON');return;}
   const body={kind:'CUSTOMER_RETURN',locationId:source.locationId,sourceId:source.id,reason,lines:selected.map(r=>({productId:r.productId,sourceLineId:r.id,quantity:r.quantity,condition:r.condition}))};
   const next=JSON.stringify(body);if(next!==fingerprint.current){fingerprint.current=next;key.current=crypto.randomUUID();}
   posting.current=true;setBusy(true);onBusy(true);setError('');

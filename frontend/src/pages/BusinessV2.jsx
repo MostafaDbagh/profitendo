@@ -1,3 +1,5 @@
+import RequestStatus from '../components/business-v2/RequestStatus';
+import WorkspaceErrorBoundary from '../components/business-v2/WorkspaceErrorBoundary';
 import ContactSupport from '../components/business-v2/ContactSupport';
 import { OwnerPinUnlock } from '../components/business-v2/OwnerPin';
 import ChartAccounts from '../components/business-v2/ChartAccounts';
@@ -176,10 +178,11 @@ export default function BusinessV2() {
       <span className="font-bold text-base sm:text-lg shrink-0">ProfitLens</span>
     </header>
     <h1 className="sr-only">{c('title')}</h1>
+    <RequestStatus {...{api,lang}} businessId={selected}/>
     <div className="px-4 md:px-8"><Feedback error={error} c={c} retry={() => setVersion(v => v + 1)} /></div>
     {!businesses && !error && <p role="status" className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</p>}
     {businesses?.length === 0 && params.get('tab')==='security'&&<main className="p-4 md:p-8 max-w-5xl mx-auto"><Security {...{api,lang}}/></main>}
     {businesses?.length === 0 && params.get('tab')!=='security' && <div className="px-4 md:px-8 space-y-4"><p className="text-sm text-slate-500">{c('noBusiness')}</p><Link className={buttonClass} to="/billing-v2">{lang==='ar'?'الفوترة وإلغاء الاشتراك':'Billing and cancellation'}</Link><Link className={`${buttonClass} ms-2`} to="/contact">{lang==='ar'?'تواصل معنا':'Contact Us'}</Link></div>}
-    {hasBusiness && <BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onName={onName} />}
+    {hasBusiness && <WorkspaceErrorBoundary key={selected} lang={lang}><BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onName={onName} /></WorkspaceErrorBoundary>}
   </div>;
 }

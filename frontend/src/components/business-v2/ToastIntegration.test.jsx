@@ -1,0 +1,20 @@
+import React,{act,StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import {Toaster,toast} from 'sonner';
+import RequestStatus from './RequestStatus';
+import {createRequestFeedback} from './requestFeedback';
+import {feedbackCopy} from './feedbackCopy';
+global.IS_REACT_ACT_ENVIRONMENT=true;
+let host,root,api;
+beforeEach(()=>{jest.useFakeTimers();Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.matchMedia=jest.fn(()=>({matches:false,addEventListener:()=>{},removeEventListener:()=>{},addListener:()=>{},removeListener:()=>{}}));host=document.createElement('div');document.body.append(host);root=createRoot(host);api={feedback:createRequestFeedback()};});
+afterEach(async()=>{await act(async()=>{toast.dismiss();jest.runOnlyPendingTimers();});act(()=>root.unmount());host.remove();jest.useRealTimers();});
+async function render(lang='en',businessId='b'){await act(async()=>root.render(<StrictMode><Toaster position="top-center" richColors/><RequestStatus {...{api,lang,businessId}}/></StrictMode>));await tick(40);}
+async function tick(ms){await act(async()=>jest.advanceTimersByTime(ms));}
+async function save(reference='S1'){await act(async()=>api.feedback.saved({scope:'b',key:'saleSaved',reference}));await tick(40);}
+for(const lang of ['en','ar'])test(`real Sonner shows localized content without stealing focus and expires (${lang})`,async()=>{await render(lang);const input=document.createElement('input');host.append(input);input.focus();await save();expect(document.activeElement).toBe(input);expect(host.textContent).toContain(feedbackCopy[lang].saleSaved);expect(host.querySelector('[role=status]').getAttribute('dir')).toBe(lang==='ar'?'rtl':'ltr');expect(host.querySelector('button').getAttribute('aria-label')).toBe(feedbackCopy[lang].dismiss);await tick(7100);await tick(500);expect(api.feedback.getSnapshot().success).toBeNull();expect(host.textContent).not.toContain('S1');});
+test('pre-existing success survives StrictMode setup/cleanup replay',async()=>{api.feedback.saved({scope:'b',key:'saleSaved',reference:'PREEXISTING'});await render();await tick(500);expect(host.textContent).toContain('PREEXISTING');});
+test('switching language keeps the active confirmation translated',async()=>{await render();await save();await render('ar');await tick(500);expect(host.textContent).toContain(feedbackCopy.ar.saleSaved);expect(host.textContent).not.toContain(feedbackCopy.en.saleSaved);});
+test('dismiss button removes actual toast and business switch hides references',async()=>{await render();await save();await act(async()=>host.querySelector('button').click());await tick(40);await tick(500);expect(host.textContent).not.toContain('S1');await save('PRIVATE');await render('en','other');await tick(500);expect(host.textContent).not.toContain('PRIVATE');await render();await tick(500);expect(host.textContent).not.toContain('PRIVATE');});
+test('new confirmations replace earlier ones; old callbacks cannot clear newer success',async()=>{await render();await save('OLD');await save('NEW');await tick(500);expect(host.textContent).not.toContain('OLD');expect(host.textContent).toContain('NEW');expect(api.feedback.getSnapshot().success.reference).toBe('NEW');});
+test('reference text is escaped and explicit dismissal leaves keyboard focus alone',async()=>{await render();const input=document.createElement('input');host.append(input);input.focus();await save('<img src=x onerror=alert(1)>');expect(host.querySelector('img')).toBeNull();expect(host.textContent).toContain('<img src=x onerror=alert(1)>');await act(async()=>api.feedback.dismiss());await tick(40);await tick(500);expect(host.querySelector('[role=status]')).toBeNull();expect(document.activeElement).toBe(input);});
+test('rapid repeated successful actions leave only the latest confirmation',async()=>{await render();await save('FIRST');await save('SECOND');await save('THIRD');await tick(40);await tick(500);expect(host.querySelectorAll('[data-sonner-toast]')).toHaveLength(1);expect(host.textContent).toContain('THIRD');expect(host.textContent).not.toContain('FIRST');expect(host.textContent).not.toContain('SECOND');});

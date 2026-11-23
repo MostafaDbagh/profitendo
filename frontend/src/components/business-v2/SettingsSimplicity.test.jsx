@@ -1,3 +1,4 @@
+import {feedbackCopy} from './feedbackCopy';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import Settings from './Settings';
@@ -35,5 +36,5 @@ test('read-only access disables timezone selection and hides unavailable account
 test('initial setup omits accounting and a failed save preserves the chosen city',async()=>{
  await render('en',{initialSetup:true,onSetupComplete:()=>{}});expect(host.querySelector('[data-testid="fifo-settings"]')).toBeNull();
  api.mockRejectedValueOnce(Error('NETWORK_ERROR'));await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(host.querySelector('[role="alert"]').textContent).toContain('NETWORK_ERROR');expect(host.querySelector('#business-timezone').textContent).toBe('Dubai');
+ expect(host.querySelector('[role="alert"]').textContent).toContain(feedbackCopy.ar.NETWORK_ERROR);expect(host.querySelector('#business-timezone').textContent).toBe('Dubai');
 });

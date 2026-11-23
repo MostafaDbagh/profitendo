@@ -1,3 +1,4 @@
+import {feedbackCopy} from '../business-v2/feedbackCopy';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import DocumentEditor from './DocumentEditor';
@@ -40,7 +41,7 @@ test('failed draft save preserves entered quantity for retry',async()=>{
  api.mockRejectedValueOnce(Error('NETWORK_ERROR')).mockResolvedValue(doc);await render();const quantity=host.querySelector('#line-quantity-0');
  act(()=>{fill(quantity,'7');});const form=button('Review receipt').closest('form');
  await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(host.querySelector('[role="alert"]').textContent).toContain('NETWORK_ERROR');expect(quantity.value).toBe('7');expect(done).not.toHaveBeenCalled();
+ expect(host.querySelector('[role="alert"]').textContent).toContain(feedbackCopy.ar.NETWORK_ERROR);expect(quantity.value).toBe('7');expect(done).not.toHaveBeenCalled();
  await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api.mock.calls[1][1].body.lines[0].quantity).toBe('7');expect(done).toHaveBeenCalledTimes(1);
 });

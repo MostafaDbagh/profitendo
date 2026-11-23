@@ -1,3 +1,4 @@
+import {feedbackCopy} from './feedbackCopy';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import Roles from './Roles';
@@ -44,5 +45,5 @@ test('manager cannot enable an unowned permission, and errors retain edits for r
  expect(host.querySelector('[id="permission-receiving.confirm"] option[value="true"]').disabled).toBe(true);
  select('permission-sales.create','true');api.mockRejectedValueOnce(Error('FORBIDDEN'));
  await act(async()=>host.querySelector('[role="dialog"] form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(host.querySelector('[role="alert"]').textContent).toContain('FORBIDDEN');expect(host.querySelector('[id="permission-sales.create"]').value).toBe('true');expect(writes()[0][1].body.permissionOverrides).not.toHaveProperty('team.manage');
+ expect(host.querySelector('[role="alert"]').textContent).toContain(feedbackCopy.ar.FORBIDDEN);expect(host.querySelector('[id="permission-sales.create"]').value).toBe('true');expect(writes()[0][1].body.permissionOverrides).not.toHaveProperty('team.manage');
 });

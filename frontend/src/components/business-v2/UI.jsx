@@ -1,3 +1,4 @@
+import {errorText} from './feedbackCopy';
 import RequiredMark from '../RequiredMark';
 import TableTools from './TableTools';
 import {useLanguage} from '../../context/LanguageContext';
@@ -15,14 +16,16 @@ export const UpgradeContext = createContext(null);
 export function Feedback({ error, notice, c, retry }) {
   const ref = useRef(null);
   const upgrade = useContext(UpgradeContext);
+  const language=useLanguage();
   const limited = ['MEMBER_LIMIT_REACHED', 'LOCATION_LIMIT_REACHED'].includes(error);
-  const ar = upgrade?.lang === 'ar';
+  const lang=upgrade?.lang||language?.lang||'en';
+  const ar = lang === 'ar';
   useEffect(() => { if (error || notice) ref.current?.focus(); }, [error, notice]);
   if (!error && !notice) return null;
   return <div ref={ref} tabIndex={-1} role={error ? 'alert' : 'status'} className={`p-3 rounded-lg border text-sm ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-    {c(error || notice)}
+    {error ? errorText(error,c,lang) : c(notice)}
     {limited && upgrade && <div className="mt-3 space-y-3"><p>{upgrade.canUpgrade ? (ar ? 'قم بترقية خطتك لإضافة المزيد.' : 'Upgrade your plan to add more.') : (ar ? 'تواصل مع مالك النشاط لترقية الخطة وإضافة المزيد.' : 'Contact your business owner to upgrade the plan and add more.')}</p>{upgrade.canUpgrade && <button type="button" className={primaryClass} onClick={upgrade.onUpgrade}>{ar ? 'ترقية الخطة' : 'Upgrade plan'}</button>}</div>}
-    {error && retry && !limited && <button type="button" className="underline ms-3 font-semibold" onClick={retry}>{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
+    {error && retry && !limited && error !== 'SAVE_UNCONFIRMED' && <button type="button" className="underline ms-3 font-semibold" onClick={retry}>{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
   </div>;
 }
 export function Pager({ data, setPage, c }) {

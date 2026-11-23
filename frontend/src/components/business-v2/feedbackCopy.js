@@ -1,0 +1,67 @@
+export const feedbackCopy={
+ en:{
+ FORBIDDEN:"You do not have permission for this action. Ask the business owner for access.",
+ VALIDATION_ERROR:"Some details are missing or invalid. Check the required fields and try again.",
+ NOT_FOUND:"This record is no longer available, or you do not have access to it. Reload the list.",
+ REVISION_CONFLICT:"Someone updated this record. Reload it and review the latest details before saving.",
+ RETURN_INPUT_QUANTITY:"Enter a quantity above zero, within the remaining returnable amount.",
+ RETURN_INPUT_REASON:"Enter a return reason (at least 5 characters).",
+ OFFLINE_NOT_SENT:'You are offline. This request was not sent. Reconnect, then try again.',
+ NETWORK_ERROR:'We could not reach the server. Check your connection, then try again.',
+ REQUEST_TIMEOUT:'This is taking too long. Check your connection, then try loading again.',
+ SAVE_UNCONFIRMED:'We could not confirm whether this was saved. Check the record or history before submitting again to avoid a duplicate.',
+ SERVER_UNAVAILABLE:'The service is temporarily unavailable. Please try again shortly.',
+ INVALID_SERVER_RESPONSE:'We could not load the response. Try again. If this continues, contact support.',
+ TOO_MANY_REQUESTS:'Too many requests. Wait a moment, then try again.',
+ SESSION_EXPIRED:'Your session has expired. Sign in again to continue.',
+ REQUEST_REJECTED:'This request could not be completed. Check the details and try again.',
+ UNEXPECTED_ERROR:'Something went wrong. Please try again. If it continues, contact support.',
+ slowRead:'Still loading. Your connection or the service may be slow.',
+ slowWrite:'Still waiting for confirmation. Keep this page open and do not submit again.',
+ offline:'You are offline. Reconnect before saving or loading records.',
+ saleSaved:'Sale completed. Payment and stock changes recorded.',
+ returnSaved:'Return confirmed. Stock changes and the amount owed to the customer are recorded. Record the actual refund separately.',
+ returnCancelled:'Return cancelled. No stock or refund credit was posted.',
+ refundSaved:'Customer refund recorded.',expenseSaved:'Expense recorded.',paymentSaved:'Payment recorded.',
+ stockSaved:'Goods received. Stock updated.',draftSaved:'Draft saved. Stock has not changed yet.',
+ dismiss:'Dismiss message',crashTitle:'This screen could not be displayed.',
+ crashHint:'You can reopen it below. Unsaved entries may be lost. If you were saving a sale or payment, check its history before entering it again.',
+ reopen:'Reopen screen',support:'Contact support',
+ },
+ ar:{
+ FORBIDDEN:"ليس لديك صلاحية لهذا الإجراء. اطلب الصلاحية من مالك النشاط.",
+ VALIDATION_ERROR:"بعض البيانات ناقصة أو غير صحيحة. راجع الحقول المطلوبة ثم حاول مجدداً.",
+ NOT_FOUND:"هذا السجل لم يعد متاحاً أو ليس لديك صلاحية لعرضه. أعد تحميل القائمة.",
+ REVISION_CONFLICT:"تم تعديل السجل من شخص آخر. أعد تحميله وراجع آخر البيانات قبل الحفظ.",
+ RETURN_INPUT_QUANTITY:"أدخل كمية أكبر من صفر ولا تتجاوز الكمية المتاحة للإرجاع.",
+ RETURN_INPUT_REASON:"اكتب سبب الإرجاع (٥ أحرف على الأقل).",
+ OFFLINE_NOT_SENT:'لا يوجد اتصال بالإنترنت. لم يُرسل الطلب. أعد الاتصال ثم حاول مجدداً.',
+ NETWORK_ERROR:'تعذّر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجدداً.',
+ REQUEST_TIMEOUT:'استغرق التحميل وقتاً طويلاً. تحقق من الإنترنت ثم أعد التحميل.',
+ SAVE_UNCONFIRMED:'لم نتمكن من التأكد من الحفظ. راجع السجل قبل الإرسال مرة أخرى لتجنب التكرار.',
+ SERVER_UNAVAILABLE:'الخدمة غير متاحة مؤقتاً. حاول بعد قليل.',
+ INVALID_SERVER_RESPONSE:'تعذّر تحميل الرد. حاول مجدداً، وتواصل مع الدعم إذا استمرت المشكلة.',
+ TOO_MANY_REQUESTS:'توجد طلبات كثيرة. انتظر قليلاً ثم حاول مجدداً.',
+ SESSION_EXPIRED:'انتهت جلسة الدخول. سجّل الدخول مجدداً للمتابعة.',
+ REQUEST_REJECTED:'تعذّر إتمام الطلب. راجع البيانات ثم حاول مجدداً.',
+ UNEXPECTED_ERROR:'حدث خطأ. حاول مجدداً، وتواصل مع الدعم إذا استمرت المشكلة.',
+ slowRead:'ما زال التحميل مستمراً. قد يكون الاتصال أو الخدمة بطيئاً.',
+ slowWrite:'ما زلنا ننتظر تأكيد الحفظ. أبقِ الصفحة مفتوحة ولا ترسل الطلب مرة أخرى.',
+ offline:'لا يوجد اتصال بالإنترنت. أعد الاتصال قبل الحفظ أو تحميل السجلات.',
+ saleSaved:'تم البيع وتسجيل الدفع وتحديث المخزون.',
+ returnSaved:'تم تأكيد الإرجاع وتسجيل تغييرات المخزون والمبلغ المستحق للزبون. سجّل دفع المبلغ للزبون بشكل منفصل.',
+ returnCancelled:'تم إلغاء الإرجاع. لم يتغير المخزون ولم يُسجّل مبلغ مستحق للزبون.',
+ refundSaved:'تم تسجيل المبلغ المدفوع للزبون.',expenseSaved:'تم تسجيل المصروف.',paymentSaved:'تم تسجيل الدفع.',
+ stockSaved:'تم استلام البضاعة وتحديث المخزون.',draftSaved:'تم حفظ المسودة. لم يتغير المخزون بعد.',
+ dismiss:'إغلاق الرسالة',crashTitle:'تعذّر عرض هذه الشاشة.',
+ crashHint:'يمكنك فتحها مجدداً بالزر أدناه. قد تُفقد البيانات غير المحفوظة. إذا كنت تحفظ بيعاً أو دفعة، راجع السجل قبل إدخالها مرة أخرى.',
+ reopen:'فتح الشاشة مجدداً',support:'التواصل مع الدعم',
+ }};
+export function errorText(error,c,lang){
+ const copy=feedbackCopy[lang]||feedbackCopy.en;
+ if(copy[error])return copy[error];
+ const translated=c(error);
+ if(translated&&translated!==error&&translated!==c('failed'))return translated;
+ // Unexpected runtime messages and untranslated server codes never reach users.
+ return copy.UNEXPECTED_ERROR;
+}

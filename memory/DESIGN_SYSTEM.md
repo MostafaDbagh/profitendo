@@ -1246,3 +1246,67 @@ unavailable: desktop/mobile screenshot verification remains outstanding. No depl
 After correcting that assertion, all 48 workflow integration tests passed against
 the isolated local test database, including tenant/location scoping, cumulative
 and concurrent returns, fractional money, damaged stock and refund limits.
+
+## Request feedback and recovery — 23 November 2026
+
+Shared useBusinessApi now delegates to a testable request client. Offline requests
+fail before transmission; requests taking 5 seconds emit a slow status and time
+out after 30 seconds, including response/download body reads. Caller aborts stay
+silent. No request is automatically retried or queued. Write connection failures,
+timeouts and server failures use SAVE_UNCONFIRMED: check history before submitting
+again. Feedback hides its generic retry button for that ambiguous outcome.
+401 responses redirect even when the response is HTML. Raw server exceptions and
+untranslated errors are replaced by safe bilingual messages; known business-rule
+translations remain. CSRF, credentials and caller idempotency keys are preserved.
+
+Business workspace shows offline/slow notices and dismissible confirmations for
+completed sales, receipts, payments/refunds/expenses, adjustment drafts and customer
+return approval/cancellation. Confirmation scope is the selected business; only
+server-confirmed actions generate success. Draft/return copy distinguishes stock
+posting from money actually refunded. Shared Feedback uses specific EN/AR errors
+for connectivity, validation, permissions and conflicting updates. Customer-return
+local validation uses translated codes instead of losing literal text in fallback.
+A workspace render error boundary offers reopening/support with an explicit warning
+about unsaved entries and checking transaction history. It does not claim recovery
+of unsaved state or catch every asynchronous application error.
+
+Validation: 111 frontend tests passed in the full run; all 4 additional status/
+recovery UI tests passed separately (115 total). Coverage includes offline no-send,
+slow requests, timeouts, caller cancellation, ambiguous writes, HTML errors, 401,
+malformed responses, CSRF, concurrent request cleanup, downloads, bilingual copy,
+tenant-scoped messages, dismiss/retry behavior and rendering-error recovery.
+Existing failed-save tests still verify input preservation. Production build and
+prerender passed; diff whitespace check passed. Browser host unavailable, so fresh
+Arabic/English desktop/mobile screenshots remain outstanding. No backend or
+production deployment changes. Legacy clients outside useBusinessApi are not
+claimed to have this transport/status coverage.
+
+## Success toast polish — 23 November 2026
+
+Success confirmations now use the existing Sonner host at top-center instead of
+an inline banner. Custom cards preserve white surfaces, emerald checkmark, rounded
+xl border, restrained shadow, RTL/LTR content, record reference and a labelled
+44px close target. Seven-second duration; no focus stealing. Toasts dismiss on
+scope change/unmount and the same success is not replayed when returning to the
+business. Offline/slow notices and actionable inline errors remain persistent.
+No extra notification library or duplicate host was introduced.
+Validation: all five focused status/recovery tests pass (including AR/EN toast
+content, dismissal and cross-business cleanup); production build/prerender and
+diff check pass. Live visual verification remains unavailable; not deployed.
+
+## Toast lifecycle regression testing — 23 November 2026
+
+Added integration tests mounting the real Sonner Toaster in React StrictMode,
+instead of only mocking toast callbacks. Found and fixed confirmations vanishing
+on language change and when a pre-existing success encountered StrictMode effect
+replay. Active toast IDs now update translated content in place; scope changes
+still dismiss without replay. Lifecycle cleanup is separate from content updates.
+
+Validation: full frontend suite passed (122 tests, 23 suites), then two additional
+integration cases passed with all eight real-Sonner tests (124 total). Tests cover
+AR/EN text and direction, accessible close labels, no input focus stealing,
+seven-second expiry, actual dismissal animation, StrictMode replay, translation
+updates, business switching, successive confirmations, safe reference escaping,
+and keeping only the newest toast. Existing transport/offline/timeout and failed
+save preservation tests pass. Browser access host remains unavailable, so this is
+DOM/integration coverage, not a mobile/desktop visual sign-off. No deployment.
