@@ -105,9 +105,9 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  </div>
  <Field id="document-date" form={formId} label={c('documentDate')} type="date" className={`${inputClass} min-h-11`}
   value={date} disabled={busy||importing} required onChange={e=>setDate(e.target.value)}/>
- <Field id="supplier-reference" form={formId} label={c('supplierReference')} placeholder={c('supplierReferencePlaceholder')}
+ <Field id="supplier-reference" wrapperClassName="min-w-0 sm:col-start-1" form={formId} label={c('supplierReference')} placeholder={c('supplierReferencePlaceholder')}
   value={reference} maxLength={120} disabled={busy||importing} onChange={e=>setReference(e.target.value)}/>
- <div className="sm:col-span-2 lg:col-span-3">
+ <div className="min-w-0 lg:col-span-2">
   <label htmlFor="document-notes" className="mb-1.5 block text-sm font-medium text-slate-700">{c('notes')}</label>
   <input id="document-notes" form={formId} className={inputClass} placeholder={c('notesPlaceholder')}
    maxLength={2000} value={notes} disabled={busy||importing} onChange={e=>setNotes(e.target.value)}/>
