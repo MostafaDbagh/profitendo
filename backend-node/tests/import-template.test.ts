@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import Excel from 'exceljs';
-import { importTemplate, parseWorkbook, templateColumns, validImportHeaders, importHeaderMap, importDecimal } from '../src/catalogue/workbook.js';
+import { importTemplate, parseWorkbook, templateColumns, validImportHeaders, importHeaderMap, importDecimal, importUnit } from '../src/catalogue/workbook.js';
 import { parseCsv } from '../src/catalogue/csv.js';
 
 it.each(['ar','en'])('round-trips the %s template with localized headers and sheet direction', async lang => {
@@ -45,3 +45,12 @@ it('limits concurrent XLSX workers and releases capacity after parsing',async()=
  await expect(parseWorkbook(Buffer.from('broken zip'))).rejects.toMatchObject({code:'INVALID_WORKBOOK'});
  await expect(parseWorkbook(bytes)).resolves.toHaveLength(1);
 });
+
+ it('allows missing unit columns and defaults blank units to PIECE without accepting invalid values',()=>{
+  expect(importHeaderMap(['name','purchasePrice'])).toEqual(['name','purchasePrice']);
+  expect(importHeaderMap(['اسم المنتج','سعر الشراء'])).toEqual(['name','purchasePrice']);
+  for(const value of ['', '   '])expect(importUnit(value)).toBe('PIECE');
+  expect(importUnit('غرام')).toBe('GRAM');
+  expect(importUnit('INVALID')).toBe('INVALID');
+  expect(importUnit(0)).toBe(0);
+ });

@@ -340,3 +340,19 @@ it('allows only one of two different previews with the same identifiers to commi
  expect(results.map(r=>r.status).sort()).toEqual([200,409]);expect(await db.product.count({where:{businessId:business,sku:'RACE-SAME'}})).toBe(1);
  expect(await db.authAudit.count({where:{businessId:business,action:'products.imported',targetId:{in:[a.body.id,b.body.id]}}})).toBe(1);
 });
+
+it.each(['xlsx','csv'] as const)('imports %s products with omitted or blank units as PIECE',async format=>{
+ const tester=await actor('OWNER');
+ for(const includeUnit of [false,true]){
+  const name=`Optional unit ${format} ${includeUnit}`;
+  const headers=includeUnit?['name','purchasePrice','unit']:['name','purchasePrice'];
+  const row=includeUnit?[name,'1','   ']:[name,'1'];
+  const upload=format==='xlsx'?await file([row],headers):{filename:'products.csv',fileBase64:Buffer.from(headers.join(',')+'\n'+row.join(',')).toString('base64')};
+  const preview=await write('/preview',upload,tester);
+  expect(preview.status).toBe(201);expect(preview.body.issues).toEqual([]);
+  expect(preview.body.rows[0].product.unit).toBe('PIECE');
+  const committed=await write(`/${preview.body.id}/commit`,{confirm:true},tester);
+  expect(committed.status).toBe(200);
+  expect(await db.product.findFirst({where:{businessId:business,name},select:{unit:true}})).toEqual({unit:'PIECE'});
+ }
+});

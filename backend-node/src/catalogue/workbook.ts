@@ -45,12 +45,13 @@ export function importDecimal(value:string|number) {
 }
 export function importHeaderMap(values:(string|number)[]) {
   const keys=values.map(value=>Object.entries(exportHeaders).find(([key,labels])=>[key,...labels,...(headerAliases[key]??[])].some(label=>normalizeHeader(label)===normalizeHeader(value)))?.[0]);
-  if(keys.some(key=>!key)||new Set(keys).size!==keys.length||!['name','unit','purchasePrice'].every(key=>keys.includes(key)))return null;
+  if(keys.some(key=>!key)||new Set(keys).size!==keys.length||!['name','purchasePrice'].every(key=>keys.includes(key)))return null;
   return keys as string[];
 }
 export function importUnit(value:string|number) {
   if (typeof value !== 'string') return value;
   const code = value.normalize('NFKC').trim().toUpperCase();
+  if (!code) return 'PIECE';
   return Object.entries(exportUnits).find(([, labels]) =>
     labels.some(label => label.toUpperCase() === code)
   )?.[0] ?? code;
