@@ -124,7 +124,7 @@ test.each(['en','ar'])('CSV recovery uses the real product form and preserves pu
  const input=host.querySelector('input[type=file]');
  Object.defineProperty(input,'files',{value:[{size:100,text:async()=> 'sku,name,unit,quantity,unit_cost\nsafi,Safi milk,LITRE,2,100'}]});
  await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
- const createLabel=lang==='ar'?'إنشاء المنتج وإكمال الاستيراد':'Create product and continue import';
+ const createLabel=lang==='ar'?'إضافة المنتج':'Add product';
  await act(async()=>button(createLabel).click());
  expect(host.querySelector('#product-name').value).toBe('Safi milk');
  expect(host.querySelector('#product-sku').value).toBe('safi');

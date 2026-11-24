@@ -35,7 +35,11 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
   }catch(e){
    const parts=e.message.split(':');
    setPending(rows?{rows,index:parts[0]==='PRODUCT'?Number(parts[1])-2:null}:null);
-   setError(`${importError(e.message,ar)} ${ar?'لم تُضف أي أصناف إلى المسودة.':'No items were added.'}`);
+   if(parts[0]==='PRODUCT'){
+    setNotice(ar?'تم تحميل الملف. يوجد منتج يحتاج إلى إضافته أو مطابقته قبل نقل الأصناف إلى مسودة الشراء.':'File loaded. A product needs to be added or matched before the items can enter the purchase draft.');
+   }else{
+    setError(`${importError(e.message,ar)} ${ar?'لم تُضف أي أصناف إلى المسودة.':'No items were added.'}`);
+   }
   }finally{lock.current=false;setBusy(false);onBusy(false);}
  }
  function match(product){
@@ -64,9 +68,10 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
   {pending&&<div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
    <p className="text-sm font-medium">{ar?'الملف محفوظ هنا حتى اكتمال المطابقة. إنشاء منتج يحفظه في دليل المنتجات فقط؛ المخزون لا يتغير.':'Your file is retained here while you resolve it. Creating a product saves it to the catalogue only; stock does not change.'}</p>
    {missing&&<>
+    <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{ar?'هذا المنتج غير موجود ضمن منتجاتك النشطة. أضف المنتج أو اختر منتجاً موجوداً لمتابعة الاستيراد.':'This item is not in your active products. Add the product or match an existing one to continue importing.'}</p>
     <p className="text-sm">{ar?'السطر':'Row'} {pending.index+2}: <bdi>{missing.sku}</bdi>{missing.name&&` — ${missing.name}`} · {ar?'الكمية':'Quantity'}: {missing.quantity}</p>
     <ProductSearch {...{api,root,c,lang}} disabled={disabled||busy} onSelect={match} label={ar?'مطابقة مع منتج موجود':'Match an existing product'}/>
-    {canCreate&&<button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>setCreating(true)}>{ar?'إنشاء المنتج وإكمال الاستيراد':'Create product and continue import'}</button>}
+    {canCreate&&<button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>setCreating(true)}>{ar?'إضافة المنتج':'Add product'}</button>}
     {!canCreate&&<p className="text-sm text-slate-500">{ar?'إنشاء المنتجات يحتاج صلاحية إضافة المنتجات وعرض التكلفة. يمكنك مطابقة منتج موجود.':'Creating products requires product creation and cost access. You can match an existing product.'}</p>}
    </>}
    <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>process(pending.rows)}>{ar?'إعادة التحقق من الملف':'Retry retained file'}</button>

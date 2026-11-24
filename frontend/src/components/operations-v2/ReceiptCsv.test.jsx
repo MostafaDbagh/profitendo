@@ -21,7 +21,7 @@ test('failed lookup never adds partial rows or writes stock',async()=>{
  const api=jest.fn().mockResolvedValueOnce({product:{id:'p',sku:'001'}}).mockRejectedValueOnce(new Error('PRODUCT_NOT_FOUND')),onImport=jest.fn();
  act(()=>root.render(<ReceiptCsv api={api} lang="en" onImport={onImport} onBusy={()=>{}} root="/businesses/b" cost={false} lines={[]}/>));
  await upload('sku,quantity\n001,2\n002,1');
- expect(onImport).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]').textContent).toContain('No items were added');expect(api.mock.calls.every(call=>call.length===1)).toBe(true);
+ expect(onImport).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]')).toBeNull();expect(host.querySelector('[role=note]').textContent).toContain('not in your active products');expect(api.mock.calls.every(call=>call.length===1)).toBe(true);
 });
 test('the downloaded receipt works in an empty draft and does not duplicate the original draft',async()=>{
  const product={id:'p',sku:'001',name:'Milk',unit:'LITRE'};
@@ -59,7 +59,7 @@ test('offers explicit permission-gated creation with CSV details and resumes ret
  act(()=>root.render(<ReceiptCsv api={api} lang="en" c={key=>key} context={{permissions:{'catalogue.create':true,'catalogue.cost':true}}} onImport={onImport} onBusy={()=>{}} root="/businesses/b" cost lines={[]}/>));
  await upload('sku,name,unit,quantity,unit_cost\nNEW,Milk,LITRE,2,100');
  expect(onImport).not.toHaveBeenCalled();
- act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Create product and continue import').click());
+ act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Add product').click());
  exists=true;
  await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Save Milk 100').click());
  expect(onImport.mock.calls[0][0][0]).toMatchObject({sku:'NEW',quantity:'2',unitCost:'100'});
@@ -68,7 +68,7 @@ test.each([{}, {'catalogue.create':true}, {'catalogue.cost':true}])('does not of
  const api=jest.fn().mockRejectedValue(new Error('PRODUCT_NOT_FOUND'));
  act(()=>root.render(<ReceiptCsv api={api} lang="en" c={key=>key} context={{permissions}} onImport={jest.fn()} onBusy={()=>{}} root="/businesses/b" cost lines={[]}/>));
  await upload('sku,quantity\nNEW,1');
- expect(host.textContent).not.toContain('Create product and continue import');
+ expect(host.textContent).not.toContain('Add product');
  expect(host.textContent).toContain('Match product');
 });
 test('cancel discards pending import without adding rows',async()=>{
@@ -128,4 +128,15 @@ test('repeated retry clicks issue only one lookup while pending',async()=>{
  expect(api).toHaveBeenCalledTimes(2);
  await act(async()=>finish({product:{id:'p',sku:'001'}}));
  expect(onImport).toHaveBeenCalledTimes(1);
+});
+test.each(['ar','en'])('accepts an unknown item as pending with an add-product note, not a rejection (%s)',async lang=>{
+ const api=jest.fn().mockRejectedValue(new Error('PRODUCT_NOT_FOUND')),onImport=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport,lang}} c={key=>key} context={{permissions:{'catalogue.create':true,'catalogue.cost':true}}} onBusy={()=>{}} root="/businesses/b" cost lines={[]}/>));
+ await upload('sku,name,unit,quantity,unit_cost\nsafi,Safi milk,LITRE,2,100');
+ expect(host.querySelector('[role=alert]')).toBeNull();
+ expect(host.querySelector('[role=status]').textContent).toContain(lang==='ar'?'تم تحميل الملف':'File loaded');
+ expect(host.querySelector('[role=note]').textContent).toContain(lang==='ar'?'غير موجود':'not in your active products');
+ expect(host.textContent).toContain('Safi milk');expect(host.textContent).toContain('safi');
+ expect([...host.querySelectorAll('button')].some(b=>b.textContent===(lang==='ar'?'إضافة المنتج':'Add product'))).toBe(true);
+ expect(onImport).not.toHaveBeenCalled();
 });
