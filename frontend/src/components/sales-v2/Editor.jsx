@@ -73,13 +73,13 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <div className="space-y-3 p-4 sm:p-5">
   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShoppingBasket className="h-4 w-4 text-emerald-600" aria-hidden="true"/>{lang==='ar'?'إضافة منتجات للبيع':'Add sale items'}</div>
   <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+   <ProductSearch key={shop?.id} {...{api,root,c,lang,context}} lookupPath={`${path}/products?locationId=${shop?.id}`}
+    disabled={!shop||busy||pending>0} maxLength={100} selectCreated={false} onSelect={add} inputRef={productInput}/>
    <form ref={scanner} onSubmit={scan} className="min-w-0">
     <label htmlFor="pos-barcode" className="mb-1.5 block text-xs font-medium text-slate-600">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}</label>
     <div className="flex gap-2"><div className="relative min-w-0 flex-1"><Barcode aria-hidden="true" className="pointer-events-none absolute start-3 top-3.5 h-5 w-5 text-slate-400"/><input id="pos-barcode" className="h-12 w-full rounded-lg border border-slate-200 bg-white ps-10 pe-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder={lang==='ar'?'امسح الباركود أو اكتب الرمز':'Scan barcode or enter code'} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100}/></div>
     <button className={`${buttonClass} h-12 shrink-0`} disabled={!shop||busy||!barcode.trim()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة':'Add'}</button></div>
    </form>
-   <ProductSearch key={shop?.id} {...{api,root,c,lang,context}} lookupPath={`${path}/products?locationId=${shop?.id}`}
-    disabled={!shop||busy||pending>0} maxLength={100} selectCreated={false} onSelect={add} inputRef={productInput}/>
   </div>
   {pending>0&&<LoadingState className="text-xs text-emerald-700">{c('loading')}</LoadingState>}
  </div></section>
