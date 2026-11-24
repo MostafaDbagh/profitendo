@@ -1,10 +1,10 @@
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
-import {LocationChipGroup} from '../business-v2/LocationChips';
+import {LocationChipGroup,locationIcons} from '../business-v2/LocationChips';
 import SaleSteps from './SaleSteps';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Check, Store, Warehouse, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import { Check, MapPin, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import useLocationOptions from '../business-v2/useLocationOptions';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
@@ -57,7 +57,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
    {!doc&&!shops.loading&&!shops.error&&!shops.items.length&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
    {shopUnavailable&&rows.length>0&&<p role="status" className="text-sm text-slate-600">{lang==='ar'?'لم يعد موقع المسودة متاحًا. أزل أصنافها لاختيار موقع آخر.':'The draft location is no longer available. Remove its items to choose another location.'}</p>}
    {shopOptions.map(option=>{
-    const selected=option.id===shop?.id, Icon=option.kind==='WAREHOUSE'?Warehouse:Store;
+    const selected=option.id===shop?.id, Icon=locationIcons[option.kind]??MapPin;
     return <button key={option.id} type="button" aria-pressed={selected} disabled={shopLocked}
      className={`inline-flex max-w-full min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
      onClick={()=>setShop(option)}>

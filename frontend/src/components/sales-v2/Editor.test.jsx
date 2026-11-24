@@ -2,6 +2,7 @@ import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import Editor from './Editor';
 import {LanguageProvider} from '../../context/LanguageContext';
+import {DraftScope} from '../../lib/localDraft';
 jest.mock('@/lib/quantity',()=>({formatQuantity:v=>String(Number(v))}),{virtual:true});
 jest.mock('@/lib/utils',()=>jest.requireActual('../../lib/utils'),{virtual:true});
 jest.mock('@/components/CopyableCode',()=>({__esModule:true,default:({children})=><span>{children}</span>}),{virtual:true});
@@ -14,6 +15,19 @@ beforeEach(()=>{let id=0;Object.defineProperty(window,'crypto',{configurable:tru
 afterEach(()=>{act(()=>root.unmount());host.remove();});
 function fill(input,value){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}
 async function render(lang){localStorage.setItem('profitlens_lang',lang);await act(async()=>root.render(<LanguageProvider><Editor context={{business:{id:'b',baseCurrency:'USD'},permissions:{}}} {...{api,done,lang}} c={k=>k} close={()=>{}}/></LanguageProvider>));}
+test('a restored sale cannot use a location removed from the current assignment',async()=>{
+ const context={business:{id:'b',baseCurrency:'USD'},membershipId:'member',permissions:{}};
+ const key='profitendo:entry:v1:'+JSON.stringify(['b','member',{},'sale:new:0']);
+ localStorage.setItem(key,JSON.stringify({version:1,values:{
+  shop:{id:'old',name:'Former shop'},rows:[{...product,productId:'p',key:'row',quantity:'1',unitPrice:'2',discountPercent:'0',discountReason:''}],
+  customer:'',notes:'',barcode:'',clientKey:'saved',fingerprint:null,
+ }}));
+ await act(async()=>root.render(<LanguageProvider><DraftScope.Provider value={context}><Editor {...{context,api,done}} lang="en" c={k=>k} close={()=>{}}/></DraftScope.Provider></LanguageProvider>));
+ expect(host.textContent).not.toContain('Former shop');
+ expect(host.querySelector('#pos-barcode').disabled).toBe(true);
+ expect(host.querySelector('#sale-quantity-0').value).toBe('1');
+ expect([...host.querySelectorAll('button')].find(b=>b.textContent==='reviewSale').disabled).toBe(true);
+});
 for(const lang of ['en','ar'])test(`scan, stock limit and failed save preserve sale entries (${lang})`,async()=>{
  await render(lang);const barcode=host.querySelector('#pos-barcode');expect(barcode.disabled).toBe(false);
  await act(async()=>{fill(barcode,'001');barcode.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
