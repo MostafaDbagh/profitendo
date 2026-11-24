@@ -112,3 +112,29 @@ test('receipt can be reviewed without a supplier and labels it optional',async()
  await act(async()=>review.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api).toHaveBeenCalledTimes(1);expect(done).toHaveBeenCalled();
 });
+test.each(['en','ar'])('CSV recovery uses the real product form and preserves purchase rows (%s)',async lang=>{
+ let created=false;
+ const added={id:'new-product',sku:'SAFI',name:'Safi milk',unit:'LITRE',purchasePrice:'100',active:true};
+ api.mockImplementation(async(path,options)=>{
+  if(options?.method==='POST'&&path.endsWith('/products')){created=true;return added;}
+  if(path.includes('/products/barcode?')){if(!created)throw new Error('PRODUCT_NOT_FOUND');return {product:added};}
+  return {items:[],page:1,pageSize:25,total:0};
+ });
+ await render(lang,{'catalogue.create':true});
+ const input=host.querySelector('input[type=file]');
+ Object.defineProperty(input,'files',{value:[{size:100,text:async()=> 'sku,name,unit,quantity,unit_cost\nsafi,Safi milk,LITRE,2,100'}]});
+ await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ const createLabel=lang==='ar'?'إنشاء المنتج وإكمال الاستيراد':'Create product and continue import';
+ await act(async()=>button(createLabel).click());
+ expect(host.querySelector('#product-name').value).toBe('Safi milk');
+ expect(host.querySelector('#product-sku').value).toBe('safi');
+ expect(host.querySelector('#product-unit').value).toBe('LITRE');
+ expect(host.querySelector('#product-purchasePrice').value).toBe('100');
+ await act(async()=>host.querySelector('#product-name').form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(host.querySelector('#line-quantity-0').value).toBe('1');
+ expect(host.querySelector('#line-quantity-1').value).toBe('2');
+ expect(host.querySelector('#line-cost-1').value).toBe('100');
+ const writes=api.mock.calls.filter(([,options])=>options?.method);
+ expect(writes).toHaveLength(1);expect(writes[0][0]).toBe('/businesses/business/products');
+ expect(writes[0][1].body).toMatchObject({name:'Safi milk',sku:'safi',unit:'LITRE',purchasePrice:'100'});
+});

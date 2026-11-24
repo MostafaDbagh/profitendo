@@ -64,3 +64,25 @@ test('offers explicit permission-gated creation with CSV details and resumes ret
  await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Save Milk 100').click());
  expect(onImport.mock.calls[0][0][0]).toMatchObject({sku:'NEW',quantity:'2',unitCost:'100'});
 });
+test.each([{}, {'catalogue.create':true}, {'catalogue.cost':true}])('does not offer creation without both permissions: %j',async permissions=>{
+ const api=jest.fn().mockRejectedValue(new Error('PRODUCT_NOT_FOUND'));
+ act(()=>root.render(<ReceiptCsv api={api} lang="en" c={key=>key} context={{permissions}} onImport={jest.fn()} onBusy={()=>{}} root="/businesses/b" cost lines={[]}/>));
+ await upload('sku,quantity\nNEW,1');
+ expect(host.textContent).not.toContain('Create product and continue import');
+ expect(host.textContent).toContain('Match product');
+});
+test('cancel discards pending import without adding rows',async()=>{
+ const onImport=jest.fn();
+ act(()=>root.render(<ReceiptCsv api={jest.fn().mockRejectedValue(new Error('PRODUCT_NOT_FOUND'))} lang="en" c={key=>key} onImport={onImport} onBusy={()=>{}} root="/businesses/b" lines={[]}/>));
+ await upload('sku,quantity\nNEW,1');
+ act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Cancel import').click());
+ expect(host.textContent).not.toContain('Retry retained file');expect(onImport).not.toHaveBeenCalled();
+});
+test('network failure retains file for successful retry without reupload',async()=>{
+ const api=jest.fn().mockRejectedValueOnce(new Error('NETWORK_ERROR')).mockResolvedValue({product:{id:'p',sku:'001'}}),onImport=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport}} lang="en" c={key=>key} onBusy={()=>{}} root="/businesses/b" lines={[]}/>));
+ await upload('sku,quantity\n001,2');
+ expect(onImport).not.toHaveBeenCalled();
+ await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Retry retained file').click());
+ expect(onImport).toHaveBeenCalledTimes(1);
+});

@@ -35,3 +35,20 @@ test('reports the supplied unknown SKU without creating products or partial rows
  await expect(resolveReceiptRows(rows,api,'/businesses/b',[],true)).rejects.toThrow('PRODUCT:3:safi');
  expect(api.mock.calls.every(args=>args.length===1)).toBe(true);
 });
+test('rejects quotes inside an unquoted CSV field',()=>{
+ expect(()=>parseReceiptCsv('sku,quantity\nAB"CD,1',false)).toThrow('CSV');
+});
+test('preserves Unicode, embedded newlines, commas and quotes in product details',()=>{
+ const row={sku:'00012',name:'حليب "طازج", كامل\nالدسم',unit:'LITRE',quantity:'0.1250',unitCost:'90.5000'};
+ const parsed=parseReceiptCsv('\uFEFF'+receiptCsv([row],true,'ar'),true,true)[0];
+ expect(parsed).toEqual({...row,unit:'لتر'});
+});
+test('ambiguous scanner lookup falls back to an exact SKU, never a barcode match',async()=>{
+ const api=jest.fn().mockRejectedValueOnce(new Error('PRODUCT_CODE_AMBIGUOUS')).mockResolvedValueOnce({items:[{id:'wrong',sku:'OTHER'},{id:'right',sku:'001',unit:'PIECE'}],pageSize:25,total:2});
+ expect((await resolveReceiptRows([{sku:'001',quantity:'1'}],api,'/businesses/b',[]))[0].productId).toBe('right');
+});
+test('rejects inactive products and conflicting reimports without writes',async()=>{
+ const api=jest.fn().mockRejectedValue(new Error('PRODUCT_INACTIVE'));
+ await expect(resolveReceiptRows([{sku:'001',quantity:'1'}],api,'/businesses/b',[])).rejects.toThrow('PRODUCT:2:001');
+ await expect(resolveReceiptRows([{sku:'001',quantity:'2'}],api,'/businesses/b',[{sku:'001',productId:'p',quantity:'1'}])).rejects.toThrow('CONFLICT:2');
+});

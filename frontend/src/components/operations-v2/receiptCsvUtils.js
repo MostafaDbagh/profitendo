@@ -9,7 +9,7 @@ export function parseReceiptCsv(text, cost, includeDetails=false) {
   if(ch===','||ch==='\n'||ch==='\r'){
    row.push(cell);cell='';closed=false;
    if(ch!==','){if(row.some(v=>v.trim()))rows.push(row);row=[];if(ch==='\r'&&source[i+1]==='\n')i++;}
-  }else{if(closed)throw new Error('CSV');cell+=ch;}
+  }else{if(closed||ch==='"')throw new Error('CSV');cell+=ch;}
  }
  if(quoted)throw new Error('CSV');
  row.push(cell);if(row.some(v=>v.trim()))rows.push(row);
