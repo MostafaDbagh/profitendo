@@ -37,7 +37,7 @@ export default function Locations({ context, api, c, lang, initialAction }) {
           {data.items.map(location=>{
             const Icon=location.kind==='WAREHOUSE'?Warehouse:Store;
             return <li key={location.id} className="relative flex flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-10 sm:px-5">
-              <span className="absolute end-0 top-0 rounded-es-lg bg-emerald-700 px-4 py-1 text-xs font-semibold text-white">{c(location.kind)}</span>
+              <span className="absolute start-0 top-0 rounded-ee-lg bg-emerald-700 px-4 py-1 text-xs font-semibold text-white">{c(location.kind)}</span>
               <div className="flex min-w-0 max-w-full items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><Icon className="h-5 w-5" aria-hidden="true"/></span>
                 <div className="min-w-0">
