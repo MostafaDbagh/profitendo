@@ -59,9 +59,9 @@ afterAll(async()=>{
  await db.authAudit.deleteMany({where:{businessId:{in:bids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.delete({where:{id:planId}});await db.$disconnect();
 });
 const api=(path:string,body:object,who=owner)=>request(app).post(`/api/businesses/${business}${path}`).set('Cookie',cookie(who)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,who.token)).send(body);
-async function sold(quantity='5',price='12'){
+async function sold(quantity='5',price='12',method:'CARD'|'CREDIT'='CARD'){
  const p=await funded('100');await db.product.update({where:{id:p},data:{sellingPrice:price}});const draft=await api('/sales',{clientKey:randomUUID(),locationId:source,lines:[{productId:p,quantity}]});expect(draft.status,draft.text).toBe(201);
- const done=await api(`/sales/${draft.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:draft.body.total,payment:{method:'CARD',received:draft.body.total,reference:'Terminal test'},confirm:true});expect(done.status,done.text).toBe(200);return done.body;
+ const done=await api(`/sales/${draft.body.id}/checkout`,{clientKey:randomUUID(),revision:0,expectedTotal:draft.body.total,payment:{method,received:method==='CREDIT'?'0':draft.body.total,reference:method==='CARD'?'Terminal test':''},confirm:true});expect(done.status,done.text).toBe(200);return done.body;
 }
 async function adjustment(kind:string,lines:any[],extra:object={},who=owner){if(kind==='COUNT')lines=await Promise.all(lines.map(async l=>({...l,...(await get(`/snapshot?locationId=${(extra as {locationId?:string}).locationId??source}&productId=${l.productId}`,who)).body})));const r=await write('/adjustments',{clientKey:randomUUID(),kind,locationId:source,reason:'Counted and verified with manager',lines,...extra},who);expect(r.status,r.text).toBe(201);return r.body;}
 const approve=(doc:any,who=owner)=>write(`/adjustments/${doc.id}/status`,{revision:doc.revision,action:'confirm',confirm:true},who);
@@ -120,6 +120,15 @@ it('supplier returns reduce stock, create credits, and support partial payments 
 it('customer refunds are capped and payment recording never changes stock',async()=>{
  const s=await sold(),l=s.lines[0],r=await adjustment('CUSTOMER_RETURN',[{productId:l.productId,sourceLineId:l.id,quantity:'1'}],{sourceId:s.id});await approve(r);const before=await stock(source,l.productId),input={clientKey:randomUUID(),kind:'CUSTOMER_REFUND',locationId:source,sourceId:r.id,amount:'7',method:'CARD',reference:'Refund terminal',reason:'Customer refund paid',confirm:true};
  const result=await Promise.all([write('/payments',input),write('/payments',input)]);expect(result.map(r=>r.status)).toEqual([201,201]);expect(result[0]!.body.id).toBe(result[1]!.body.id);expect((await pay('CUSTOMER_REFUND','6',{sourceId:r.id})).body.error.code).toBe('PAYMENT_EXCEEDS_BALANCE');expect((await pay('CUSTOMER_REFUND','5',{sourceId:r.id})).status).toBe(201);expect(await stock(source,l.productId)).toBe(before);
+});
+it('credits a return of unpaid goods without creating an outstanding cash refund',async()=>{
+ const sale=await sold('1','12','CREDIT'),line=sale.lines[0];
+ const ret=await adjustment('CUSTOMER_RETURN',[{productId:line.productId,sourceLineId:line.id,quantity:'1'}],{sourceId:sale.id});
+ expect((await approve(ret)).status).toBe(200);
+ expect((await pay('CUSTOMER_REFUND','1',{sourceId:ret.id})).body.error.code).toBe('PAYMENT_EXCEEDS_BALANCE');
+ const day=new Date().toISOString().slice(0,10);
+ const report=await get(`/reports?from=${day}&to=${day}&view=refunds`);
+ expect(report.body.items.find((row:{reference:string})=>row.reference===ret.reference)).toMatchObject({credit:'12.00',outstanding:'0.0000'});
 });
 it('expense and cash movements are immutable, require precise amounts and references',async()=>{
  expect((await pay('EXPENSE','1.001')).body.error.code).toBe('MONEY_PRECISION');expect((await pay('EXPENSE','2',{reference:''})).status).toBe(422);

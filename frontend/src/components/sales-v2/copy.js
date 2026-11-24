@@ -5,3 +5,6 @@ export const salesCopy={
 
 Object.assign(salesCopy.en,{saleStaff:'Sold by',saleAdmin:'Admin'});
 Object.assign(salesCopy.ar,{saleStaff:'منفذ البيع',saleAdmin:'المدير'});
+
+Object.assign(salesCopy.en,{saleCreditTotal:'Amount due at sale',saleCreditHint:'The full amount is due later. Amount collected today is zero.',confirmCreditSale:'Confirm credit sale',PAYMENT_DESCRIPTION_REQUIRED:'Specify the other payment method.'});
+Object.assign(salesCopy.ar,{saleCreditTotal:'المبلغ الآجل عند البيع',saleCreditHint:'يستحق المبلغ بالكامل لاحقًا. المبلغ المستلم اليوم صفر.',confirmCreditSale:'تأكيد البيع الآجل',PAYMENT_DESCRIPTION_REQUIRED:'وضّح طريقة الدفع الأخرى.'});

@@ -1,104 +1,178 @@
+import {useEffect, useRef, useState} from 'react';
+import {ArrowLeft, Check, MapPin, Plus} from 'lucide-react';
+import {useLanguage} from '../../context/LanguageContext';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
-import {LocationChipGroup,locationIcons} from '../business-v2/LocationChips';
-import SaleSteps from './SaleSteps';
+import {LocationChipGroup, locationIcons} from '../business-v2/LocationChips';
 import {OptionalFields} from '../business-v2/Disclosure';
-import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Check, MapPin, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import useLocationOptions from '../business-v2/useLocationOptions';
-import { formatQuantity } from '@/lib/quantity';
-import CopyableCode from '@/components/CopyableCode';
-import { percentageRow, discountPayload } from './discount';
-import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
-import { unitLabel } from '../catalogue-v2/units';
-import { useEffect,useRef,useState } from 'react';
-import { Field } from '../auth-v2/Fields';
-import { Feedback,Pager,Select,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
-import ProductSearch from '../operations-v2/ProductSearch';
-const scale=v=>{const [a,b='']=v.split('.');return BigInt(a||0)*10000n+BigInt(b.padEnd(4,'0'));};
-const plusOne=v=>{const n=scale(v)+10000n;return `${n/10000n}.${String(n%10000n).padStart(4,'0')}`;};
-export default function Editor({context,api,c,lang,doc,done,close}){
- const root=`/businesses/${context.business.id}`;
- const path=`${root}/sales`,[requestedShop,setShop]=useState(null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
- const [shopPage,setShopPage]=useState(1);
- const shops=useLocationOptions(api,doc?null:`${root}/locations?state=active`);
- const availableShop=shops.items.find(item=>item.id===requestedShop?.id);
- const shop=doc?{id:doc.locationId,name:doc.locationName}:availableShop;
- const onlyShop=shops.items.length===1?shops.items[0]:null;
- const shopUnavailable=!doc&&requestedShop&&!availableShop&&!shops.loading&&!shops.error;
- useEffect(()=>{
-  if(!doc&&!rows.length&&!pending&&!availableShop&&(onlyShop||shopUnavailable))setShop(onlyShop);
- },[doc,rows.length,pending,availableShop,onlyShop,shopUnavailable]);
- const shopLocked=!!doc||rows.length>0||pending>0||busy;
- const pageSize=shops.pageSize??25;
- const shopOptions=shopLocked&&shop?[shop]:shops.items.slice((shopPage-1)*pageSize,shopPage*pageSize);
- const productInput=useRef(null),scanner=useRef(null),queue=useRef(Promise.resolve()),key=useRef(crypto.randomUUID()),request=useRef(null);
- const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop:requestedShop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(row=>percentageRow({...row,quantity:formatQuantity(row.quantity)})));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
- const change=(id,patch)=>setRows(old=>old.map(r=>r.key===id?{...r,...patch,...(['discountPercent','quantity','packId'].some(k=>k in patch)?{legacyDiscount:undefined}:{})}:r));
- function add(p){setRows(old=>{const same=old.find(r=>r.productId===p.id&&!r.packId);if(same){if(!/^(0|[1-9]\d{0,12})(\.\d{1,4})?$/.test(same.quantity)){setError('VALIDATION_ERROR');return old;}return old.map(r=>r.key===same.key?{...r,quantity:formatQuantity(plusOne(r.quantity)),legacyDiscount:undefined}:r);}return [...old,{key:crypto.randomUUID(),productId:p.id,name:p.name,sku:p.sku,unit:p.unit,quantity:'1',packId:null,packs:p.packs,unitPrice:p.sellingPrice,available:p.available,discountPercent:'0',discountReason:''}];});}
- function scan(e){e.preventDefault();const value=barcode.trim();if(!value||!shop)return;setBarcode('');setPending(n=>n+1);queue.current=queue.current.then(async()=>{try{const data=await api(`${path}/products?locationId=${shop.id}&barcode=${encodeURIComponent(value)}`);if(!data.items.length)throw new Error('PRODUCT_NOT_FOUND');add(data.items[0]);setError('');}catch(e){setError(e.message);}finally{setPending(n=>n-1);scanner.current?.querySelector("input")?.focus();}});}
- const requested=new Map();
- const available=new Map();
- for(const row of rows){
-  if(row.available!==undefined)available.set(row.productId,row.available);
-  const factor=String(row.packs.find(pack=>pack.id===row.packId)?.baseQuantity??'1');
-  if(/^\d+(\.\d{1,4})?$/.test(row.quantity)){
-   requested.set(row.productId,(requested.get(row.productId)??0n)+scale(row.quantity)*scale(factor));
+import {Feedback, Pager, buttonClass, panelClass} from '../business-v2/UI';
+import {Field} from '../auth-v2/Fields';
+import {useLocalDraft, LocalDraftNotice} from '../../lib/localDraft';
+import {discountPayload} from './discount';
+import {addProduct, cartSummary, decimal, emptyLine, existingLine} from './cart';
+import BarcodeField from './BarcodeField';
+import SaleLine from './SaleLine';
+import {money} from './Receipt';
+import PaymentMethod, {needsReference} from './PaymentMethod';
+
+const defaultPayment = {method:'CASH', received:'', reference:''};
+export default function Editor({context, api, c, lang, doc, done, close}) {
+  const {t} = useLanguage(), ar = lang === 'ar';
+  const root = `/businesses/${context.business.id}`, path = `${root}/sales`;
+  const [requestedShop,setShop] = useState(null), [shopPage,setShopPage] = useState(1);
+  const [rows,setRows] = useState(() => doc?.lines.length ? doc.lines.map(existingLine) : [emptyLine()]);
+  const currentRows = useRef(rows);
+  const [customer,setCustomer] = useState(doc?.customerName || ''), [notes,setNotes] = useState(doc?.notes || '');
+  const [payment,setPayment] = useState(defaultPayment), [barcode,setBarcode] = useState('');
+  const [pending,setPending] = useState(0), [busy,setBusy] = useState(false), [error,setError] = useState('');
+  const clientKey = useRef(crypto.randomUUID()), lastRequest = useRef(null), saving = useRef(false);
+  const itemsPanel = useRef(null);
+  function replaceRows(next) {
+    currentRows.current = next;
+    setRows(next);
   }
- }
- const exceedsStock=productId=>available.has(productId)&&(requested.get(productId)??0n)>scale(String(available.get(productId)))*10000n;
- const insufficientStock=rows.some(row=>exceedsStock(row.productId));
- async function save(e){e.preventDefault();if(!shop||insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
- try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <PageLayout as="div" className="mx-auto w-full max-w-5xl"><PageHeader title={c(doc?'saleEdit':'newSale')} accessory={<button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button>}/><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
- <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="min-w-0 space-y-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
-  <LocationChipGroup label={c('chooseLocation')} required>
-   {!doc&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
-   {!doc&&shops.loading&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
-   {!doc&&!shops.loading&&!shops.error&&!shops.items.length&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
-   {shopUnavailable&&rows.length>0&&<p role="status" className="text-sm text-slate-600">{lang==='ar'?'لم يعد موقع المسودة متاحًا. أزل أصنافها لاختيار موقع آخر.':'The draft location is no longer available. Remove its items to choose another location.'}</p>}
-   {shopOptions.map(option=>{
-    const selected=option.id===shop?.id, Icon=locationIcons[option.kind]??MapPin;
-    return <button key={option.id} type="button" aria-pressed={selected} disabled={shopLocked}
-     className={`inline-flex max-w-full min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-     onClick={()=>setShop(option)}>
-     <Icon aria-hidden="true" className="h-4 w-4 shrink-0"/>
-     <bdi className="min-w-0 break-words">{option.name}</bdi>{selected&&<Check aria-hidden="true" className="h-4 w-4 shrink-0"/>}
-
-    </button>;
-   })}
-  </LocationChipGroup>
-  {!shopLocked&&shops.items.length>pageSize&&<Pager data={{page:shopPage,pageSize,total:shops.items.length}} setPage={setShopPage} c={c}/>}
- </div>
- <div className="space-y-3 p-4 sm:p-5">
-  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShoppingBasket className="h-4 w-4 text-emerald-600" aria-hidden="true"/>{lang==='ar'?'إضافة منتجات للبيع':'Add sale items'}</div>
-  <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
-   <form ref={scanner} onSubmit={scan} className="min-w-0">
-    <label htmlFor="pos-barcode" className="mb-1.5 block text-xs font-medium text-slate-600">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}</label>
-    <div className="flex gap-2"><div className="relative min-w-0 flex-1"><Barcode aria-hidden="true" className="pointer-events-none absolute start-3 top-3.5 h-5 w-5 text-slate-400"/><input id="pos-barcode" className="h-12 w-full rounded-lg border border-slate-200 bg-white ps-10 pe-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder={lang==='ar'?'امسح الباركود أو اكتب الرمز':'Scan barcode or enter code'} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100}/></div>
-    <button className={`${buttonClass} h-12 shrink-0`} disabled={!shop||busy||!barcode.trim()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة':'Add'}</button></div>
-   </form>
-   <ProductSearch key={shop?.id} {...{api,root,c,lang,context}} lookupPath={`${path}/products?locationId=${shop?.id}`}
-    disabled={!shop||busy||pending>0} maxLength={100} selectCreated={false} onSelect={add} inputRef={productInput}/>
-  </div>
-  {pending>0&&<LoadingState className="text-xs text-emerald-700">{c('loading')}</LoadingState>}
- </div></section>
-
- <form onSubmit={save} className="space-y-5"><fieldset disabled={busy||pending>0} className="space-y-4 min-w-0"><legend className="font-semibold mb-3">{c('saleItems')} ({rows.length})</legend>{!rows.length&&<div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{c('saleEmpty')}</p></div>}
- {rows.map((r,i)=><div key={r.key} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"><div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-start">
- <div className="min-w-0 sm:col-span-2 xl:col-span-1"><p className="mb-2 text-xs font-medium text-slate-500">{lang==='ar'?'المنتج':'Product'}</p><h3 className="font-semibold break-words text-slate-900">{r.name}</h3><div className="mt-1 text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode></div></div>
- <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} {...selectInputOnFocus} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
- {available.has(r.productId)&&<span className="block text-xs text-slate-600">
-  {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
- </span>}
- {exceedsStock(r.productId)&&<p role="alert" className="text-sm text-red-700">
-  {lang==='ar'?'الكمية المطلوبة أكبر من المتاح في هذا الموقع.':'Requested quantity exceeds available stock at this location.'}{' '}
-  {c('saleAvailable')}: <bdi>{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
- </p>}</div>
- <div><p className="mb-1.5 text-sm font-medium text-slate-700">{lang==='ar'?'سعر الوحدة الأساسية':'Base-unit price'}</p><div className="min-h-11 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700"><bdi>{r.unitPrice}</bdi> <span className="text-xs font-normal">{context.business.baseCurrency}</span></div></div>
- <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 xl:mt-7" aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
- {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 xl:col-span-5" title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
- <button type="button" className={`${buttonClass} border-dashed !text-emerald-700`} disabled={!shop||busy||pending>0} onClick={()=>productInput.current?.focus()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
- <OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'} hasValue={Boolean(customer||notes)}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></OptionalFields></fieldset><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-4"><span className="text-sm text-slate-600">{c('saleItems')}: <bdi className="font-bold text-slate-900">{rows.length}</bdi></span><button className={`${primaryClass} min-h-11`} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></div></form>
- </PageLayout>;
+  const draft = useLocalDraft(`sale:${doc?.id || 'new'}:${doc?.revision || 0}`, {
+    shop:requestedShop, rows, customer, notes, barcode, clientKey:clientKey.current, fingerprint:lastRequest.current,
+    // Omit default payment so drafts saved by previous versions restore with cash selected.
+    ...(payment !== defaultPayment ? {payment} : {}),
+  }, saved => {
+    setShop(saved.shop); replaceRows(saved.rows.length ? saved.rows.map(existingLine) : [emptyLine()]);
+    setCustomer(saved.customer); setNotes(saved.notes); setBarcode(saved.barcode); setPayment(saved.payment ?? defaultPayment);
+    clientKey.current = saved.clientKey; lastRequest.current = saved.fingerprint;
+  });
+  const shops = useLocationOptions(api,doc ? null : `${root}/locations?state=active`);
+  const availableShop = shops.items.find(item => item.id === requestedShop?.id);
+  const shop = doc ? {id:doc.locationId,name:doc.locationName} : availableShop;
+  const onlyShop = shops.items.length === 1 ? shops.items[0] : null;
+  const unavailable = !doc && requestedShop && !availableShop && !shops.loading && !shops.error;
+  const lines = rows.filter(row => row.productId), hasItems = lines.length > 0;
+  useEffect(() => {
+    if (!doc && !hasItems && !pending && !availableShop && (onlyShop || unavailable)) setShop(onlyShop);
+  },[doc, hasItems, pending, availableShop, onlyShop, unavailable]);
+  const locked = Boolean(doc || hasItems || pending || busy);
+  const pageSize = shops.pageSize ?? 25;
+  const options = locked && shop ? [shop] : shops.items.slice((shopPage-1)*pageSize,shopPage*pageSize);
+  const lookupPath = `${path}/products?locationId=${shop?.id}`;
+  const summary = cartSummary(lines,context.business);
+  function change(key, patch) {
+    const old = currentRows.current, row = old.find(line => line.key === key);
+    if ('packId' in patch && old.some(other => other !== row && other.productId === row.productId && other.packId === patch.packId)) {
+      setError('VALIDATION_ERROR'); return;
+    }
+    const reprice = 'quantity' in patch || 'discountPercent' in patch || 'packId' in patch;
+    replaceRows(old.map(line => line === row ? {...line,...patch,...(reprice ? {legacyDiscount:undefined} : {})} : line));
+  }
+  function add(product, key) {
+    replaceRows(addProduct(currentRows.current,product,key));
+    setError('');
+  }
+  function select(product, key) {
+    try { add(product,key); return true; } catch (err) { setError(err.message); return false; }
+  }
+  function addItem(reuseBlank = false) {
+    const old = currentRows.current, blank = old.find(row => !row.productId);
+    if ((!reuseBlank || !blank) && old.length < 100) replaceRows([...old,emptyLine()]);
+    requestAnimationFrame(() => {
+      const groups = itemsPanel.current?.querySelectorAll('[data-empty-line]');
+      const group = groups?.[reuseBlank ? 0 : groups.length-1];
+      group?.querySelector('input')?.focus();
+    });
+  }
+  function remove(key) {
+    const rest = currentRows.current.filter(row => row.key !== key);
+    replaceRows(rest.length ? rest : [emptyLine()]);
+    setError('');
+  }
+  async function submit(event, draftOnly = false) {
+    event.preventDefault();
+    if (saving.current || pending || !shop || !summary.valid || !draft.online) return;
+    const dueNow = payment.method === 'CREDIT' ? '0' : summary.total;
+    const received = payment.method === 'CASH' && payment.received ? payment.received : dueNow;
+    if (!draftOnly && (decimal(received) === null || decimal(received) < decimal(dueNow) || (needsReference(payment.method) && !payment.reference.trim()))) {
+      setError(payment.method === 'OTHER' && !payment.reference.trim() ? 'PAYMENT_DESCRIPTION_REQUIRED' : 'PAYMENT_INVALID'); return;
+    }
+    saving.current = true; setBusy(true); setError('');
+    const content = {customerName:customer, notes, lines:lines.map(row => ({
+      productId:row.productId, packId:row.packId, quantity:row.quantity,
+      ...discountPayload({...row,discountPercent:row.discountPercent || '0'}), discountReason:row.discountReason,
+    }))};
+    const fingerprint = JSON.stringify({...content,locationId:shop.id});
+    if (lastRequest.current !== fingerprint) { clientKey.current = crypto.randomUUID(); lastRequest.current = fingerprint; }
+    draft.checkpoint({clientKey:clientKey.current,fingerprint});
+    let quote;
+    const tender = {method:payment.method, received, reference:payment.reference};
+    const checkoutKey = crypto.randomUUID();
+    try {
+      quote = await api(doc ? `${path}/${doc.id}` : path, {method:doc ? 'PATCH' : 'POST',
+        body:doc ? {...content, revision:doc.revision} : {...content, locationId:shop.id, clientKey:clientKey.current}});
+      if (draftOnly || quote.status === 'COMPLETED') { draft.clear(); done(quote,{payment:tender}); return; }
+      if (quote.status !== 'DRAFT' || !quote.capabilities.checkout) throw new Error('SALE_STATE');
+      if (quote.currency !== summary.currency || ['subtotal','discount','tax','total'].some(k => decimal(quote[k]) !== decimal(summary[k]))) throw new Error('TOTAL_CHANGED');
+      const result = await api(`${path}/${quote.id}/checkout`, {method:'POST',body:{
+        revision:quote.revision, expectedTotal:quote.total, confirm:true, payment:tender, clientKey:checkoutKey,
+      }});
+      draft.clear(); done(result);
+    } catch (err) {
+      // Recover the existing server draft, including the idempotency key if a payment response was lost.
+      if (quote) { draft.clear(); done(quote,{payment:tender,error:err.message,checkoutKey}); }
+      else setError(err.message);
+    } finally {saving.current = false; setBusy(false);}
+  }
+  const blocked = !shop || busy || pending > 0;
+  return <PageLayout as="div" className="w-full max-w-4xl">
+    <button type="button" className="inline-flex items-center gap-2 rounded text-sm text-slate-500 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-emerald-500" disabled={busy || pending>0} onClick={close}>
+      <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true"/>{t('back')}
+    </button>
+    <PageHeader title={doc ? c('saleEdit') : t('newSale')} heading="h1"/>
+    <div className="space-y-2">
+      <LocationChipGroup label={c('chooseLocation')} required>
+        {options.map(option => {const Icon = locationIcons[option.kind] ?? MapPin, selected = option.id === shop?.id;
+          return <button type="button" key={option.id} aria-pressed={selected} disabled={locked} onClick={() => setShop(option)}
+            className={`${buttonClass} !rounded-full aria-pressed:border-emerald-300 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-800 disabled:!opacity-100`}>
+            <Icon aria-hidden="true"/><bdi className="min-w-0 break-words">{option.name}</bdi>{selected && <Check aria-hidden="true"/>}
+          </button>;})}
+      </LocationChipGroup>
+      {!doc && <Feedback error={shops.error} c={c} retry={shops.reload}/>}
+      {!doc && shops.loading && <LoadingState>{c('loading')}</LoadingState>}
+      {!doc && !shops.loading && !shops.error && !shops.items.length && <p role="status">{ar ? 'لا توجد مواقع متاحة للبيع.' : 'No locations are available for sales.'}</p>}
+      {unavailable && hasItems && <p role="status">{ar ? 'لم يعد موقع المسودة متاحًا. أزل أصنافها لاختيار موقع آخر.' : 'The draft location is no longer available. Remove its items to choose another location.'}</p>}
+      {!locked && shops.items.length>pageSize && <Pager data={{page:shopPage,pageSize,total:shops.items.length}} setPage={setShopPage} c={c}/>}
+    </div>
+    <fieldset disabled={busy} className={`${panelClass} grid min-w-0 sm:p-6 gap-4 sm:grid-cols-2`}>
+      <Field id="sale-customer" form="sale-entry" label={t('customer')} placeholder={t('customerPh')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/>
+      <PaymentMethod {...{lang,c}} form="sale-entry" method={payment.method} reference={payment.reference}
+        onMethod={method=>setPayment({...defaultPayment,method})} onReference={reference=>setPayment({...payment,reference})}/>
+    </fieldset>
+    <BarcodeField key={shop?.id || ''} {...{api,lookupPath,lang,c,add}} value={barcode} onChange={setBarcode} disabled={!shop || busy}
+      onPending={setPending} onManual={()=>addItem(true)}/>
+    <form id="sale-entry" onSubmit={submit} className="space-y-6">
+      <fieldset ref={itemsPanel} disabled={busy || pending>0} className={`${panelClass} min-w-0 sm:p-6`}>
+        <h3 className="mb-4 font-bold text-slate-900">{t('itemsLabel')}</h3>
+        <div className="space-y-3">{rows.map((row,index) => <div key={row.key} data-empty-line={!row.productId || undefined}>
+          <SaleLine {...{row,index,context,api,root,c,lang,lookupPath,select,change,summary}} disabled={blocked} remove={()=>remove(row.key)}/>
+        </div>)}</div>
+        <button type="button" className={`${buttonClass} mt-4 border-dashed`} disabled={blocked || rows.length>=100} onClick={()=>addItem()}>
+          <Plus aria-hidden="true"/>{t('addItem')}</button>
+      </fieldset>
+      <Feedback {...{c,error}}/>
+      <div className={`${panelClass} flex flex-wrap items-center justify-between gap-4 !border-emerald-100`}>
+        <dl className="flex flex-wrap gap-x-8 gap-y-2">
+          {[['subtotal','subtotalLabel'],['discount','lineDiscount'],...(decimal(summary.tax)>0n ? [['tax','saleTax']] : []),['total','grandTotal']].map(([key,label]) =>
+            <div key={key}><dt className="text-xs text-slate-500">{key==='tax' ? c(label) : t(label)}</dt>
+              <dd data-testid={`sale-${key}`} className={key==='total' ? 'text-xl font-extrabold text-emerald-600' : 'font-bold text-slate-900'}><bdi>{money(summary[key],summary,lang)}</bdi></dd></div>)}
+        </dl>
+        <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-emerald-500 px-8 py-3 text-sm font-semibold text-white hover:bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:opacity-60" data-testid="sale-confirm" disabled={blocked || !summary.valid || !draft.online}>{busy ? c('saving') : t('confirmSale')}</button>
+        <div className="w-full empty:hidden"><LocalDraftNotice {...{draft,lang,busy:busy || pending>0}}/></div>
+      </div>
+      <OptionalFields hasValue={Boolean(notes || payment.received)}>
+        <fieldset disabled={busy} className="grid min-w-0 gap-4 sm:grid-cols-2">
+          <Field id="sale-notes" label={c('saleNotes')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/>
+          {payment.method === 'CASH' && <Field id="sale-received" label={c('saleReceived')} value={payment.received} placeholder={summary.total}
+            inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" onChange={e=>setPayment({...payment,received:e.target.value})}/>}
+        </fieldset>
+        <button type="button" onClick={e=>submit(e,true)} className={buttonClass} disabled={blocked || !summary.valid || !draft.online}>{ar ? 'حفظ كمسودة' : 'Save as draft'}</button>
+      </OptionalFields>
+    </form>
+  </PageLayout>;
 }

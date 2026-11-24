@@ -9,6 +9,7 @@ import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, buttonClass, panelClass, primaryClass } from '../business-v2/UI';
 import SupplierSearch from './SupplierSearch';
 import ProductSearch from './ProductSearch';
+import PurchasePayment, {initialPurchaseTerms} from './PurchasePayment';
 
 const newItem = () => ({key:crypto.randomUUID(),name:'',quantity:''});
 const quantityPattern = '(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
@@ -23,6 +24,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     notes:document?.notes??'',
     items:document?.plannedItems.map(item=>({key:item.id,name:item.name,quantity:formatQuantity(item.quantity)}))??[newItem()],
   }));
+  const terms=form.paymentTerms??initialPurchaseTerms(document);
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
   const request=useRef(null);
   const draft=useLocalDraft(`planned-purchase:${document?.id??'new'}:${document?.revision??0}`,{...form,request:request.current},saved=>{const {request:prior,...fields}=saved;request.current=prior??null;setForm(fields);});
@@ -35,7 +37,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     if(busy||!valid)return;
     setBusy(true);setError('');
     try {
-      const fields={documentDate:form.documentDate,supplierId:form.supplier?.id??null,notes:form.notes,
+      const fields={...(terms.method?{paymentTerms:terms}:{}),documentDate:form.documentDate,supplierId:form.supplier?.id??null,notes:form.notes,
         plannedItems:form.items.map(({name,quantity})=>({name:name.trim(),quantity}))};
       const signature=JSON.stringify(fields);
       if(!request.current||request.current.signature!==signature)
@@ -82,6 +84,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
             onChange={event=>change({documentDate:event.target.value})} required/>
           <SupplierSearch {...{api,c,lang}} path={`${path}/suppliers`} value={form.supplier}
             onSelect={supplier=>change({supplier})} disabled={busy}/>
+          <PurchasePayment {...{lang,terms}} onChange={paymentTerms=>change({paymentTerms})} disabled={busy}/>
         </div>
         <OptionalFields hasValue={Boolean(form.notes)}>
           <label htmlFor="planned-order-notes" className="mb-1.5 block text-sm font-medium text-slate-700">{ar?'ملاحظات (اختياري)':'Notes (optional)'}</label>

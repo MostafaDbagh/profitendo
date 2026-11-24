@@ -104,14 +104,16 @@ export class SalesService{
   if(doc.expiresAt<=new Date())fail('QUOTE_EXPIRED');if(exactMoney(input.expectedTotal,doc.currencyDigits)!==scaled(doc.total.toFixed(4)))fail('TOTAL_CHANGED');
   if(doc.discount.gt(0)&&!access.permissions['sales.discount'])fail('FORBIDDEN',403);
   const received=exactMoney(input.payment.received,doc.currencyDigits),total=scaled(doc.total.toFixed(4));
-  if(received<total||(input.payment.method!=='CASH'&&(received!==total||!input.payment.reference)))fail('PAYMENT_INVALID',422);
+  const method=input.payment.method, collected=method==='CREDIT'?0n:total;
+  if(received<collected || (method!=='CASH' && received!==collected))fail('PAYMENT_INVALID',422);
+  if(['CARD','TRANSFER','OTHER'].includes(method) && !input.payment.reference)fail(method==='OTHER'?'PAYMENT_DESCRIPTION_REQUIRED':'PAYMENT_INVALID',422);
   const postedAt=input.payment.method==='CASH'?(await lockCash(tx,bid,doc.locationId,access.business.timezone)).at:new Date();
   for(const line of [...doc.lines].sort((a,b)=>a.productId.localeCompare(b.productId)||a.id.localeCompare(b.id))){
    const p=await tx.product.findFirst({where:{businessId:bid,id:line.productId,active:true}});if(!p)fail('PRODUCT_INACTIVE');if(!p.sellingPrice.equals(line.unitPrice))fail('PRICE_CHANGED');
    const movement=await postStock(tx,{businessId:bid,locationId:doc.locationId,productId:line.productId,delta:fixed(-scaled(line.baseQuantity.toFixed(4))),type:'SALE',sourceId:id,sourceLineId:line.id,reference:doc.reference,actorId:ctx.user.id,notes:doc.notes});
    if(movement.costAmount!==null)await tx.saleLine.update({where:{id:line.id},data:{costAmount:movement.costAmount}});
   }
-  await tx.salePayment.create({data:{businessId:bid,saleId:id,method:input.payment.method,createdAt:postedAt,amount:doc.total,received:input.payment.received,change:checked(received-total),reference:input.payment.reference,actorId:ctx.user.id,actorName:ctx.user.name}});
+  await tx.salePayment.create({data:{businessId:bid,saleId:id,method,createdAt:postedAt,amount:checked(collected),received:input.payment.received,change:checked(received-collected),reference:input.payment.reference,actorId:ctx.user.id,actorName:ctx.user.name}});
   await tx.sale.update({where:{id},data:{status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:access.user.name,completedRole:access.membership.role,completedAt:postedAt}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.completed',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  }).catch(error=>{if((error as {code?:string}).code==='P2002')fail('IDEMPOTENCY_CONFLICT');throw error;});}

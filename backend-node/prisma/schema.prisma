@@ -538,6 +538,8 @@ model PurchaseDocument {
   currency String
   documentDate DateTime @map("document_date") @db.Date
   supplierReference String @default("") @map("supplier_reference")
+  paymentMethod String? @map("payment_method")
+  paymentDescription String @default("") @map("payment_description") @db.VarChar(150)
   notes String @default("")
   actorId String @map("actor_id") @db.Uuid
   actorName String @map("actor_name")

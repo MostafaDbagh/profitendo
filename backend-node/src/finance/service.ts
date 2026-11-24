@@ -15,7 +15,10 @@ export async function supplierBalance(tx:Tx,bid:string,id:string){
  const entries=await tx.moneyEntry.findMany({where:{businessId:bid,sourceId:id,kind:{in:['SUPPLIER_PAYMENT','SUPPLIER_REFUND']}}}),paid=entries.filter(e=>e.kind==='SUPPLIER_PAYMENT').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n),refunded=entries.filter(e=>e.kind==='SUPPLIER_REFUND').reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n),net=gross-credits,remaining=net-paid+refunded;
  return {doc:{...d,locationId:d.locationId},gross,credits,paid,refunded,outstanding:remaining>0n?remaining:0n,refundDue:remaining<0n?-remaining:0n,net};
 }
-export async function refundBalance(tx:Tx,bid:string,id:string){const d=await tx.adjustment.findFirst({where:{businessId:bid,id,kind:'CUSTOMER_RETURN',status:'COMPLETED'}});if(!d)fail('NOT_FOUND',404);const paid=(await tx.moneyEntry.findMany({where:{businessId:bid,sourceId:id,kind:'CUSTOMER_REFUND'}})).reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);return {doc:d,paid,remaining:scaled(d.total.toFixed(4))-paid};}
+export async function refundBalance(tx:Tx,bid:string,id:string){const d=await tx.adjustment.findFirst({where:{businessId:bid,id,kind:'CUSTOMER_RETURN',status:'COMPLETED'}});if(!d)fail('NOT_FOUND',404);
+ const tender=d.sourceId?await tx.salePayment.findUnique({where:{businessId_saleId:{businessId:bid,saleId:d.sourceId}},select:{method:true}}):null;
+ if(tender?.method==='CREDIT')return {doc:d,paid:0n,remaining:0n};
+ const paid=(await tx.moneyEntry.findMany({where:{businessId:bid,sourceId:id,kind:'CUSTOMER_REFUND'}})).reduce((s,e)=>s+scaled(e.amount.toFixed(4)),0n);return {doc:d,paid,remaining:scaled(d.total.toFixed(4))-paid};}
 export class FinanceService{
  constructor(readonly auth:AuthService){}
  async balance(ctx:AuthContext,bid:string,kind:string,id:string){return this.auth.transaction(async tx=>{

@@ -56,6 +56,27 @@ afterAll(async()=>{
  await db.productPack.deleteMany({where:{businessId:{in:bids}}});await db.product.deleteMany({where:{businessId:{in:bids}}});await db.authAudit.deleteMany({where:{businessId:{in:bids}}});
  await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.delete({where:{id:planId}});await db.$disconnect();
 });
+it('round-trips all five purchase terms on receipts and orders without posting a supplier payment',async()=>{
+ for(const kind of ['ORDER','RECEIPT'] as const){
+  const content=kind==='ORDER'?{plannedItems:[{name:'Milk',quantity:'1'}],documentDate:'2026-11-24'}:
+   {lines:[{productId:product,quantity:'1'}],documentDate:'2026-11-24'};
+  for(const method of ['CASH','TRANSFER','REMITTANCE','CREDIT','OTHER']){
+   const description=method==='OTHER'?'محفظة إلكترونية':'';
+   const data={...content,kind,clientKey:randomUUID(),...(kind==='RECEIPT'?{locationId:location}:{}),paymentTerms:{method,description}};
+   if(method==='OTHER')expect((await write('/purchases',{...data,paymentTerms:{method,description:'  '}})).status).toBe(422);
+   const created=await write('/purchases',data);
+   expect(created.status,created.text).toBe(201);
+   const path='/purchases/'+created.body.id;
+   expect((await get(path)).body).toMatchObject({paymentMethod:method,paymentDescription:description});
+   if(method==='OTHER'){
+    const updated=await write(path,{...content,revision:0,paymentTerms:{method:'CREDIT'}},owner,'patch');
+    expect(updated.status,updated.text).toBe(200);
+    expect((await get(path)).body).toMatchObject({paymentMethod:'CREDIT',paymentDescription:''});
+   }
+  }
+ }
+ expect(await db.moneyEntry.count({where:{businessId:business}})).toBe(0);
+});
 it('creates suppliers without a user-entered code and preserves generated codes on edits',async()=>{
  const first=await write('/suppliers',{name:'Automatic supplier one'}),second=await write('/suppliers',{name:'Automatic supplier two'});
  expect(first.status).toBe(201);expect(second.status).toBe(201);

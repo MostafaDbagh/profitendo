@@ -13,7 +13,7 @@ export function successFor(path,body,data){
  if(!scope)return null;
  const base={scope,reference:data?.reference||''};
  if(/\/workflows\/cash$/.test(path)&&data?.id)return {...base,key:'cashClosed'};
- if(/\/sales\/[^/]+\/checkout$/.test(path)&&data?.status==='COMPLETED')return {...base,key:'saleSaved'};
+ if(/\/sales\/[^/]+\/checkout$/.test(path)&&data?.status==='COMPLETED')return {...base,key:data.payment?.method==='CREDIT'?'creditSaleSaved':'saleSaved'};
  if(/\/workflows\/payments$/.test(path)&&data?.id)return {...base,key:body?.kind==='CUSTOMER_REFUND'?'refundSaved':body?.kind==='EXPENSE'?'expenseSaved':'paymentSaved'};
  if(/\/workflows\/adjustments\/[^/]+\/status$/.test(path)&&data?.kind==='CUSTOMER_RETURN')return {...base,key:data.status==='COMPLETED'?'returnSaved':data.status==='CANCELLED'?'returnCancelled':null};
  if(/\/workflows\/adjustments$/.test(path)&&data?.status==='DRAFT')return {...base,key:'draftSaved'};

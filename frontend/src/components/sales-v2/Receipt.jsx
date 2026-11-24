@@ -1,3 +1,4 @@
+import {methodLabel,descriptionLabel} from '../business-v2/PaymentMethod';
 import { saleStaff } from './saleStaff';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import { formatQuantity } from '@/lib/quantity';
@@ -30,9 +31,9 @@ export default function Receipt({doc,c,lang}) {
   </table>
   <dl className="border-t border-slate-200 pt-3 space-y-2 w-full break-inside-avoid">
    {totals.map(([key,value])=><div key={key} className="flex justify-between gap-3 px-2"><dt className="text-slate-600">{key==='saleTax'?`${c(key)} (${Number(doc.taxRate??0)}%)`:c(key)}</dt><dd className="text-end tabular-nums"><bdi>{amount(value)}</bdi></dd></div>)}
-   <div className="flex justify-between items-center gap-3 rounded-lg bg-emerald-50 px-3 py-3 font-bold text-emerald-800"><dt>{c(doc.status==='COMPLETED'?'salePaidTotal':'saleTotal')}</dt><dd className="text-lg text-end tabular-nums"><bdi>{amount(doc.total)}</bdi></dd></div>
+   <div className="flex justify-between items-center gap-3 rounded-lg bg-emerald-50 px-3 py-3 font-bold text-emerald-800"><dt>{c(doc.payment?.method==='CREDIT'?'saleCreditTotal':doc.status==='COMPLETED'?'salePaidTotal':'saleTotal')}</dt><dd className="text-lg text-end tabular-nums"><bdi>{amount(doc.total)}</bdi></dd></div>
   </dl>
-  {doc.payment&&<dl className="border-t border-slate-100 pt-3 space-y-1.5 text-xs">{[['salePayment',c(doc.payment.method)],['saleReceived',amount(doc.payment.received)],['saleChange',amount(doc.payment.change)],...(doc.payment.reference?[['salePaymentReference',doc.payment.reference]]:[])].map(([key,value])=><div key={key} className="flex justify-between gap-3"><dt className="text-slate-500">{c(key)}</dt><dd className="text-end"><bdi>{value}</bdi></dd></div>)}</dl>}
+  {doc.payment&&<dl className="border-t border-slate-100 pt-3 space-y-1.5 text-xs">{[['salePayment',methodLabel(doc.payment.method,lang)],['saleReceived',amount(doc.payment.received)],...(doc.payment.method==='CREDIT'?[]:[['saleChange',amount(doc.payment.change)]]),...(doc.payment.reference?[['salePaymentReference',doc.payment.reference]]:[])].map(([key,value])=><div key={key} className="flex justify-between gap-3"><dt className="text-slate-500">{key==='salePaymentReference'&&doc.payment.method==='OTHER'?descriptionLabel(lang):c(key)}</dt><dd className="text-end"><bdi>{value}</bdi></dd></div>)}</dl>}
   {doc.notes&&<p className="border-t border-slate-100 pt-3 text-xs whitespace-pre-wrap">{doc.notes}</p>}
   <footer className="border-t border-slate-100 pt-3 text-center text-xs text-slate-500">{footer}</footer>
  </article>;

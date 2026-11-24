@@ -9,6 +9,9 @@ import { convertPack } from '../catalogue/packs.js';
 import type { DocumentInput, DocumentPatch, InventoryDocumentInput } from './contracts.js';
 import { fixed, scaled } from './decimal.js';
 import { postStock } from './inventory.js';
+function purchaseTerms(terms:DocumentInput['paymentTerms']) {
+ return terms ? {paymentMethod:terms.method,paymentDescription:terms.description} : {};
+}
 const details={lines:true,plannedItems:{orderBy:{position:'asc' as const}}} as const;
 type Doc=Prisma.PurchaseDocumentGetPayload<{include:typeof details}>;
 type PlanInput=Extract<DocumentInput,{plannedItems:unknown}>;
@@ -110,7 +113,7 @@ export class PurchasingService{
   const supplier=input.supplierId?await tx.supplier.findFirst({where:{id:input.supplierId,businessId,active:true}}):null;
   if(input.supplierId&&!supplier)throw new ApiError(409,'SUPPLIER_INACTIVE','Choose an active supplier');
   const id=doc?.id??randomUUID();
-  const fields={supplierId:supplier?.id??null,supplierName:supplier?.name??'',documentDate:new Date(input.documentDate),notes:input.notes};
+  const fields={...purchaseTerms(input.paymentTerms),supplierId:supplier?.id??null,supplierName:supplier?.name??'',documentDate:new Date(input.documentDate),notes:input.notes};
   if(doc&&'revision' in input){
    const updated=await tx.purchaseDocument.updateMany({where:{id,businessId,revision:input.revision,status:'DRAFT'},data:{...fields,revision:{increment:1}}});
    if(!updated.count)throw conflict();
@@ -143,8 +146,8 @@ export class PurchasingService{
    const lines=await this.lines(tx,businessId,input.lines,access.permissions['catalogue.cost']);
    const order=await this.order(tx,businessId,input.orderId,input.supplierId,input.locationId,lines,access);
    if(order?.locationId)for(const line of lines){if(input.lines.find(l=>l.productId===line.productId)?.unitCost===undefined)line.unitCost=order.lines.find(l=>l.productId===line.productId)!.unitCost.toFixed(4);}
-   const id=randomUUID(),{lines:ignored,...data}=input;
-   const doc=await tx.purchaseDocument.create({data:{...data,id,businessId,requestHash:hash,reference:`${input.kind==='ORDER'?'PO':'RCV'}-${id}`,supplierId:supplier?.id??null,supplierName:supplier?.name??'',locationName:access.location.name,currency:access.business.baseCurrency,
+   const id=randomUUID(),{lines:ignored,paymentTerms,...data}=input;
+   const doc=await tx.purchaseDocument.create({data:{...data,...(paymentTerms?purchaseTerms(paymentTerms):{paymentMethod:order?.paymentMethod,paymentDescription:order?.paymentDescription}),id,businessId,requestHash:hash,reference:`${input.kind==='ORDER'?'PO':'RCV'}-${id}`,supplierId:supplier?.id??null,supplierName:supplier?.name??'',locationName:access.location.name,currency:access.business.baseCurrency,
     documentDate:new Date(input.documentDate),actorId:ctx.user.id,actorName:ctx.user.name}});
    await tx.purchaseLine.createMany({data:lines.map(l=>({...l,documentId:id}))});
    if(!access.business.currencyLockedAt)await tx.business.update({where:{id:businessId},data:{currencyLockedAt:new Date(),revision:{increment:1}}});
@@ -177,7 +180,7 @@ export class PurchasingService{
     if(!doc.lines.some(old=>old.productId===line.productId)&&input.lines.find(l=>l.productId===line.productId)?.unitCost===undefined)
      line.unitCost=order.lines.find(l=>l.productId===line.productId)!.unitCost.toFixed(4);
    }
-   const changed=await tx.purchaseDocument.updateMany({where:{id,businessId,revision:input.revision,status:'DRAFT'},data:{documentDate:new Date(input.documentDate),notes:input.notes,supplierReference:input.supplierReference,revision:{increment:1}}});
+   const changed=await tx.purchaseDocument.updateMany({where:{id,businessId,revision:input.revision,status:'DRAFT'},data:{...purchaseTerms(input.paymentTerms),documentDate:new Date(input.documentDate),notes:input.notes,supplierReference:input.supplierReference,revision:{increment:1}}});
    if(!changed.count)throw conflict();
    await tx.purchaseLine.deleteMany({where:{businessId,documentId:id}});
    await tx.purchaseLine.createMany({data:lines.map(l=>({...l,documentId:id}))});

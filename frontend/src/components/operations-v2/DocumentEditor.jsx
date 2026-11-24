@@ -1,6 +1,7 @@
 import {PageHeader} from '../page-layout/PageLayout';
 import LocationChips from '../business-v2/LocationChips';
 import ReceiptCsv from './ReceiptCsv';
+import PurchasePayment, {initialPurchaseTerms} from './PurchasePayment';
 import RequiredMark from '../RequiredMark';
 import Disclosure from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
@@ -27,6 +28,8 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  const cost=context.permissions['catalogue.cost'],root=`/businesses/${context.business.id}`,source=doc||seed;
  const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?.locationId?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?.supplierId?{id:source.supplierId,name:source.supplierName}:null);
  const [date,setDate]=useState(doc?.documentDate||new Date().toLocaleDateString('en-CA')),[reference,setReference]=useState(doc?.supplierReference||''),[notes,setNotes]=useState(doc?.notes||'');
+ const [paymentTerms,setPaymentTerms]=useState(null);
+ const terms=paymentTerms??initialPurchaseTerms(source);
  const [lines,setLines]=useState(()=>source?.lines.map(l=>({...l,productId:l.productId,quantity:formatQuantity(doc?l.baseQuantity:fixed(scaled(l.baseQuantity)-scaled(l.receivedQuantity))),unitCost:l.unitCost??''})).filter(l=>scaled(l.quantity)>0n)||[]);
  const [scan,setScan]=useState(''),[mode,setMode]=useState('once'),[scanning,setScanning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [addingSupplier,setAddingSupplier]=useState(false);
@@ -37,7 +40,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  const [focusProduct,setFocusProduct]=useState('');
  const scanRef=useRef(null),scanLock=useRef(false),scanQueue=useRef([]),trigger=useRef(null),quantityRefs=useRef({});
  useEffect(()=>{if(focusProduct&&quantityRefs.current[focusProduct]){quantityRefs.current[focusProduct].focus();quantityRefs.current[focusProduct].select();setFocusProduct('');}},[focusProduct,lines]);
- const draft=useLocalDraft(`purchase:${kind}:${doc?.id||seed?.id||'new'}:${doc?.revision||0}`,{clientKey,location,supplier,date,reference,notes,lines,scan,mode},saved=>{setClientKey(saved.clientKey);setLocation(saved.location);setSupplier(saved.supplier);setDate(saved.date);setReference(saved.reference);setNotes(saved.notes);setLines(saved.lines.map(l=>({...l,quantity:formatQuantity(l.quantity)})));setScan(saved.scan);setMode(saved.mode);});
+ const draft=useLocalDraft(`purchase:${kind}:${doc?.id||seed?.id||'new'}:${doc?.revision||0}`,{clientKey,location,supplier,date,reference,notes,lines,scan,mode,...(paymentTerms?{paymentTerms}:{})},saved=>{setPaymentTerms(saved.paymentTerms??null);setClientKey(saved.clientKey);setLocation(saved.location);setSupplier(saved.supplier);setDate(saved.date);setReference(saved.reference);setNotes(saved.notes);setLines(saved.lines.map(l=>({...l,quantity:formatQuantity(l.quantity)})));setScan(saved.scan);setMode(saved.mode);});
  function add(product,repeated=false){
   setError('');setNotice('lineAdded');
   setLines(old=>{const exists=old.find(l=>l.productId===product.id);if(exists&&repeated&&!/^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(exists.quantity||'')){setError('INVALID_QUANTITY');return old;}if(exists)return repeated?old.map(l=>l.productId===product.id?{...l,quantity:formatQuantity(fixed(scaled(l.quantity||'0')+10000n))}:l):old;
@@ -71,7 +74,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  }
  function edit(index,key,value){setLines(old=>old.map((l,i)=>i===index?{...l,[key]:value}:l));}
  async function save(e){e.preventDefault();if(busy||scanning||importing)return;if(!lines.length){setError('noLines');return;}setBusy(true);setError('');
-  try{const common={documentDate:date,supplierReference:reference,notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity,...(l.plannedItemId?{plannedItemId:l.plannedItemId}:{}),...(cost?{unitCost:l.unitCost}:{} )}))};
+  try{const common={...(terms.method?{paymentTerms:terms}:{}),documentDate:date,supplierReference:reference,notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity,...(l.plannedItemId?{plannedItemId:l.plannedItemId}:{}),...(cost?{unitCost:l.unitCost}:{} )}))};
    const result=await api(doc?`${root}/operations/purchases/${doc.id}`:`${root}/operations/purchases`,{method:doc?'PATCH':'POST',body:doc?{...common,revision:doc.revision}:{...common,clientKey,kind,locationId:location?.id,supplierId:supplier?.id,...(seed?{orderId:seed.id}:{})}});
    draft.clear();done(result);
   }catch(e){setError(e.message);}finally{setBusy(false);}
@@ -96,21 +99,19 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
  <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing} documentLocation={source?.locationId?{id:source.locationId,name:source.locationName}:null} required/>
- <div className="min-w-0 space-y-2">
-  <SupplierSearch {...{api,c,lang}} path={`${root}/operations/suppliers`} value={supplier} onSelect={setSupplier}
-   disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}/>
-  {canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning||importing}
-   className="rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
-   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}
- </div>
+ <SupplierSearch {...{api,c,lang}} path={`${root}/operations/suppliers`} value={supplier} onSelect={setSupplier}
+  disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}
+  labelAction={canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning||importing}
+   className="shrink-0 rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
+   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}/>
  <Field id="document-date" form={formId} label={c('documentDate')} type="date" className={`${inputClass} min-h-11`}
   value={date} disabled={busy||importing} required onChange={e=>setDate(e.target.value)}/>
- <Field id="supplier-reference" form={formId} label={c('supplierReference')} placeholder={c('supplierReferencePlaceholder')}
-  value={reference} maxLength={120} disabled={busy||importing} onChange={e=>setReference(e.target.value)}/>
- <div className="sm:col-span-2 lg:col-span-3">
-  <label htmlFor="document-notes" className="mb-1.5 block text-sm font-medium text-slate-700">{c('notes')}</label>
-  <input id="document-notes" form={formId} className={inputClass} placeholder={c('notesPlaceholder')}
-   maxLength={2000} value={notes} disabled={busy||importing} onChange={e=>setNotes(e.target.value)}/>
+ <PurchasePayment {...{lang,terms}} onChange={setPaymentTerms} form={formId} disabled={busy||importing}/>
+ <div className="col-span-full grid grid-cols-2 items-end gap-2 sm:gap-4 lg:grid-cols-3">
+  <Field id="supplier-reference" form={formId} wrapperClassName="min-w-0" label={c('supplierReference')} placeholder={c('supplierReferencePlaceholder')}
+   value={reference} maxLength={120} disabled={busy||importing} onChange={e=>setReference(e.target.value)}/>
+  <Field id="document-notes" form={formId} wrapperClassName="min-w-0 lg:col-span-2" label={c('notes')} placeholder={c('notesPlaceholder')}
+   value={notes} maxLength={2000} disabled={busy||importing} onChange={e=>setNotes(e.target.value)}/>
  </div>
  </div>
  {seed?.plannedItems?.length>0&&<div className={`${panelClass} space-y-3`}>

@@ -34,10 +34,18 @@ async function actor(role:'OWNER'|'CASHIER',businessId:string,locationId?:string
  await page.route('http://127.0.0.1:8001/**',r=>r.fulfill({status:401,contentType:'application/json',body:'{"detail":"Not authenticated"}'}));
  await page.addInitScript(()=>{if(!localStorage.getItem('profitlens_lang'))localStorage.setItem('profitlens_lang','en');});return {page,user};
 }
-async function open(page:Page,lang='en'){await page.goto(`${settings.appOrigin}/business-v2`);await page.getByRole('navigation').getByRole('button',{name:lang==='ar'?'المبيعات':'Sales',exact:true}).click();await page.getByRole('table').waitFor();}
-async function choose(page:Page,label:string,name:string){await page.getByRole('button',{name:label,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:new RegExp(name)}).click();await page.getByRole('dialog').waitFor({state:'hidden'});}
-async function scan(page:Page,value='001234567890'){const input=page.locator('#pos-barcode');await input.fill(value);await input.press('Enter');await page.waitForFunction(()=>document.activeElement?.id==='pos-barcode'&&!!document.querySelector('#sale-quantity-0'));}
-async function start(page:Page,lang='en'){await open(page,lang);await page.getByRole('button',{name:lang==='ar'?'بيع جديد':'New sale',exact:true}).click();await choose(page,lang==='ar'?'اختر المتجر':'Choose a shop','Downtown shop');}
+async function open(page:Page, lang='en', editing=false){
+ await page.goto(settings.appOrigin);
+ await page.evaluate(value=>localStorage.setItem('profitlens_lang',value),lang);
+ await page.goto(settings.appOrigin+'/business-v2?tab=sales'+(editing?'&action=new':''));
+ await (editing?page.locator('#pos-barcode'):page.getByRole('table')).waitFor();
+}
+async function scan(page:Page, value='001234567890'){
+ const input=page.locator('#pos-barcode');
+ await input.fill(value);
+ await input.press('Enter');
+ await page.waitForFunction(()=>document.querySelector<HTMLInputElement>('#pos-barcode')?.value==='');
+}
 try{
  const business=await db.business.create({data:{name:'Sales Browser Market'}});bids.push(business.id);
  planId=(await db.billingPlan.create({data:{code:`browser-sales-${randomUUID()}`,name:'Sales browser',nameAr:'اختبار',trialDays:14,maxMembers:10,maxWarehouses:10,maxShops:10}})).id;
@@ -48,20 +56,93 @@ try{
  const pack=await db.productPack.create({data:{businessId:business.id,productId:product.id,name:'Six bottles',baseQuantity:'6'}});
  const owner=await actor('OWNER',business.id),page=owner.page,cashier=(await actor('CASHIER',business.id,shop.id)).page;primaryPage=page;
  await auth.transaction(tx=>postStock(tx,{businessId:business.id,locationId:shop.id,productId:product.id,delta:'100',type:'TEST_OPENING',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'test opening',actorId:owner.user.id,notes:''}));
- await start(page);await scan(page);await scan(page);await page.waitForFunction(()=>((document.querySelector('#sale-quantity-0') as HTMLInputElement)?.value)==='2.0000');await page.locator('#sale-pack-0').selectOption(pack.id);await scan(page);await page.locator('#sale-quantity-1').waitFor();await page.locator('#sale-discount-0').fill('4');await page.locator('#sale-reason-0').fill('Approved weekend promotion');
- for(const lang of ['en','ar'])for(const width of [320,390,768,1024,1440]){
-  if(await page.evaluate(()=>document.documentElement.lang)!==lang)await page.getByRole('button',{name:lang==='ar'?'العربية':'English',exact:true}).click();await page.setViewportSize({width,height:width<768?844:1100});await shot(page,`new-${lang}-${width}-editor`);
+ await open(page,'ar',true);
+ const scanner=page.locator('#pos-barcode');
+ await page.locator('#sale-customer').fill('أحمد');
+ await page.locator('#sale-method').selectOption('TRANSFER');
+ await page.locator('#sale-payment-reference').fill('TEST-42');
+ await scan(page);
+ await page.locator('#sale-discount-0').fill('4');
+ await page.locator('#sale-reason-0').fill('Approved weekend promotion');
+ await scanner.fill('UNKNOWN');await scanner.press('Enter');
+ await page.getByText('لا يوجد منتج يطابق هذا الباركود أو رمز الصنف.').waitFor();
+ assert.equal(await scanner.inputValue(),'UNKNOWN');
+ await page.getByRole('button',{name:'اختر المنتج يدوياً'}).click();
+ const manual=page.getByTestId('sale-item-1');
+ await manual.getByRole('textbox').first().fill('Fresh milk');
+ await manual.getByRole('button',{name:/Fresh milk/}).click();
+ assert.equal(await page.locator('#sale-quantity-0').inputValue(),'2');
+ assert.equal(await page.getByTestId('sale-item-1').count(),0);
+ await page.locator('#sale-pack-0').selectOption(pack.id);
+ await scan(page);
+ await page.locator('#sale-quantity-1').waitFor();
+ await scan(page);
+ assert.equal(await page.locator('#sale-quantity-1').inputValue(),'2');
+ assert.equal(await page.locator('#sale-customer').inputValue(),'أحمد');
+ assert.equal(await page.locator('#sale-method').inputValue(),'TRANSFER');
+ assert.equal(await page.locator('#sale-discount-0').inputValue(),'4');
+ await page.reload();
+ await page.locator('#sale-quantity-1').waitFor();
+ assert.equal(await page.locator('#sale-payment-reference').inputValue(),'TEST-42');
+ assert.equal(await page.locator('#sale-reason-0').inputValue(),'Approved weekend promotion');
+ assert.equal(await db.sale.count({where:{businessId:business.id}}),0);
+ const shopStock=async()=>(await db.stockBalance.findFirstOrThrow({where:{businessId:business.id,locationId:shop.id}})).onHand.toFixed(4);
+ assert.equal(await shopStock(),'100.0000');
+ // Two six-bottle packs and two base units, with 4% off the packs.
+ assert.match(await page.getByTestId('sale-total').innerText(),/162[.,]24/);
+ for(const lang of ['ar','en']){
+  await open(page,lang,true);
+  for(const width of [320,390,768,1024,1440]){
+   await page.setViewportSize({width,height:width===1440?1700:width<768?844:1100});
+   await shot(page,`new-${lang}-${width}-editor`);
+  }
  }
- await page.getByRole('button',{name:'English',exact:true}).click();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByTestId('sale-receipt').waitFor();
- const doc=await db.sale.findFirstOrThrow({where:{businessId:business.id}});assert.equal(doc.total.toFixed(2),'152.00');assert.equal((await db.stockBalance.findFirstOrThrow({where:{businessId:business.id,locationId:shop.id}})).onHand.toFixed(4),'100.0000');
- for(const lang of ['en','ar'])for(const width of [320,390,768,1024,1440]){if(await page.evaluate(()=>document.documentElement.lang)!==lang)await page.getByRole('button',{name:lang==='ar'?'العربية':'English',exact:true}).click();await page.setViewportSize({width,height:width<768?844:1100});await shot(page,`new-${lang}-${width}-checkout`);}
- await page.getByRole('button',{name:'English',exact:true}).click();await page.locator('#sale-received').fill('200');await page.getByRole('button',{name:'Record payment & complete sale',exact:true}).click();await page.getByRole('link',{name:'Open printable receipt',exact:true}).waitFor();assert.equal((await db.salePayment.findFirstOrThrow({where:{saleId:doc.id}})).change.toFixed(2),'48.00');assert.equal((await db.stockBalance.findFirstOrThrow({where:{businessId:business.id,locationId:shop.id}})).onHand.toFixed(4),'87.0000');
- const receipt=await page.context().newPage();await receipt.goto(`${settings.appOrigin}/sales-v2/${business.id}/${doc.id}/receipt`);await receipt.getByRole('button',{name:'Print receipt',exact:true}).waitFor();await shot(receipt,'new-en-printable');await receipt.emulateMedia({media:'print'});await shot(receipt,'new-en-print-media');await receipt.close();
- await start(cashier);await scan(cashier);assert.equal(await cashier.locator('#sale-discount-0').count(),0);assert(!(await cashier.content()).includes('9.8765'));await cashier.locator('#sale-quantity-0').fill('1000');await cashier.getByRole('button',{name:'Review sale',exact:true}).click();await cashier.getByRole('button',{name:'Record payment & complete sale',exact:true}).click();await cashier.getByRole('alert').waitFor();await shot(cashier,'new-en-insufficient-stock');assert.equal(await db.salePayment.count({where:{businessId:business.id}}),1);
- await cashier.getByRole('button',{name:'Edit / refresh draft',exact:true}).click();await cashier.locator('#sale-quantity-0').fill('1');await cashier.getByRole('button',{name:'Update prices & review',exact:true}).click();await cashier.locator('#sale-method').selectOption('CARD');await cashier.locator('#sale-payment-reference').fill('Terminal 004521');await shot(cashier,'new-en-card-checkout');await cashier.getByRole('button',{name:'Record payment & complete sale',exact:true}).click();await cashier.getByRole('link',{name:'Open printable receipt',exact:true}).waitFor();
- for(const lang of ['en','ar'])for(const width of [320,390,768,1024,1440]){await page.setViewportSize({width,height:width<768?844:1100});await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);await open(page,lang);await shot(page,`new-${lang}-${width}-list`);await page.getByRole('button',{name:lang==='ar'?'فتح المستند':'Open document',exact:true}).first().click();await page.getByTestId('sale-receipt').waitFor();await shot(page,`new-${lang}-${width}-receipt`);}
- await start(page,'ar');await scan(page);await page.getByRole('button',{name:'مراجعة البيع',exact:true}).click();await page.getByRole('button',{name:'إلغاء المسودة',exact:true}).click();await shot(page,'new-ar-cancel-dialog');await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});await page.waitForFunction(()=>document.activeElement?.textContent==='إلغاء المسودة');
- assert.equal(errors.length,0,errors.join('; '));console.log('PASS: repeated scans, mixed packs, owner discounts, cashier restrictions, draft stock unchanged, cash change, stock failure, external card record, print layout, AR/EN 320/390/768/1024/1440 and focus restore.');
+ await page.locator('#sale-method').selectOption('CASH');
+ await page.locator('summary').filter({hasText:'Optional details'}).click();
+ await page.locator('#sale-received').fill('200');
+ await page.getByTestId('sale-confirm').click();
+ await page.getByRole('button',{name:'Print invoice',exact:true}).waitFor();
+ const doc=await db.sale.findFirstOrThrow({where:{businessId:business.id}});
+ assert.equal(doc.status,'COMPLETED');assert.equal(doc.customerName,'أحمد');
+ assert.equal(doc.total.toFixed(2),'162.24');
+ assert.equal((await db.salePayment.findFirstOrThrow({where:{saleId:doc.id}})).change.toFixed(2),'37.76');
+ assert.equal(await shopStock(),'86.0000');
+ await page.emulateMedia({media:'print'});await shot(page,'new-en-print-media');await page.emulateMedia({media:'screen'});
+ await open(cashier,'en',true);await scan(cashier);
+ assert.equal(await cashier.locator('#sale-discount-0').count(),0);
+ assert(!(await cashier.content()).includes('9.8765'));
+ await cashier.locator('#sale-quantity-0').fill('1000');assert(await cashier.getByTestId('sale-confirm').isDisabled());
+ await shot(cashier,'new-en-insufficient-stock');
+ await cashier.locator('#sale-quantity-0').fill('1');
+ await cashier.locator('#sale-method').selectOption('OTHER');await cashier.locator('#sale-payment-reference').fill('Mobile wallet');
+ await cashier.locator('summary').filter({hasText:'Optional details'}).click();
+ await cashier.getByRole('button',{name:'Save as draft',exact:true}).click();await cashier.getByTestId('sale-receipt').waitFor();
+ assert.equal(await shopStock(),'86.0000');assert.equal(await cashier.locator('#sale-method').inputValue(),'OTHER');
+ assert.equal(await cashier.locator('#sale-payment-reference').inputValue(),'Mobile wallet');
+ await cashier.getByRole('button',{name:'Record payment & complete sale',exact:true}).click();
+ await cashier.getByRole('button',{name:'Print invoice',exact:true}).waitFor();
+ assert.equal(await shopStock(),'85.0000');
+ await cashier.getByTestId('sale-receipt').getByText('Mobile wallet',{exact:true}).waitFor();
+ await open(cashier,'en',true);await scan(cashier);
+ await cashier.locator('#sale-method').selectOption('CREDIT');
+ assert.equal(await cashier.locator('#sale-payment-reference').count(),0);
+ await cashier.getByTestId('sale-confirm').click();
+ await cashier.getByTestId('sale-receipt').getByText('Amount due at sale',{exact:true}).waitFor();
+ const unpaid=await db.salePayment.findFirstOrThrow({where:{businessId:business.id,method:'CREDIT'}});
+ assert.equal(unpaid.received.toFixed(2),'0.00');
+ assert.equal(await shopStock(),'84.0000');
+ for(const lang of ['en','ar'])for(const width of [390,1440]){
+  await page.setViewportSize({width,height:width<768?844:1100});await open(page,lang);await shot(page,`new-${lang}-${width}-list`);
+  await page.getByRole('table').getByRole('button').first().click();await page.getByTestId('sale-receipt').waitFor();
+  await shot(page,`new-${lang}-${width}-receipt`);
+ }
+ await open(page,'ar',true);await scan(page);
+ await page.locator('summary').filter({hasText:'تفاصيل اختيارية'}).click();
+ await page.getByRole('button',{name:'حفظ كمسودة',exact:true}).click();
+ await page.getByRole('button',{name:'إلغاء المسودة',exact:true}).click();await shot(page,'new-ar-cancel-dialog');
+ await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
+ await page.waitForFunction(()=>document.activeElement?.textContent==='إلغاء المسودة');
+ assert.equal(errors.length,0,errors.join('; '));console.log('PASS: repeated scans, mixed packs, owner discounts, cashier restrictions, draft stock unchanged, cash change, stock failure, Other payment description, credit sale, print layout, AR/EN 320/390/768/1024/1440 and focus restore.');
 }catch(error){if(primaryPage){await primaryPage.screenshot({path:`${artifacts}/failure.png`,fullPage:true}).catch(()=>{});console.error((await primaryPage.locator('body').innerText()).slice(-5000));}throw error;}
 finally{
  await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));

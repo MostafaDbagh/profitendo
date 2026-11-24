@@ -101,6 +101,25 @@ it('requires sufficient payment and a reference for manually recorded card/trans
  const d=await draft();for(const payment of [{method:'CASH',received:'1'},{method:'CARD',received:d.total},{method:'TRANSFER',received:'100',reference:'Bank 123'}])expect((await checkout(d,checkoutBody(d,{payment}))).body.error.code).toBe('PAYMENT_INVALID');
  const r=await checkout(d,checkoutBody(d,{payment:{method:'CARD',received:d.total,reference:'Terminal receipt 123'}}));expect(r.status,r.text).toBe(200);expect(r.body.payment.reference).toBe('Terminal receipt 123');
 });
+it('records the chosen method and description while keeping credit sales separate from collections',async()=>{
+ const user=await actor('CASHIER',business,source);
+ const p=await funded('10');
+ for(const method of ['CASH','TRANSFER','OTHER','REMITTANCE','CREDIT']){
+  const doc=await draft({lines:[{productId:p,quantity:'1'}]},user);
+  const tender=(received:string,reference='')=>checkout(doc,checkoutBody(doc,{payment:{method,received,reference}}),user);
+  if(method==='OTHER')expect((await tender(doc.total,'   ')).body.error.code).toBe('PAYMENT_DESCRIPTION_REQUIRED');
+  if(method==='CREDIT')expect((await tender(doc.total)).body.error.code).toBe('PAYMENT_INVALID');
+  const received=method==='CREDIT'?'0':doc.total;
+  const reference=method==='OTHER'?'Mobile wallet':method==='TRANSFER'?'Bank 345':'';
+  const result=await tender(received,reference);
+  expect(result.status,result.text).toBe(200);
+  expect(result.body.payment).toMatchObject({method,amount:received,received,change:'0',reference});
+ }
+ expect(await stock(source,p)).toBe('5.0000');
+ const day=await get('/my-day',user);
+ expect(day.body.salesTotal).toBe('60.0000');
+ expect(day.body.payments.find((p:{method:string})=>p.method==='CREDIT')).toMatchObject({count:1,amount:'0.0000'});
+});
 it('reprices expired and changed-price drafts before checkout',async()=>{
  const p=await funded(),d=await draft({lines:[{productId:p,quantity:'1'}]});await db.product.update({where:{id:p},data:{sellingPrice:'15'}});expect((await checkout(d)).body.error.code).toBe('PRICE_CHANGED');
  await db.sale.update({where:{id:d.id},data:{expiresAt:new Date(0)}});expect((await checkout(d)).body.error.code).toBe('QUOTE_EXPIRED');

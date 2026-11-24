@@ -1,11 +1,12 @@
 import {LoadingState} from '../page-layout/PageResults';
 import { useId, useState } from 'react';
 import { X } from 'lucide-react';
-import { Field } from '../auth-v2/Fields';
+import { inputClass } from '../auth-v2/Fields';
+import RequiredMark from '../RequiredMark';
 import { Feedback, Pager, buttonClass } from '../business-v2/UI';
 import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 
-export default function SupplierSearch({ api, path, c, lang, value, onSelect, disabled, required }) {
+export default function SupplierSearch({ api, path, c, lang, value, onSelect, disabled, required, labelAction }) {
   const id=useId();
   const [search,setSearch]=useState(''),[query,setQuery]=useState(''),[page,setPage]=useState(1);
   useLiveSearch(search,query,setQuery,setPage);
@@ -18,9 +19,13 @@ export default function SupplierSearch({ api, path, c, lang, value, onSelect, di
   }
   return (
     <div className="min-w-0 space-y-2">
-      <div className="flex items-end gap-2">
-        <div className="min-w-0 flex-1">
-          <Field id={id} label={label} placeholder={c('supplierSearchPlaceholder')} value={value?.name??search}
+      <div>
+        <div className="mb-1.5 flex items-baseline gap-3">
+          <label htmlFor={id} className="text-sm font-medium text-slate-700">{label}<RequiredMark required={!!required}/></label>
+          {labelAction}
+        </div>
+        <div className="flex items-center gap-2">
+          <input id={id} className={`${inputClass} min-w-0 flex-1`} placeholder={c('supplierSearchPlaceholder')} value={value?.name??search}
             disabled={disabled} readOnly={Boolean(value)} required={required} maxLength={120} autoComplete="off"
             onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{
               if(event.key==='Escape')setSearch('');
@@ -29,9 +34,9 @@ export default function SupplierSearch({ api, path, c, lang, value, onSelect, di
                 if(resource.data?.items.length===1)select(resource.data.items[0]);
               }
             }}/>
+          {value&&!disabled&&<button type="button" className={`${buttonClass} shrink-0`}
+            aria-label={lang==='ar'?'إزالة المورد':'Clear supplier'} onClick={()=>select(null)}><X aria-hidden="true"/></button>}
         </div>
-        {value&&!disabled&&<button type="button" className={`${buttonClass} shrink-0`}
-          aria-label={lang==='ar'?'إزالة المورد':'Clear supplier'} onClick={()=>select(null)}><X aria-hidden="true"/></button>}
       </div>
       {showResults&&<>
         <Feedback c={c} error={resource.error} retry={resource.reload}/>

@@ -91,7 +91,9 @@ export class ReportService{
    const returns=await tx.adjustment.findMany({where:refundWhere,orderBy:[{completedAt:'desc'},{id:'asc'}],...paging});if(returns.length>limit)fail('REPORT_TOO_LARGE',422);
    const paid=await tx.moneyEntry.groupBy({by:['sourceId'],where:{businessId:bid,sourceId:{in:returns.map(r=>r.id)},kind:'CUSTOMER_REFUND'},_sum:{amount:true}});
    const paidBySource=new Map(paid.map(p=>[p.sourceId,p._sum.amount?.toFixed(4)??'0']));
-   rows=returns.map(r=>{const refund=scaled(paidBySource.get(r.id)??'0');return {reference:r.reference,source:r.sourceReference,location:r.locationName,credit:r.total.toFixed(currencyDigits(r.currency)),paid:fixed(refund),outstanding:fixed(scaled(r.total.toFixed(4))-refund),currency:r.currency};});
+   const saleIds=returns.flatMap(r=>r.sourceId?[r.sourceId]:[]);
+   const onCredit=new Set((await tx.salePayment.findMany({where:{businessId:bid,method:'CREDIT',saleId:{in:saleIds}},select:{saleId:true}})).map(p=>p.saleId));
+   rows=returns.map(r=>{const refund=scaled(paidBySource.get(r.id)??'0');return {reference:r.reference,source:r.sourceReference,location:r.locationName,credit:r.total.toFixed(currencyDigits(r.currency)),paid:fixed(refund),outstanding:fixed(r.sourceId&&onCredit.has(r.sourceId)?0n:scaled(r.total.toFixed(4))-refund),currency:r.currency};});
   }
   else{
    const receiptWhere={...scoped,kind:'RECEIPT',status:'COMPLETED',...(q.view==='purchases'?{completedAt:range}:{})};

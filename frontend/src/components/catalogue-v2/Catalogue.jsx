@@ -4,7 +4,7 @@ import {Pencil,Plus,Upload} from 'lucide-react';
 import RequiredMark from '../RequiredMark';
 import PageToolbar, { TableCsvButton } from '../page-layout/PageToolbar';
 import CopyableCode from '@/components/CopyableCode';
-import { Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
+import { Coins, Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
 import {downloadCsv} from '../completion-v2/Shared';
 import { unitLabel } from '../catalogue-v2/units';
 import ProductAssets from './ProductAssets';
@@ -66,7 +66,11 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
   ];
   const currency=data?.currency ?? context.business.baseCurrency;
   return <PageLayout title={c('catalogue')}
-    titleMeta={currency && <>{c('pricesCurrency')}: <bdi dir="ltr" className="font-semibold">{currency}</bdi></>}
+    titleMeta={currency && <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-xs font-medium leading-5 text-accent-foreground ring-1 ring-inset ring-emerald-200">
+      <Coins aria-hidden="true" className="h-3.5 w-3.5 shrink-0"/>
+      <span>{c('pricesCurrency')}:</span>
+      <bdi dir="ltr" className="font-bold tracking-wide">{currency}</bdi>
+    </span>}
     actions={actions} pagination={data&&<Pager {...{data,setPage,c}}/>}
     toolbar={<>
     <details className={`${panelClass} group !p-0`}>
