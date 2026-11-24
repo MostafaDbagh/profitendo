@@ -126,13 +126,15 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  <section className={`${panelClass} space-y-4`}>
  <h3 className="font-bold text-slate-900">{lang==='ar'?'الأصناف':'Items'}</h3>
  {!seed&&!plannedReceipt&&<div className="space-y-3">
+ <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2" dir={lang==='ar'?'rtl':'ltr'}>
  <ProductSearch {...{api,root,c,lang,context}} disabled={busy||importing} onSelect={add} inputRef={productSearchRef}/>
- <ProductEntryHelp compact lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>
- <Disclosure title={c('scanOptional')} hasValue={Boolean(scan)||mode==='repeat'}>
- <form onSubmit={lookup} className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)] items-end">
- <ScanModeSelect value={mode} onChange={setMode} disabled={busy||scanning||importing} {...{c,lang}}/>
+ <form onSubmit={lookup} className="min-w-0">
  <div className="min-w-0"><label className="text-sm font-medium block mb-1.5" htmlFor="receipt-scan">{c('receivingBarcode')}<RequiredMark/></label><div className="flex gap-2"><input ref={scanRef} id="receipt-scan" className={`${inputClass} h-11 flex-1 min-w-0`} dir="ltr" placeholder={lang==='ar'?'امسح الباركود أو أدخل رمز الصنف':'Scan barcode or enter SKU'} required maxLength={128} value={scan} disabled={busy||importing} onChange={e=>setScan(e.target.value)}/><button className={`${buttonClass} h-11 shrink-0`} disabled={busy||importing}>{lang==='ar'?(scanning?'جارٍ البحث…':'إضافة'):(scanning?'Searching…':'Add')}</button></div></div>
  </form>
+ </div>
+ <ProductEntryHelp compact lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>
+ <Disclosure title={c('scanMode')} hasValue={mode==='repeat'}>
+ <ScanModeSelect value={mode} onChange={setMode} disabled={busy||scanning||importing} {...{c,lang}}/>
  </Disclosure>
  </div>}
  {notice&&<p role="status" className="text-sm text-emerald-700">{c(notice)}</p>}<LocalDraftNotice {...{draft,lang}} busy={busy||importing}/><Feedback {...{error,c}}/>
@@ -149,7 +151,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
     <input ref={el=>quantityRefs.current[line.productId]=el} id={`line-quantity-${index}`} {...selectInputOnFocus}
      className={inputClass} dir="ltr" inputMode="decimal" pattern={validNumber} placeholder={c('lineQuantityPlaceholder')}
      required value={line.quantity} disabled={busy||importing} onChange={e=>edit(index,'quantity',e.target.value)}
-     onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(scanRef.current?.closest('details')?.open)scanRef.current.focus();else if(cost)document.getElementById(`line-cost-${index}`)?.focus();}}}/>
+     onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(mode==='repeat')scanRef.current?.focus();else if(cost)document.getElementById(`line-cost-${index}`)?.focus();}}}/>
    </div>
    {cost&&<>
     <Field wrapperClassName="receipt-line-field [grid-area:cost]" id={`line-cost-${index}`} label={c('unitCost')} placeholder={c('costPlaceholder')} dir="ltr" inputMode="decimal"

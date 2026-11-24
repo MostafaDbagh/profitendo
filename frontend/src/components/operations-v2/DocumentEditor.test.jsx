@@ -21,7 +21,7 @@ const button=label=>[...host.querySelectorAll('button')].find(el=>el.textContent
 for(const lang of ['en','ar'])test(`review saves a draft without barcode input or stock transition (${lang})`,async()=>{
  await render(lang);const scanner=host.querySelector('#receipt-scan'),saveForm=button(operationsCopy[lang].reviewReceipt).closest('form');
  const documentDate=host.querySelector('#document-date');
- expect(scanner.closest('details').open).toBe(false);expect(scanner.form).not.toBe(saveForm);
+ expect(scanner.closest('details')).toBeNull();expect(scanner.form).not.toBe(saveForm);
  expect(documentDate.form).toBe(saveForm);
  act(()=>fill(documentDate,''));
  expect(saveForm.checkValidity()).toBe(false);
@@ -32,15 +32,15 @@ for(const lang of ['en','ar'])test(`review saves a draft without barcode input o
  expect(api.mock.calls[0][1]).toMatchObject({method:'PATCH',body:{revision:0,documentDate:'2026-11-22',lines:[{productId:'product',quantity:'1',unitCost:'3'}]}});
  expect(done).toHaveBeenCalledWith(doc);
 });
-test('quantity can be cleared and replaced; Enter moves to cost without opening scanner',async()=>{
+test('quantity can be cleared and replaced; Enter moves to cost in single-scan mode',async()=>{
  await render();const quantity=host.querySelector('#line-quantity-0');
  act(()=>{quantity.focus();fill(quantity,'');});expect(quantity.value).toBe('');expect(quantity.validity.valueMissing).toBe(true);
  act(()=>{fill(quantity,'12');quantity.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));});
- expect(quantity.value).toBe('12');expect(document.activeElement.id).toBe('line-cost-0');expect(host.querySelector('#receipt-scan').closest('details').open).toBe(false);
+ expect(quantity.value).toBe('12');expect(document.activeElement.id).toBe('line-cost-0');expect(host.querySelector('#receipt-scan').closest('details')).toBeNull();
 });
 test('scanner still adds products and transfers focus to their quantity',async()=>{
  api.mockResolvedValue({product});await render();const scanner=host.querySelector('#receipt-scan');
- act(()=>{scanner.closest('details').open=true;fill(scanner,'MILK');});
+ act(()=>{fill(scanner,'MILK');});
  await act(async()=>scanner.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api.mock.calls[0][0]).toBe('/businesses/business/products/barcode?value=MILK');expect(document.activeElement.id).toBe('line-quantity-0');
 });
