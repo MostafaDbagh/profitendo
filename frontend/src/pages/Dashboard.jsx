@@ -1,3 +1,5 @@
+import {LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -187,9 +189,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24" data-testid="dashboard-loading">
-        <div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-      </div>
+      <LoadingState data-testid="dashboard-loading">{t("loading")}</LoadingState>
     );
   }
 
@@ -254,14 +254,9 @@ export default function Dashboard() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="space-y-6 fade-up" data-testid="dashboard-page">
+    <PageLayout as="div" className="fade-up" data-testid="dashboard-page">
       {obBanner}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("dashboardTitle")}</h1>
-          <p className="text-slate-500 text-sm mt-1">{t("dashboardSubtitle")}</p>
-        </div>
-        {data.has_demo ? (
+      <PageHeader title={t("dashboardTitle")} heading="h1" accessory={data.has_demo ? (
           <div
             className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5"
             data-testid="demo-banner"
@@ -284,8 +279,7 @@ export default function Dashboard() {
           >
             <Database className="w-4 h-4" /> {t("loadDemo")}
           </button>
-        ) : null}
-      </div>
+        ) : null}/>
 
       <AiAssistant />
       <DrilldownModal metric={drill} onClose={() => setDrill(null)} />
@@ -385,6 +379,6 @@ export default function Dashboard() {
           </ul>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

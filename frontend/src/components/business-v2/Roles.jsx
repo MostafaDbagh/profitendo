@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import Disclosure from './Disclosure';
 import PermissionDetails, {customizeLabel,permissionGroupLabels} from './PermissionDetails';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
@@ -52,18 +54,15 @@ export default function Roles({ context, api, c, lang }) {
   const { data, error, reload } = useResource(api, path);
   const trigger = useRef(null);
   const [adding, setAdding] = useState(false), [notice, setNotice] = useState('');
-  return <section className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">{c('roles')}</h2>
-      {data?.canCreate && <button ref={trigger} className={primaryClass} onClick={() => { setNotice(''); setAdding(true); }}><Plus className="w-4 h-4" aria-hidden="true" />{c('addRole')}</button>}
-    </div>
-    <p className="text-sm text-slate-500">{c('rolesHint')}</p>
+  return <PageLayout>
+    <PageHeader title={c('roles')} accessory={data?.canCreate && <button ref={trigger} className={primaryClass} onClick={() => { setNotice(''); setAdding(true); }}><Plus className="w-4 h-4" aria-hidden="true" />{c('addRole')}</button>}/>
     <Feedback error={error} notice={notice} c={c} retry={reload} />
-    {!data && !error && <p role="status">{c('loading')}</p>}
+    {!data && !error && <LoadingState>{c('loading')}</LoadingState>}
     {data && <ul className="space-y-3">{data.roles.map(role => <li key={role.role} className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-slate-800">{role.name || c(role.role)}</h3>{role.custom&&<span className="text-xs text-slate-500">{c('customRole')}</span>}</div>
       <PermissionDetails permissions={role.permissions} keys={Object.keys(data.permissions)} {...{c,lang}}/>
     </li>)}</ul>}
 
     {adding && <AddRole {...{ data, api, path, c, lang }} returnFocus={trigger.current} close={() => setAdding(false)} done={() => { setAdding(false); setNotice('roleCreated'); reload(); }} />}
-  </section>;
+  </PageLayout>;
 }

@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -112,7 +113,7 @@ export default function ProductDetails() {
     .map((d, i) => ({ ...d, color: COST_COLORS[i % COST_COLORS.length] }));
 
   return (
-    <div className="space-y-6 fade-up" data-testid="product-details-page">
+    <PageLayout as="div" className="fade-up" data-testid="product-details-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
@@ -122,17 +123,11 @@ export default function ProductDetails() {
           >
             <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{p.name}</h1>
-              {p.is_demo && (
+          <PageHeader title={p.name} heading="h1" accessory={<>{p.is_demo && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                   {t("demoBadge")}
                 </span>
-              )}
-            </div>
-            {p.sku && <p className="text-sm text-slate-400 tabular"><CopyableCode>{p.sku}</CopyableCode></p>}
-          </div>
+              )}{p.sku && <p className="text-sm text-slate-400 tabular"><CopyableCode>{p.sku}</CopyableCode></p>}</>}/>
         </div>
         {can("products.edit") && (
           <Link
@@ -278,6 +273,6 @@ export default function ProductDetails() {
         </div>
       </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

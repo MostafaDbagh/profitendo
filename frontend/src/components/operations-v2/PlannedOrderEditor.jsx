@@ -1,3 +1,4 @@
+import {PageHeader} from '../page-layout/PageLayout';
 import {selectInputOnFocus} from '../../lib/selectInputOnFocus';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { ArrowRight, Plus, X } from 'lucide-react';
@@ -54,9 +55,7 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     <button type="button" className={buttonClass} disabled={busy} onClick={close}>
       <ArrowRight aria-hidden="true" className="h-4 w-4 ltr:rotate-180"/>{embedded?(ar?'عرض سجل المشتريات':'Show purchase history'):c('back')}
     </button>
-    {!embedded&&<div>
-      <h2 className="text-lg font-bold">{c(document?'editDocument':'newOrder')}</h2>
-    </div>}
+    {!embedded&&<PageHeader title={c(document?'editDocument':'newOrder')}/>}
     <LocalDraftNotice {...{draft,lang,busy}}/>
     <Feedback {...{error,c}}/>
     <form className={panelClass} onSubmit={save}>

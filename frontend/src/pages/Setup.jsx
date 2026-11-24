@@ -1,3 +1,4 @@
+import {PageHeader} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
 import { useMemo, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
@@ -69,7 +70,7 @@ export default function Setup() {
           <span className="font-bold text-xl text-slate-900">{t("appName")}</span>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-          <h1 className="text-2xl font-bold text-slate-900" data-testid="setup-title">{t("setupTitle")}</h1>
+          <PageHeader title={t("setupTitle")} heading="h1" titleTestId="setup-title"/>
           <p className="text-slate-500 text-sm mt-1 mb-6">{t("setupDesc")}</p>
           <form onSubmit={submit} className="space-y-4" data-testid="setup-form">
             <div>

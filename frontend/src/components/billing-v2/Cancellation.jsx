@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { CalendarClock } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useResource } from '../business-v2/useBusinessApi';
@@ -15,7 +16,7 @@ export default function Cancellation({ businessId, api, c, lang }) {
   return <section className={`${panelClass} space-y-4`}>
     <h3 className="font-bold flex items-center gap-2"><CalendarClock className="w-4 h-4 text-slate-500" aria-hidden="true" />{lang==='ar'?'إدارة التجديد':'Manage renewal'}</h3>
     <Feedback error={error} c={c} retry={reload} />
-    {!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+    {!data && !error && <LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     {data && <>
       {data.cancellation ? <div role="status" className="space-y-2"><p className="font-semibold text-sm">{c(`cancellation_${data.cancellation.status}`)}</p><p className="text-sm text-slate-600">{c(data.cancellation.status === 'CONFIRMED' ? 'cancellationConfirmedHint' : data.cancellation.status === 'REVIEW' ? 'cancellationReviewHint' : 'cancellationPendingHint')}</p></div>
         : <p className="text-sm text-slate-600">{c(data.cancellationAvailable ? 'cancellationHint' : 'noLinkedSubscription')}</p>}

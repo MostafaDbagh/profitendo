@@ -1,3 +1,6 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {buttonClass, primaryClass} from '../page-layout/tokens';
+import {inputClass} from '../auth-v2/Fields';
 import RequiredMark from '../RequiredMark';
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,45 +13,33 @@ import api, { formatApiError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { COUNTRIES, CURRENCY_OPTIONS, CURRENCY_LABELS, countryByCode, countryName } from "../../lib/locale";
 
-const inputCls = "w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800/60 text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
-const primaryBtn = "w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2";
-const ghostBtn = "text-sm text-slate-400 hover:text-slate-200 transition-colors";
+const inputCls = inputClass;
+const primaryBtn = `${primaryClass} w-full`;
+const ghostBtn = buttonClass;
 const BUSINESS_TYPES = ["retail", "ecommerce", "services", "food", "wholesale", "other"];
 
-function StepHeader({ title, sub, testid }) {
-  return (
-    <div className="text-center mb-8">
-      <h2 className="text-2xl font-bold text-slate-100" data-testid={testid}>{title}</h2>
-      {sub && <p className="text-slate-400 text-sm mt-2 leading-relaxed">{sub}</p>}
-    </div>
-  );
+function StepHeader({title,sub,testid}) {
+  return <PageLayout as="div" className="mb-[var(--page-gap)]" title={title} titleTestId={testid}>
+    {sub&&<p className="text-sm text-slate-600">{sub}</p>}
+  </PageLayout>;
 }
 
-function OptionCard({ icon: Icon, label, onClick, testid, primary }) {
-  return (
-    <button onClick={onClick} data-testid={testid}
-      className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border text-start font-semibold text-sm transition-all duration-150 ${
-        primary
-          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
-          : "bg-slate-800/50 border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
-      }`}>
-      <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${primary ? "bg-emerald-500 text-white" : "bg-slate-700/60 text-slate-300"}`}>
-        <Icon className="w-5 h-5" />
-      </span>
-      {label}
-    </button>
-  );
+function OptionCard({icon: Icon,label,onClick,testid,primary}) {
+  return <button type="button" onClick={onClick} data-testid={testid}
+    className={`${primary?primaryClass:buttonClass} w-full justify-start text-start`}>
+    <Icon aria-hidden="true"/>{label}
+  </button>;
 }
 
 export function WelcomeStep({ t, busy, onStart, onSkipAll }) {
   return (
-    <div className="text-center space-y-8" data-testid="ob-welcome">
+    <div className="text-center space-y-[var(--page-gap)]" data-testid="ob-welcome">
       <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-        <Sparkles className="w-8 h-8 text-emerald-400" />
+        <Sparkles className="w-8 h-8 text-emerald-700" />
       </div>
       <div>
-        <h1 className="text-3xl font-bold text-slate-100" data-testid="ob-welcome-title">{t("obWelcomeTitle")}</h1>
-        <p className="text-slate-400 mt-3">{t("obWelcomeSub")}</p>
+        <PageHeader title={t("obWelcomeTitle")} heading="h1" titleTestId="ob-welcome-title"/>
+        <p className="text-slate-600 mt-3">{t("obWelcomeSub")}</p>
       </div>
       <div className="space-y-4">
         <button data-testid="ob-welcome-start" onClick={onStart} disabled={busy} className={primaryBtn}>
@@ -92,18 +83,18 @@ export function BusinessStep({ t, lang, user, busy, onNext, onBack }) {
       <StepHeader title={t("obBizStep")} sub={t("obBizStepSub")} testid="ob-biz-title" />
       <form onSubmit={submit} className="space-y-4" data-testid="ob-biz-form">
         <div>
-          <label htmlFor="ob-biz-name" className="text-sm font-medium text-slate-300 mb-1.5 block">{t("bizName")}<RequiredMark/></label>
+          <label htmlFor="ob-biz-name" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizName")}<RequiredMark/></label>
           <input id="ob-biz-name" data-testid="ob-biz-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required className={inputCls} />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-300 mb-1.5 block">{t("obBizType")}</label>
+          <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("obBizType")}</label>
           <select data-testid="ob-biz-type" value={form.business_type} onChange={(e) => setForm((f) => ({ ...f, business_type: e.target.value }))} className={inputCls}>
             {BUSINESS_TYPES.map((bt) => <option key={bt} value={bt} data-testid={`ob-type-${bt}`}>{t(`obType_${bt}`)}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium text-slate-300 mb-1.5 block">{t("countryLabel")}</label>
+            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("countryLabel")}</label>
             <select data-testid="ob-biz-country" value={form.country}
               onChange={(e) => {
                 const c = countryByCode(e.target.value);
@@ -113,7 +104,7 @@ export function BusinessStep({ t, lang, user, busy, onNext, onBack }) {
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-300 mb-1.5 block">{t("bizCurrency")}</label>
+            <label className="text-sm font-medium text-slate-700 mb-1.5 block">{t("bizCurrency")}</label>
             <select data-testid="ob-biz-currency" value={form.base_currency} onChange={(e) => setForm((f) => ({ ...f, base_currency: e.target.value }))} className={inputCls}>
               {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{CURRENCY_LABELS[lang]?.[c] || c}</option>)}
             </select>
@@ -153,7 +144,7 @@ export function OpeningStep({ t, busy, onSkip, onBack }) {
   return (
     <div data-testid="ob-opening">
       <div className="w-14 h-14 mx-auto rounded-2xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center mb-6">
-        <Wallet className="w-7 h-7 text-teal-400" />
+        <Wallet className="w-7 h-7 text-teal-700" />
       </div>
       <StepHeader title={t("obOpeningStep")} sub={t("obOpeningDesc")} testid="ob-opening-title" />
       <button data-testid="ob-opening-setup" onClick={() => navigate("/settings?onboarding=1")} disabled={busy} className={primaryBtn}>
@@ -195,25 +186,25 @@ export function CompleteStep({ t, ob, busy, onFinish }) {
     ["first_transaction", t("obChkFirstTx")],
   ];
   return (
-    <div className="text-center space-y-8" data-testid="ob-complete">
+    <div className="text-center space-y-[var(--page-gap)]" data-testid="ob-complete">
       <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-        <PartyPopper className="w-8 h-8 text-emerald-400" />
+        <PartyPopper className="w-8 h-8 text-emerald-700" />
       </div>
       <div>
-        <h1 className="text-3xl font-bold text-slate-100" data-testid="ob-complete-title">{t("obCompleteTitle")}</h1>
-        <p className="text-slate-400 mt-3">{t("obCompleteSub")}</p>
+        <PageHeader title={t("obCompleteTitle")} heading="h1" titleTestId="ob-complete-title"/>
+        <p className="text-slate-600 mt-3">{t("obCompleteSub")}</p>
       </div>
       <ul className="space-y-2.5 text-start" data-testid="ob-complete-checklist">
         {items.map(([key, label]) => {
           const done = !!checklist[key];
           const wasSkipped = skipped.includes(key);
           const Icon = done ? CheckCircle2 : wasSkipped ? MinusCircle : Circle;
-          const tone = done ? "text-emerald-400" : wasSkipped ? "text-amber-400" : "text-slate-500";
+          const tone = done ? "text-emerald-700" : wasSkipped ? "text-amber-700" : "text-slate-500";
           const status = done ? t("obDoneStatus") : wasSkipped ? t("obSkipped") : t("obPendingStatus");
           return (
             <li key={key} data-testid={`ob-check-${key}`}
-              className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700">
-              <span className="flex items-center gap-3 text-sm font-medium text-slate-200">
+              className="flex items-center justify-between px-4 py-3 rounded-xl bg-muted border border-border">
+              <span className="flex items-center gap-3 text-sm font-medium text-slate-800">
                 <Icon className={`w-5 h-5 ${tone}`} />
                 {label}
               </span>

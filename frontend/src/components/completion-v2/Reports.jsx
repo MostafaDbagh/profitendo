@@ -1,4 +1,6 @@
-import { TableCsvButton } from '../business-v2/TableToolbar';
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
+import { TableCsvButton } from '../page-layout/PageToolbar';
 import Disclosure from '../business-v2/Disclosure';
 import { OwnerPinUnlock } from '../business-v2/OwnerPin';
 import { useState } from 'react';
@@ -84,8 +86,8 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
     finally { setBusy(false); }
   }
 
-  return <section className="space-y-5">
-    <div><h2 className="text-xl font-bold">{c('reports')}</h2></div>
+  return <PageLayout>
+    <PageHeader title={c('reports')}/>
     <div className="flex flex-wrap gap-2" role="group" aria-label={c('reportView')}>
       {primary.map(key => <button key={key} type="button" aria-pressed={view === key}
         className={view === key ? primaryClass : buttonClass} onClick={() => changeView(key)}>{c(`report_${key}`)}</button>)}
@@ -121,7 +123,7 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
     </div>
     <Feedback c={c} error={error || loadError} retry={reload} />
     {restricted && <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} />}
-    {!restricted && !data && !loadError && <p role="status">{c('loading')}</p>}
+    {!restricted && !data && !loadError && <LoadingState>{c('loading')}</LoadingState>}
     {data && view !== 'summary' && isTotals && <button type="button" className={buttonClass} disabled={busy} onClick={exportRows}>{c('exportCsv')}</button>}
     {data && (isTotals ? <>
       <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -145,5 +147,5 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
       <Pager {...{data,setPage,c}} />
     </>)}
     {!pinLocked && <ClosingReports {...{context,api,c,lang,range,location}} />}
-  </section>;
+  </PageLayout>;
 }

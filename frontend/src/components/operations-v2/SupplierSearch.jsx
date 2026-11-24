@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { useId, useState } from 'react';
 import { X } from 'lucide-react';
 import { Field } from '../auth-v2/Fields';
@@ -34,7 +35,7 @@ export default function SupplierSearch({ api, path, c, lang, value, onSelect, di
       </div>
       {showResults&&<>
         <Feedback c={c} error={resource.error} retry={resource.reload}/>
-        {!resource.data&&!resource.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+        {!resource.data&&!resource.error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
         {resource.data?.items.length===0&&<p role="status" className="text-sm text-slate-500">{c('empty')}</p>}
         {!!resource.data?.items.length&&<ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1">
           {resource.data.items.map(supplier=><li key={supplier.id}>

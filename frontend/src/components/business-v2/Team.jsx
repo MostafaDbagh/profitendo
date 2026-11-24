@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import {Pencil,UserMinus} from 'lucide-react';
 import Disclosure from './Disclosure';
 import {customizeLabel,permissionGroupLabels} from './PermissionDetails';
@@ -60,8 +62,8 @@ export default function Team({ context, api, c, lang }) {
   const [page, setPage] = useState(1), [editing, setEditing] = useState(null), [notice, setNotice] = useState('');
   const path = `/businesses/${context.business.id}/members`;
   const { data, error, reload } = useResource(api, `${path}?page=${page}`);
-  return <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">{c('team')}</h2>{context.permissions['team.manage'] && <button ref={addTrigger} className={primaryClass} disabled={!data} onClick={() => { setNotice(''); setAdding(true); }}><UserPlus className="w-4 h-4" aria-hidden="true" />{c('addTeamMember')}</button>}</div><Feedback error={error} notice={notice} c={c} retry={reload} />
-    {!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+  return <PageLayout><PageHeader title={c('team')} accessory={context.permissions['team.manage'] && <button ref={addTrigger} className={primaryClass} disabled={!data} onClick={() => { setNotice(''); setAdding(true); }}><UserPlus className="w-4 h-4" aria-hidden="true" />{c('addTeamMember')}</button>}/><Feedback error={error} notice={notice} c={c} retry={reload} />
+    {!data && !error && <LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     {data && <><Table headers={['memberName','email','role','memberLocations','status', ...(context.permissions['team.manage'] ? ['actions'] : [])]} empty={!data.items.length} c={c}>{data.items.map(m => <tr key={m.id}>
       <td className="px-5 py-3 font-semibold text-slate-800">{m.name}</td><td className="px-5 py-3 text-slate-600"><span dir="ltr">{m.email}</span></td><td className="px-5 py-3"><span className="inline-block px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold whitespace-nowrap">{m.roleName || c(m.role)}</span></td><td className="px-5 py-3 text-sm"><div className="space-y-1">{m.allLocations&&<p className="text-emerald-700">{c('memberAllLocations')}</p>}{m.locations?.map(l=><p key={l.id}>{l.name} · {c(l.kind)}</p>)}{!m.allLocations&&!m.locations?.length&&<span className="text-amber-700">{c('noMemberLocations')}</span>}</div>{context.permissions['locations.manage']&&m.active&&m.role!=='OWNER'&&<button className="text-emerald-700 underline mt-2" onClick={event=>{trigger.current=event.currentTarget;setAssigning(m);}}>{c('assignMemberLocations')}</button>}</td><td className="px-5 py-3 text-slate-600 whitespace-nowrap">{c(m.accountDisabled ? 'accountDisabled' : m.active ? 'active' : 'inactive')}</td>
       {context.permissions['team.manage'] && <td className="px-5 py-3"><div className="flex flex-wrap gap-2">{m.canEdit && <button className={`${buttonClass} whitespace-nowrap`} onClick={event => { trigger.current = event.currentTarget; setNotice(''); setEditing(m); }}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('edit')}</button>}{context.role === 'OWNER' && m.canEdit && m.active && <button className={`${buttonClass} !text-red-700 !border-red-200 hover:!bg-red-50 whitespace-nowrap`} onClick={event => { trigger.current = event.currentTarget; setNotice(''); setRemoving(m); }}><UserMinus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('removeTeamMember')}</button>}</div></td>}
@@ -70,5 +72,5 @@ export default function Team({ context, api, c, lang }) {
     {removing && <RemoveMember member={removing} returnFocus={trigger.current} {...{ api, path, c, lang }} close={() => setRemoving(null)} done={saved => { setRemoving(null); reload(); setNotice(saved ? 'teamMemberRemoved' : ''); }} />}
     {adding && <AddMember {...{ context, api, c, lang }} roles={data.roleDefaults || []} returnFocus={addTrigger.current} close={() => setAdding(false)} done={() => { setAdding(false); reload();setNotice('saved'); }} />}
     {editing && <EditMember returnFocus={trigger.current} member={editing} permissionKeys={data.permissionKeys||[]} roleDefaults={data.roleDefaults||[]} actorPermissions={context.permissions} isOwner={context.role==='OWNER'} {...{ api, path, c, lang }} close={() => setEditing(null)} done={(saved = true) => { setEditing(null); reload(); setNotice(saved ? 'saved' : ''); }} />}
-  </section>;
+  </PageLayout>;
 }

@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { User, Languages, Database, Trash2, Loader2, ScrollText, Download, Sparkles } from "lucide-react";
@@ -118,10 +119,8 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl fade-up" data-testid="settings-page">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("settingsTitle")}</h1>
-      </div>
+    <PageLayout as="div" className="max-w-2xl fade-up" data-testid="settings-page">
+      <PageHeader title={t("settingsTitle")} heading="h1"/>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" data-testid="settings-account">
         <div className="flex items-center gap-2 mb-4">
@@ -304,6 +303,6 @@ export default function Settings() {
           </button>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

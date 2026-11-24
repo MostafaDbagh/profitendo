@@ -1,3 +1,6 @@
+import {panelClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Undo2, XCircle, Pencil } from "lucide-react";
@@ -56,28 +59,20 @@ export default function Returns() {
   };
 
   return (
-    <div className="space-y-6 fade-up" data-testid="returns-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("returnsTitle")}</h1>
-        {can("returns.create") && (
+    <PageLayout as="div" className="fade-up" data-testid="returns-page">
+      <PageHeader title={t("returnsTitle")} heading="h1" accessory={can("returns.create") && (
           <Link to="/returns/new" data-testid="new-return-btn"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
             <Plus className="w-4 h-4" /> {t("newReturn")}
           </Link>
-        )}
-      </div>
+        )}/>
 
       {!returns ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : returns.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="returns-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <Undo2 className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{t("noReturns")}</p>
-        </div>
+        <EmptyState icon={Undo2} className={panelClass} data-testid="returns-empty">{t("noReturns")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="returns-table">
+        <TableRegion data-testid="returns-table">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -124,7 +119,7 @@ export default function Returns() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
       {editTarget && (
@@ -156,6 +151,6 @@ export default function Returns() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   );
 }

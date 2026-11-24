@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { Wallet, Loader2, Banknote, ArrowDownToLine, Plus } from "lucide-react";
@@ -96,16 +97,13 @@ export default function Cash() {
   ];
 
   return (
-    <div className="space-y-6 fade-up" data-testid="cash-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("cashTitle")}</h1>
-        {can("withdrawals.manage") && (
+    <PageLayout as="div" className="fade-up" data-testid="cash-page">
+      <PageHeader title={t("cashTitle")} heading="h1" accessory={can("withdrawals.manage") && (
           <button onClick={() => setWdOpen(true)} data-testid="new-withdrawal-btn"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
             <Plus className="w-4 h-4" /> {t("newWithdrawal")}
           </button>
-        )}
-      </div>
+        )}/>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {cards.map((c) => (
@@ -235,6 +233,6 @@ export default function Cash() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

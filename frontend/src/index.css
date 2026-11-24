@@ -29,6 +29,13 @@
         --chart-4: 38 92% 50%;
         --chart-5: 199 89% 48%;
         --radius: 0.75rem;
+        --page-action: 163 94% 24%;
+        --page-action-hover: 163 88% 20%;
+        --page-control-height: 2.75rem;
+        --page-gap: 1.25rem;
+        --page-control-gap: 0.5rem;
+        --page-gutter: 0.75rem;
+        --page-panel-padding: 1rem;
     }
 }
 
@@ -51,6 +58,20 @@
     select:focus-visible,
     button:focus-visible {
         outline: none;
+    }
+}
+
+@layer base {
+    @media (min-width: 640px) {
+        :root {
+            --page-gutter: 1.25rem;
+            --page-panel-padding: 1.25rem;
+        }
+    }
+    @media (min-width: 1280px) {
+        :root {
+            --page-gutter: 2rem;
+        }
     }
 }
 

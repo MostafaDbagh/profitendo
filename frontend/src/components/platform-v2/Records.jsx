@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
@@ -14,9 +16,9 @@ export function Records({ kind, api, c, lang }) {
   const trigger = useRef(null), isBusiness = kind === 'businesses';
   const { data, error, reload } = useResource(api, `/platform/${kind}?${new URLSearchParams({ page: String(page), q: search, status })}`);
   useLiveSearch(query,search,setSearch,setPage);
-  return <section className="space-y-5"><h2 className="text-lg font-bold">{c(kind)}</h2>
+  return <PageLayout><PageHeader title={c(kind)}/>
     <div className="max-w-xs"><Select id="platform-status" label={c('status')} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="all">{c('all')}</option><option value="active">{c('active')}</option><option value="inactive">{c(isBusiness ? 'suspended' : 'disabled')}</option></Select></div>
-    <Feedback error={error} notice={notice} c={c} retry={reload} />{!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+    <Feedback error={error} notice={notice} c={c} retry={reload} />{!data && !error && <LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     <Table showRows={!!data} searchContent={<TableSearchForm id="platform-search" label={c('search')} submitLabel={c('search')}
       placeholder={c(isBusiness ? 'businessSearch' : 'userSearch')} type="search" value={query}
       onChange={e => setQuery(e.target.value)} maxLength={100} onSearch={() => { setSearch(query.trim()); setPage(1); }} />} headers={isBusiness ? ['business','members','status','actions'] : ['memberName','email','role','verified','status','actions']} c={c} empty={!data?.items.length}>{data?.items.map(row => <tr key={row.id}>
@@ -25,14 +27,14 @@ export function Records({ kind, api, c, lang }) {
       <td className="px-5 py-3">{row.platformRole === 'SUPER_ADMIN' ? <span className="text-xs text-slate-500 whitespace-nowrap">{c('protected')}</span> : <button className={`${buttonClass} whitespace-nowrap`} onClick={event => { trigger.current = event.currentTarget; setNotice(''); setEditing(row); }}>{c(row.active ? isBusiness ? 'suspend' : 'disable' : 'reactivate')}</button>}</td>
     </tr>)}</Table>{data && <Pager data={data} setPage={setPage} c={c} />}
     {editing && <ChangeStatus row={editing} {...{ kind, api, c, lang }} returnFocus={trigger.current} close={() => setEditing(null)} done={saved => { setEditing(null); reload(); setNotice(saved ? 'saved' : ''); }} />}
-  </section>;
+  </PageLayout>;
 }
 export function Overview({ api, c }) {
   const { data, error, reload } = useResource(api, '/platform/overview');
-  return <section className="space-y-5"><h2 className="text-lg font-bold">{c('overview')}</h2><Feedback error={error} c={c} retry={reload} />{!data && !error && <p role="status">{c('loading')}</p>}{data && <dl className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">{[['businesses','businesses'],['suspendedBusinesses','suspendedBusinesses'],['users','customerAccounts'],['disabledUsers','disabledUsers']].map(([key,label]) => <div key={key} className={panelClass}><dt className="text-sm text-slate-500">{c(label)}</dt><dd className="text-2xl font-bold mt-2 text-slate-900 tabular">{data[key]}</dd></div>)}</dl>}</section>;
+  return <PageLayout><PageHeader title={c('overview')}/><Feedback error={error} c={c} retry={reload} />{!data && !error && <LoadingState>{c('loading')}</LoadingState>}{data && <dl className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">{[['businesses','businesses'],['suspendedBusinesses','suspendedBusinesses'],['users','customerAccounts'],['disabledUsers','disabledUsers']].map(([key,label]) => <div key={key} className={panelClass}><dt className="text-sm text-slate-500">{c(label)}</dt><dd className="text-2xl font-bold mt-2 text-slate-900 tabular">{data[key]}</dd></div>)}</dl>}</PageLayout>;
 }
 export function Audit({ api, c, lang }) {
   const [page, setPage] = useState(1);
   const { data, error, reload } = useResource(api, `/platform/audit?page=${page}`);
-  return <section className="space-y-5"><h2 className="text-lg font-bold">{c('audit')}</h2><Feedback error={error} c={c} retry={reload} />{!data && !error && <p role="status">{c('loading')}</p>}{data && <><Table headers={['activity','target','reason','actor','date']} c={c} empty={!data.items.length}>{data.items.map(row => <tr key={row.id}><td className="px-5 py-3 text-slate-800">{c(row.action)}</td><td className="px-5 py-3 text-slate-600">{row.targetName || row.targetId}</td><td className="px-5 py-3 text-slate-600 min-w-48 max-w-md break-words">{row.reason}</td><td className="px-5 py-3 text-slate-600">{row.actorName || row.actorId}</td><td className="px-5 py-3 text-slate-600 whitespace-nowrap">{new Date(row.createdAt).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</td></tr>)}</Table><Pager data={data} setPage={setPage} c={c} /></>}</section>;
+  return <PageLayout><PageHeader title={c('audit')}/><Feedback error={error} c={c} retry={reload} />{!data && !error && <LoadingState>{c('loading')}</LoadingState>}{data && <><Table headers={['activity','target','reason','actor','date']} c={c} empty={!data.items.length}>{data.items.map(row => <tr key={row.id}><td className="px-5 py-3 text-slate-800">{c(row.action)}</td><td className="px-5 py-3 text-slate-600">{row.targetName || row.targetId}</td><td className="px-5 py-3 text-slate-600 min-w-48 max-w-md break-words">{row.reason}</td><td className="px-5 py-3 text-slate-600">{row.actorName || row.actorId}</td><td className="px-5 py-3 text-slate-600 whitespace-nowrap">{new Date(row.createdAt).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</td></tr>)}</Table><Pager data={data} setPage={setPage} c={c} /></>}</PageLayout>;
 }

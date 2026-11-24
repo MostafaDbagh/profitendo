@@ -1,3 +1,5 @@
+import {LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { Users, UserPlus, ShieldCheck, Loader2 } from "lucide-react";
@@ -114,21 +116,18 @@ export default function Employees() {
   };
 
   return (
-    <div className="space-y-6 fade-up" data-testid="employees-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("employeesTitle")}</h1>
-        {manage && (
+    <PageLayout as="div" className="fade-up" data-testid="employees-page">
+      <PageHeader title={t("employeesTitle")} heading="h1" accessory={manage && (
           <button onClick={() => setAddOpen(true)} data-testid="add-employee-btn"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
             <UserPlus className="w-4 h-4" /> {t("addEmployee")}
           </button>
-        )}
-      </div>
+        )}/>
 
       {!members ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="employees-table">
+        <TableRegion data-testid="employees-table">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -181,7 +180,7 @@ export default function Employees() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -272,6 +271,6 @@ export default function Employees() {
           </button>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

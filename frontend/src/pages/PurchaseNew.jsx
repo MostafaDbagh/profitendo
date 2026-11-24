@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import {selectInputOnFocus} from '../lib/selectInputOnFocus';
 import RequiredMark from '../components/RequiredMark';
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -191,12 +192,12 @@ export default function PurchaseNew() {
   }
 
   return (
-    <div className="fade-up max-w-4xl" data-testid="purchase-new-page">
+    <PageLayout as="div" className="fade-up max-w-4xl" data-testid="purchase-new-page">
       <button onClick={() => navigate("/purchases")} data-testid="purchase-back-btn"
-        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-6">
+        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors">
         <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" /> {t("back")}
       </button>
-      <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-6">{isEdit ? t("editPurchaseTitle") : t("newPurchase")}</h1>
+      <PageHeader title={isEdit ? t("editPurchaseTitle") : t("newPurchase")} heading="h1"/>
 
       <form onSubmit={submit} className="space-y-6" data-testid="purchase-form">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -298,6 +299,6 @@ export default function PurchaseNew() {
           </button>
         </div>
       </form>
-    </div>
+    </PageLayout>
   );
 }

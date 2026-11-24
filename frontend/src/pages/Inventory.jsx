@@ -1,3 +1,6 @@
+import {panelClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import {selectInputOnFocus} from '../lib/selectInputOnFocus';
 import RequiredMark from '../components/RequiredMark';
 import { formatQuantity } from '@/lib/quantity';
@@ -75,16 +78,13 @@ export default function Inventory() {
   const [lowOpen, setLowOpen] = useState(false);
 
   return (
-    <div className="space-y-6 fade-up" data-testid="inventory-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("inventoryTitle")}</h1>
-        {fin && rows && (
+    <PageLayout as="div" className="fade-up" data-testid="inventory-page">
+      <PageHeader title={t("inventoryTitle")} heading="h1" accessory={fin && rows && (
           <div className="bg-white rounded-xl border border-slate-200 px-5 py-2.5 shadow-sm" data-testid="inventory-value">
             <span className="text-xs text-slate-500">{t("inventoryValue")}: </span>
             <span className="font-bold text-slate-900 tabular">{fmtMoney(invValue)}</span>
           </div>
-        )}
-      </div>
+        )}/>
 
       {lowCount > 0 && (
         <button type="button" onClick={() => setLowOpen(true)} data-testid="low-stock-alert"
@@ -98,16 +98,11 @@ export default function Inventory() {
       )}
 
       {!rows ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : rows.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="inventory-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <Boxes className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{t("emptyTitle")}</p>
-        </div>
+        <EmptyState icon={Boxes} className={panelClass} data-testid="inventory-empty">{t("emptyTitle")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="inventory-table">
+        <TableRegion data-testid="inventory-table">
           <table className="w-full text-sm min-w-[680px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -148,10 +143,10 @@ export default function Inventory() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="movements-table">
+      <TableRegion data-testid="movements-table">
         <h3 className="font-bold text-slate-900 px-5 pt-5 pb-3">{t("recentMovements")}</h3>
         {movements.length === 0 ? (
           <p className="text-sm text-slate-400 px-5 pb-5">{t("noResults")}</p>
@@ -185,7 +180,7 @@ export default function Inventory() {
             </tbody>
           </table>
         )}
-      </div>
+      </TableRegion>
 
       <Dialog open={lowOpen} onOpenChange={setLowOpen}>
         <DialogContent data-testid="low-stock-modal" className="max-w-lg">
@@ -266,6 +261,6 @@ export default function Inventory() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import LocationChips from '../business-v2/LocationChips';
 import RequiredMark from '../RequiredMark';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
@@ -40,7 +41,7 @@ export default function TransferEditor({context,api,c,lang,document:doc,close,do
   try{const data={notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity}))};draft.checkpoint({});const result=await api(doc?`${root}/transfers/${doc.id}`:`${root}/transfers`,{method:doc?'PATCH':'POST',body:doc?{...data,revision:doc.revision}:{...data,clientKey,sourceId:source?.id,destinationId:destination?.id}});draft.clear();done(result);}
   catch(e){setError(e.message);}finally{setBusy(false);}
  }
- return <section className="space-y-5"><button className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 shrink-0 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><div><h2 className="text-lg font-bold">{c(doc?'editTransfer':'newTransfer')}</h2></div>
+ return <PageLayout><button className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 shrink-0 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><PageHeader title={c(doc?'editTransfer':'newTransfer')}/>
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2`}>
   <LocationChips {...{context,api,c,lang}} value={source} label={c('chooseTransferSource')} onChange={setSource} disabled={!!doc||busy||scanning} excludeId={destination?.id} required/>
   <LocationChips {...{context,api,c,lang}} value={destination} label={c('chooseDestination')} onChange={setDestination} disabled={!!doc||busy||scanning} excludeId={source?.id} required/>
@@ -56,5 +57,5 @@ export default function TransferEditor({context,api,c,lang,document:doc,close,do
  {!lines.length&&<p className="text-sm text-slate-500">{c('noLines')}</p>}<Totals {...{lines,c}} cost={false}/>
  <div><label htmlFor="transfer-notes" className="text-sm font-medium block mb-1.5">{c('notes')}</label><textarea id="transfer-notes" className={inputClass} placeholder={c('transferNotesPlaceholder')} maxLength={2000} value={notes} disabled={busy} onChange={e=>setNotes(e.target.value)}/></div><button className={primaryClass} disabled={busy||scanning||!source||!destination||!lines.length||insufficientStock}>{c(busy?'saving':'saveDraft')}</button></form>
 
- </section>;
+ </PageLayout>;
 }

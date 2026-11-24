@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import {useResource} from './useBusinessApi';
 import {Feedback,buttonClass,panelClass} from './UI';
@@ -5,7 +6,7 @@ import {scale,format} from '../completion-v2/Shared';
 export default function MySalesDay({context,api,c,lang,onSection,visibleTabs}){
  const {data,error,reload}=useResource(api,`/businesses/${context.business.id}/sales/my-day`),ar=lang==='ar',t=(en,arabic)=>ar?arabic:en;
  const allowed=key=>!visibleTabs||visibleTabs.includes(key);
- if(!data)return <section className={panelClass}><Feedback {...{c,error}} retry={reload}/>{!error&&<p role="status">{c('loading')}</p>}</section>;
+ if(!data)return <section className={panelClass}><Feedback {...{c,error}} retry={reload}/>{!error&&<LoadingState>{c('loading')}</LoadingState>}</section>;
  const money=value=>currencyFormatter(lang,{style:'currency',currency:data.currency}).format(value);
  const total=format(data.payments.reduce((sum,p)=>sum+scale(p.amount),0n)),cash=data.payments.find(p=>p.method==='CASH');
  const cards=[[t('Completed sales','المبيعات المكتملة'),data.payments.reduce((sum,p)=>sum+p.count,0)],[t('My sales total','إجمالي مبيعاتي'),money(total)],[t('Cash sales after change','المبيعات النقدية بعد الباقي'),money(cash?.amount??0)],[t('Open drafts','المسودات المفتوحة'),data.draftCount],...(data.pendingReturns===undefined?[]:[[t('Returns awaiting approval','مرتجعات تنتظر الموافقة'),data.pendingReturns],[t('Approved return credits today','قيمة المرتجعات المعتمدة اليوم'),money(data.approvedReturnCredit)]])];

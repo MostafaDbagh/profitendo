@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import Disclosure, {OptionalFields} from './Disclosure';
 import TimezoneField from './TimezoneField';
 import { OwnerPinUnlock } from './OwnerPin';
@@ -39,8 +40,8 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
       if (initialSetup) onSetupComplete();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
-  return <div className="space-y-5"><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
-    <h2 className="text-lg font-bold text-slate-900">{initialSetup ? (lang === 'ar' ? 'أكمل إعداد نشاطك التجاري' : 'Set up your business') : c('settings')}</h2>
+  return <PageLayout as="div"><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
+    <PageHeader title={initialSetup ? (lang === 'ar' ? 'أكمل إعداد نشاطك التجاري' : 'Set up your business') : c('settings')}/>
     {initialSetup && <p className="text-sm leading-relaxed text-slate-600">{lang === 'ar' ? 'اختر الدولة والعملة والمنطقة الزمنية لتسجيل معاملاتك. بعد الحفظ، سنساعدك على إضافة متجرك ومنتجاتك وأول عملية بيع.' : 'Choose your country, currency, and time zone for your records. Then we’ll help you add your shop, products and first sale.'}</p>}
     <div className="max-w-sm"><Select id="settings-language" label={lang === 'ar' ? 'لغة العرض' : 'Display language'} value={lang} onChange={event => setLang(event.target.value, false)}><option value="ar">العربية</option><option value="en">English</option></Select><p className="text-xs text-slate-500 mt-1.5">{lang === 'ar' ? 'تُطبّق فوراً وتُحفظ في هذا المتصفح.' : 'Applies immediately and is saved in this browser.'}</p></div>
     {!editable && <p className="text-sm text-slate-500">{c('readOnly')}</p>}
@@ -60,5 +61,5 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
   </form>{!initialSetup && permissions['migration.manage'] && <Disclosure title={lang==='ar'?'إعدادات المحاسبة':'Accounting settings'} className="max-w-3xl"><FifoSettings {...{context,api,c,lang}}/></Disclosure>}{!initialSetup && editable && context.role === 'OWNER' && <>
       {pinLocked ? <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} /> :
         <><BusinessBackup {...{context,api,c,lang}}/><DangerZone {...{context,api,c,lang,reload}}/></>}
-    </>}</div>;
+    </>}</PageLayout>;
 }

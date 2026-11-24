@@ -1,3 +1,5 @@
+import {LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -173,8 +175,8 @@ export default function Reports() {
   }, [data, activeType, t]);
 
   return (
-    <div className="space-y-6 fade-up" data-testid="reports-page">
-      <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("reportsTitle")}</h1>
+    <PageLayout as="div" className="fade-up" data-testid="reports-page">
+      <PageHeader title={t("reportsTitle")} heading="h1"/>
 
       <div className="flex flex-wrap gap-2" data-testid="report-type-tabs">
         {available.map((r) => (
@@ -218,7 +220,7 @@ export default function Reports() {
       {premiumLocked ? (
         <PremiumLock testid="premium-lock-reports" />
       ) : loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : pinLocked ? (
         <PinGate testid="reports-pin-gate" onSuccess={() => { setPinLocked(false); load(); }} />
       ) : !data ? (
@@ -252,7 +254,7 @@ export default function Reports() {
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="report-table">
+          <TableRegion data-testid="report-table">
             {activeType === "sales" && (
               <table className="w-full text-sm min-w-[640px]">
                 <thead><tr className="border-b border-slate-100">
@@ -362,9 +364,9 @@ export default function Reports() {
             {(data.rows || []).length === 0 && activeType !== "inventory" && (
               <p className="text-sm text-slate-400 text-center py-12">{t("noResults")}</p>
             )}
-          </div>
+          </TableRegion>
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }

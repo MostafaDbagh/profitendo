@@ -1,3 +1,8 @@
+import {buttonClass, panelClass, primaryClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import PageToolbar from '../components/page-layout/PageToolbar';
+import {inputClass} from '../components/auth-v2/Fields';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -29,7 +34,7 @@ const toneBadge = {
 };
 
 export default function Products() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { can } = useAuth();
   const fin = can("products.costs") && can("finance.profit") && can("finance.margin");
   const canCreate = can("products.create");
@@ -121,54 +126,37 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-6 fade-up" data-testid="products-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("productsTitle")}</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {products.length} {t("productsCount")}
-          </p>
-        </div>
-        {canCreate && (
-          <div className="flex gap-2.5">
-            <a href={`${process.env.REACT_APP_BACKEND_URL}/api/products/export.xlsx`} download data-testid="export-products-btn"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700 font-semibold text-sm transition-colors bg-white">
-              <Download className="w-4 h-4" /> {t("exportProducts")}
-            </a>
-            <button
-              onClick={() => setImportOpen(true)}
-              data-testid="import-products-btn"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 font-semibold text-sm transition-colors"
-            >
-              <Upload className="w-4 h-4" /> {t("importProducts")}
-            </button>
-            <Link
-              to="/products/new"
-              data-testid="add-product-btn"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" /> {t("navAddProduct")}
-            </Link>
-          </div>
-        )}
-      </div>
+    <PageLayout as="div" className="fade-up" data-testid="products-page">
+      <PageHeader title={t("productsTitle")} heading="h1" accessory={canCreate&&<>
+        <Link to="/products/new" data-testid="add-product-btn" className={primaryClass}>
+          <Plus aria-hidden="true"/> {t("navAddProduct")}
+        </Link>
+        <button type="button" onClick={() => setImportOpen(true)} data-testid="import-products-btn" className={buttonClass}>
+          <Upload aria-hidden="true"/> {t("importProducts")}
+        </button>
+      </>}/>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <PageToolbar exportAction={canCreate&&
+        <a href={`${process.env.REACT_APP_BACKEND_URL}/api/products/export.xlsx`} download
+          data-testid="export-products-btn" className={`${buttonClass} w-full`}>
+          <Download aria-hidden="true"/> {t("exportProducts")}
+        </a>} search={<div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
           <input
             data-testid="products-search-input"
+            aria-label={t("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full ps-10 pe-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+            className={`${inputClass} !ps-10`}
           />
-        </div>
+        </div>} filters={<div className="grid gap-2 sm:grid-cols-2">
         <select
           data-testid="products-filter-select"
+          aria-label={lang==='ar'?'تصفية المنتجات':'Filter products'}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 focus:ring-2 focus:ring-emerald-500"
+          className={inputClass}
         >
           <option value="all">{t("filterAll")}</option>
           <option value="profitable">{t("filterProfitable")}</option>
@@ -177,9 +165,10 @@ export default function Products() {
         </select>
         <select
           data-testid="products-sort-select"
+          aria-label={lang==='ar'?'ترتيب المنتجات':'Sort products'}
           value={sort}
           onChange={(e) => setSort(e.target.value)}
-          className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 focus:ring-2 focus:ring-emerald-500"
+          className={inputClass}
         >
           {fin && <option value="profit_desc">{t("sortProfitHigh")}</option>}
           {fin && <option value="profit_asc">{t("sortProfitLow")}</option>}
@@ -187,19 +176,12 @@ export default function Products() {
           <option value="qty_desc">{t("sortQtyHigh")}</option>
           <option value="name">{t("sortName")}</option>
         </select>
-      </div>
+      </div>} filtersActive={filter!=='all'||sort!==(fin?'profit_desc':'name')}/>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20" data-testid="products-loading">
-          <div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-        </div>
+        <LoadingState data-testid="products-loading">{t("loading")}</LoadingState>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="products-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <Package className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{products.length === 0 ? t("emptyTitle") : t("noResults")}</p>
-          {products.length === 0 && (
+        <EmptyState icon={Package} className={panelClass} data-testid="products-empty" actions={<>{products.length === 0 && (
             <Link
               to="/products/new"
               data-testid="products-empty-add-btn"
@@ -207,10 +189,9 @@ export default function Products() {
             >
               <Plus className="w-4 h-4" /> {t("addFirst")}
             </Link>
-          )}
-        </div>
+          )}</>}>{products.length === 0 ? t("emptyTitle") : t("noResults")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="products-table">
+        <TableRegion data-testid="products-table">
           {selected.size > 0 && canDelete && (
             <div className="flex items-center justify-between gap-3 px-5 py-3 bg-emerald-50/60 border-b border-emerald-100" data-testid="bulk-actions-bar">
               <span className="text-sm font-semibold text-emerald-800 tabular">{selected.size}</span>
@@ -319,7 +300,7 @@ export default function Products() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
@@ -365,6 +346,6 @@ export default function Products() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   );
 }

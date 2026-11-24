@@ -1,7 +1,8 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { primaryClass } from './UI';
-import { TableSearchButton } from './TableToolbar';
+import { TableSearchButton } from '../page-layout/PageToolbar';
 
 const MAX_SUGGESTIONS = 8;
 
@@ -74,7 +75,7 @@ export default function ProductTableSearch({ id, c, lang, value, results, failed
       </div>
       <TableSearchButton label={c('search')} />
       {showPanel && <div className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white p-1 shadow-md">
-        {!results && <p role="status" className="p-2 text-sm text-slate-500">{c('loading')}</p>}
+        {!results && <LoadingState className="p-2 text-sm text-slate-500">{c('loading')}</LoadingState>}
         {results && !matches.length && <div className="space-y-2 p-3 text-center">
           <p role="status" className="text-sm text-slate-500">
             {lang === 'ar' ? 'لا توجد نتائج مطابقة' : 'No matching products'}

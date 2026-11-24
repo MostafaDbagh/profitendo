@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import {useEffect,useId,useState} from 'react';
 import {Check,Store,Warehouse} from 'lucide-react';
 import RequiredMark from '../RequiredMark';
@@ -35,6 +36,6 @@ export default function LocationChips({context,api,c,lang,value,onChange,disable
     className={`inline-flex min-h-11 max-w-full items-center gap-2.5 rounded-full border px-4 py-2.5 text-sm font-semibold text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${selected?'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-sm':'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50'}`}
     onClick={()=>onChange(option)}><Icon className={`h-4 w-4 shrink-0 ${selected?'text-emerald-600':'text-slate-400'}`} aria-hidden="true"/><bdi className="break-words min-w-0">{option.name}</bdi>{selected&&<span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"><Check className="h-3 w-3" strokeWidth={3} aria-hidden="true"/></span>}</button>;})}
   </div>
-  {!disabled&&<><Feedback c={c} error={current.error} retry={()=>setVersion(v=>v+1)}/>{current.loading&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}{!current.loading&&!current.error&&!options.length&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد متاجر متاحة.':'No stores available.'}</p>}</>}
+  {!disabled&&<><Feedback c={c} error={current.error} retry={()=>setVersion(v=>v+1)}/>{current.loading&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}{!current.loading&&!current.error&&!options.length&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد متاجر متاحة.':'No stores available.'}</p>}</>}
  </div>;
 }

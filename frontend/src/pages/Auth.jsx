@@ -1,3 +1,4 @@
+import {PageContainer} from '../components/page-layout/PageLayout';
 import { useEffect, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -84,7 +85,7 @@ export default function Auth() {
       </button>
       <AuthBranding t={t} />
 
-      <div className="flex-1 flex items-center justify-center p-6">
+      <PageContainer className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-md fade-up">
           <MobileLogo t={t} />
           <AuthCard
@@ -98,7 +99,7 @@ export default function Auth() {
             t={t}
           />
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

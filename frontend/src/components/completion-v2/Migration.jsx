@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { ChevronDown, ClipboardCheck, Download } from 'lucide-react';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
@@ -15,9 +17,9 @@ export default function Migration({context,api,c,lang,initialLocation=null}){
  async function confirm(){setBusy(true);setError('');try{await api(`${path}/${preview.id}/confirm`,{method:'POST',body:{confirm:true}});setReview(null);setPreview(null);draft.clear();setText('');setFileName('');key.current=crypto.randomUUID();last.current='';setNotice('openingImported');reload();}catch(e){setReview(null);setError(e.message);}finally{setBusy(false);}}
  const ar=lang==='ar';
  const checks = ['stockLedgerMismatches','activeLocations','products','openTransfers','openReceipts','pendingAdjustments'];
- return <div className="space-y-5">
+ return <PageLayout as="div">
   <header>
-   <h2 className="text-xl font-bold">{c('migration')}</h2>
+   <PageHeader title={c('migration')}/>
    <details className="mt-3 max-w-4xl rounded-lg border border-slate-200 bg-white px-4 text-sm">
     <summary className="cursor-pointer rounded py-2.5 font-medium text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
      {ar?'ما هو الرصيد الافتتاحي؟':'What is opening stock?'}
@@ -67,7 +69,7 @@ export default function Migration({context,api,c,lang,initialLocation=null}){
      <p className="text-sm text-slate-600">{ar?'تحقق من فروقات المخزون والعمليات التي لم تكتمل بعد.':'Check for stock differences and transactions that are still open.'}</p>
      <button type="button" className={buttonClass} onClick={reload}>{c('refreshChecks')}</button>
     </div>
-   {!data && !loadError && <p role="status" className="text-sm text-slate-600">{c('loading')}</p>}
+   {!data && !loadError && <LoadingState className="text-sm text-slate-600">{c('loading')}</LoadingState>}
    {data && <>
     <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
      {checks.map(key=><div key={key} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
@@ -81,5 +83,5 @@ export default function Migration({context,api,c,lang,initialLocation=null}){
    </>}
    </div>
   </details>
- {review&&<Modal {...{c,lang,busy}} title={c('confirmOpening')} description={c('confirmOpeningHint')} returnFocus={review} close={()=>setReview(null)}><p className="mb-4">{location.name} · {rows.length} {c('products')}</p><button className={primaryClass} disabled={busy} onClick={confirm}>{c('confirm')}</button></Modal>}</div>;
+ {review&&<Modal {...{c,lang,busy}} title={c('confirmOpening')} description={c('confirmOpeningHint')} returnFocus={review} close={()=>setReview(null)}><p className="mb-4">{location.name} · {rows.length} {c('products')}</p><button className={primaryClass} disabled={busy} onClick={confirm}>{c('confirm')}</button></Modal>}</PageLayout>;
 }

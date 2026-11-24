@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import { useState } from 'react';
 import { Check, RefreshCw, ArrowUpRight } from 'lucide-react';
@@ -16,7 +17,7 @@ export default function PaidAccess({businessId,api,lang}) {
       <button className={buttonClass} disabled={busy} onClick={()=>{approvals.reload();state.reload();}}><RefreshCw className="w-4 h-4" aria-hidden="true" />{c('reload')}</button>
     </div>
     <Feedback error={failure||state.error||approvals.error} c={c} retry={()=>{state.reload();approvals.reload();}} />
-    {(!state.data||!approvals.data)&&!state.error&&!approvals.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+    {(!state.data||!approvals.data)&&!state.error&&!approvals.error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     {state.data&&approvals.data&&<>
       {!plans.length&&<div className="rounded-xl border border-dashed border-slate-300 bg-white p-6"><p className="font-semibold text-slate-700">{t('No paid plans available yet','لا توجد خطط مدفوعة متاحة حاليًا')}</p><p className="text-sm text-slate-500 mt-1">{c('paymentUnavailable')}</p></div>}
       <div className="grid lg:grid-cols-2 gap-4">{plans.map(p=>{

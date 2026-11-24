@@ -1,3 +1,4 @@
+import {PageHeader} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Handshake, Plus, Loader2, Pencil, AlertTriangle, Landmark, Percent } from "lucide-react";
@@ -153,15 +154,12 @@ export default function Partners() {
         <PinGate testid="partners-pin-gate" onSuccess={() => { setPinLocked(false); load(); }} />
       ) : (
         <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("partnersTitle")}</h1>
-        {manage && (
+      <PageHeader title={t("partnersTitle")} heading="h1" accessory={manage && (
           <button onClick={() => setAddOpen(true)} data-testid="add-partner-btn"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
             <Plus className="w-4 h-4" /> {t("addPartner")}
           </button>
-        )}
-      </div>
+        )}/>
 
       {!partners ? (
         <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>

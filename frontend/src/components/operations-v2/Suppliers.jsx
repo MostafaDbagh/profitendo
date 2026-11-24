@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { ArrowRight, History, Pencil, Plus } from 'lucide-react';
 import SupplierForm from './SupplierForm';
 import Adjustments from '../completion-v2/Adjustments';
@@ -15,10 +17,10 @@ export default function Suppliers({context,api,c,lang,initialAction}){
  const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[edit,setEdit]=useState(() => initialAction === 'new' && create ? {row:null} : null),[history,setHistory]=useState(null),[historyView,setHistoryView]=useState('purchases'),[notice,setNotice]=useState('');
  const trigger=useRef(null),{data,error,reload}=useResource(api,`${path}?page=${page}&state=${state}&search=${encodeURIComponent(query)}`);
  useLiveSearch(search,query,setQuery,setPage);
- if(history)return <div className="space-y-4"><button className={buttonClass} onClick={()=>setHistory(null)}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><h2 className="font-bold">{history.name} · {c('history')}</h2>{context.permissions['returns.view']&&<div className="flex flex-wrap gap-2"><button className={buttonClass} onClick={()=>setHistoryView('purchases')}>{c('purchases')}</button><button className={buttonClass} onClick={()=>setHistoryView('returns')}>{c('SUPPLIER_RETURN')}</button></div>}{historyView==='returns'&&context.permissions['returns.view']?<Adjustments {...{context,api,c,lang}} initialSupplier={history}/>:<Purchases {...{context,api,c,lang}} initialSupplier={history}/>}</div>;
- return <section className="space-y-5">
-  <div className="flex flex-wrap gap-3 justify-between items-center"><div><h2 className="font-bold text-lg">{lang==='ar'?'الموردون (مندوبو الشركات)':c('suppliers')}</h2></div>{create&&<button className={primaryClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row:null});}}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addSupplier')}</button>}</div>
-  <Feedback {...{error,notice,c}} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
+ if(history)return <PageLayout as="div"><button className={buttonClass} onClick={()=>setHistory(null)}><ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><PageHeader title={<>{history.name} · {c('history')}</>}/>{context.permissions['returns.view']&&<div className="flex flex-wrap gap-2"><button className={buttonClass} onClick={()=>setHistoryView('purchases')}>{c('purchases')}</button><button className={buttonClass} onClick={()=>setHistoryView('returns')}>{c('SUPPLIER_RETURN')}</button></div>}{historyView==='returns'&&context.permissions['returns.view']?<Adjustments {...{context,api,c,lang}} initialSupplier={history}/>:<Purchases {...{context,api,c,lang}} initialSupplier={history}/>}</PageLayout>;
+ return <PageLayout>
+  <PageHeader title={lang==='ar'?'الموردون (مندوبو الشركات)':c('suppliers')} accessory={create&&<button className={primaryClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row:null});}}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addSupplier')}</button>}/>
+  <Feedback {...{error,notice,c}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
   <Table showRows={!!data}
       tableClassName={`[&_thead_th]:px-4 sm:[&_thead_th]:px-5 ${showActions?'[&_thead_th:last-child]:text-end':''}`}
       searchContent={<TableSearchForm id="supplier-search" label={c('search')} submitLabel={c('search')}
@@ -59,5 +61,5 @@ export default function Suppliers({context,api,c,lang,initialAction}){
   </Table>
  {data&&<Pager {...{data,setPage,c}}/>}
   {edit&&<SupplierForm canDelete={context.permissions['suppliers.delete']} {...{path,api,c,lang}} row={edit.row} returnFocus={trigger.current} close={()=>setEdit(null)} done={()=>{setEdit(null);setNotice('supplierSaved');reload();}}/>}
- </section>;
+ </PageLayout>;
 }

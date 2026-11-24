@@ -1,3 +1,6 @@
+import {panelClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -113,31 +116,20 @@ export default function Expenses() {
   const total = (expenses || []).reduce((s, e) => s + e.amount, 0);
 
   return (
-    <div className="space-y-6 fade-up" data-testid="expenses-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("expensesTitle")}</h1>
-          {expenses && <p className="text-slate-500 text-sm mt-1 tabular">{t("grandTotal")}: {fmtMoney(total)}</p>}
-        </div>
-        {canCreate && (
+    <PageLayout as="div" className="fade-up" data-testid="expenses-page">
+      <PageHeader title={t("expensesTitle")} heading="h1" accessory={<>{expenses && <p className="text-slate-500 text-sm mt-1 tabular">{t("grandTotal")}: {fmtMoney(total)}</p>}{canCreate && (
           <button onClick={openCreate} data-testid="new-expense-btn"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
             <Plus className="w-4 h-4" /> {t("newExpense")}
           </button>
-        )}
-      </div>
+        )}</>}/>
 
       {!expenses ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : expenses.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="expenses-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <Receipt className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{t("noExpenses")}</p>
-        </div>
+        <EmptyState icon={Receipt} className={panelClass} data-testid="expenses-empty">{t("noExpenses")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="expenses-table">
+        <TableRegion data-testid="expenses-table">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -183,7 +175,7 @@ export default function Expenses() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>
@@ -251,6 +243,6 @@ export default function Expenses() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import Migration from '../completion-v2/Migration';
 import { Info } from 'lucide-react';
 import { formatQuantity } from '@/lib/quantity';
@@ -49,7 +51,7 @@ function StockRows({context,api,c,lang,location}){
   setQuery(term);
   setPage(1);
  }
- return <div className="space-y-4"><div className="max-w-xs"><Select id="stock-view" label={c('inventory')} value={view} onChange={e=>{setView(e.target.value);setPage(1);}}>{['balances','movements'].map(k=><option key={k} value={k}>{c(k)}</option>)}</Select></div><Feedback {...{error,c}} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
+ return <div className="space-y-4"><div className="max-w-xs"><Select id="stock-view" label={c('inventory')} value={view} onChange={e=>{setView(e.target.value);setPage(1);}}>{['balances','movements'].map(k=><option key={k} value={k}>{c(k)}</option>)}</Select></div><Feedback {...{error,c}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
  <><Table showRows={!!data} searchContent={<ProductTableSearch id="stock-search" {...{c,lang}}
    value={search} onChange={setSearch} onSearch={searchStock} results={products} failed={currentResults&&Boolean(error)}
    onSelect={product=>searchStock(product.sku||product.name)}/>} c={c} headers={view==='balances'?['productName','barcodes','unit','onHand','reserved','available','status']:['date','productName','barcodes','movement','quantity','unit','reference']} empty={!data?.items.length} tableClassName="min-w-[880px]">{data?.items.map(row=><tr key={row.id}>{view==='movements'&&<td className="px-5 py-3 whitespace-nowrap text-start"><bdi>{new Date(row.createdAt).toLocaleString(lang==='ar'?'ar-AE':'en-GB',{timeZone:context.business.timezone})}</bdi></td>}<td className="px-5 py-3 font-semibold">{row.product.name}<span className="block text-xs text-slate-500"><CopyableCode>{row.product.sku}</CopyableCode></span></td><td className="px-5 py-3 text-start">{row.product.barcodes?.length?row.product.barcodes.map(b=><span className="block" key={b.value}><CopyableCode kind="barcode">{b.value}</CopyableCode></span>):'—'}</td>{view==='balances'?<><td className="px-5 py-3">{unitLabel(row.product.unit,c)}</td>{['onHand','reserved','available'].map(k=><td key={k} className="px-5 py-3 tabular-nums text-start"><bdi dir="ltr">{formatQuantity(row[k])}</bdi></td>)}<td className="px-5 py-3">{row.lowStock?<span className="text-amber-800 bg-amber-50 rounded px-2 py-1">{c('lowStock')}</span>:'—'}</td></>:<><td className="px-5 py-3"><div className="flex items-center gap-2">
@@ -69,8 +71,8 @@ export default function Inventory({context,api,c,lang}){
  const [location,setLocation]=useState(null);
  const importLabel=lang==='ar'?'استيراد رصيد افتتاحي CSV':'Import opening stock CSV';
  if(importing)return <section className="space-y-5"><button className={buttonClass} onClick={()=>setImporting(false)}>{c('back')}</button><Migration {...{context,api,c,lang}} initialLocation={location}/></section>;
- return <section className="space-y-5">
-  <h2 className="font-bold text-lg">{c('inventory')}</h2>
+ return <PageLayout>
+  <PageHeader title={c('inventory')}/>
   <div className="flex flex-nowrap items-start gap-2 sm:gap-3">
    <div className="min-w-0">
     <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} all/>
@@ -83,5 +85,5 @@ export default function Inventory({context,api,c,lang}){
    )}
   </div>
  {location&&<StockRows key={location.id} {...{context,api,c,lang,location}}/>}
- </section>;
+ </PageLayout>;
 }

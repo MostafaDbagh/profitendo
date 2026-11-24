@@ -1,3 +1,6 @@
+import {PageHeader} from '../components/page-layout/PageLayout';
+import {primaryClass} from '../components/page-layout/tokens';
+import {inputClass} from '../components/auth-v2/Fields';
 import RequiredMark from '../components/RequiredMark';
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -7,7 +10,7 @@ import api from "../lib/api";
 import { useLanguage } from "../context/LanguageContext";
 import { AuthShell } from "./ForgotPassword";
 
-const inputCls = "w-full ps-10 pe-4 py-3 rounded-xl border border-slate-700/50 bg-slate-800/60 text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors placeholder:text-slate-400";
+const inputCls = `${inputClass} !ps-10`;
 
 export default function ResetPassword() {
   const { t } = useLanguage();
@@ -49,50 +52,50 @@ export default function ResetPassword() {
       {done ? (
         <div className="text-center" data-testid="reset-success">
           <CheckCircle2 className="w-12 h-12 text-teal-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-100 mb-2">{t("resetSuccess")}</h1>
-          <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors mt-2">
+          <PageHeader title={t("resetSuccess")} heading="h1"/>
+          <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-900 transition-colors mt-2">
             <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" /> {t("backToLogin")}
           </Link>
         </div>
       ) : invalid ? (
         <div className="text-center" data-testid="reset-invalid">
-          <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-100 mb-2">{t("resetLinkInvalid")}</h1>
+          <XCircle className="w-12 h-12 text-red-700 mx-auto mb-4" />
+          <PageHeader title={t("resetLinkInvalid")} heading="h1"/>
           <div className="flex flex-col items-center gap-3 mt-5">
-            <Link to="/forgot-password" data-testid="reset-request-new" className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors shadow-lg shadow-emerald-600/20">
+            <Link to="/forgot-password" data-testid="reset-request-new" className={primaryClass}>
               {t("requestNewLink")}
             </Link>
-            <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+            <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" /> {t("backToLogin")}
             </Link>
           </div>
         </div>
       ) : (
         <>
-          <h1 className="text-xl font-bold text-slate-100" data-testid="reset-title">{t("resetTitle")}</h1>
-          <p className="text-sm text-slate-400 mt-1 mb-6">{t("resetDesc")}</p>
+          <PageHeader title={t("resetTitle")} heading="h1" titleTestId="reset-title"/>
+          <p className="text-sm text-slate-600 mt-1 mb-6">{t("resetDesc")}</p>
           <form onSubmit={submit} className="space-y-4" data-testid="reset-form">
-            <label htmlFor="reset-password-input" className="block text-sm font-medium text-slate-300">{t("newPassword")}<RequiredMark/></label>
+            <label htmlFor="reset-password-input" className="block text-sm font-medium text-slate-700">{t("newPassword")}<RequiredMark/></label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
               <input id="reset-password-input" data-testid="reset-password-input" type="password" required minLength={6} value={password}
                 onChange={(e) => setPassword(e.target.value)} placeholder={t("newPassword")} className={inputCls} />
             </div>
-            <label htmlFor="reset-confirm-input" className="block text-sm font-medium text-slate-300">{t("confirmPassword")}<RequiredMark/></label>
+            <label htmlFor="reset-confirm-input" className="block text-sm font-medium text-slate-700">{t("confirmPassword")}<RequiredMark/></label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
               <input id="reset-confirm-input" data-testid="reset-confirm-input" type="password" required minLength={6} value={confirm}
                 onChange={(e) => setConfirm(e.target.value)} placeholder={t("confirmPassword")} className={inputCls} />
             </div>
-            {error && <p className="text-xs text-red-400" data-testid="reset-error">{error}</p>}
+            {error && <p className="text-xs text-red-700" data-testid="reset-error">{error}</p>}
             <button data-testid="reset-submit-btn" type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+              className={`${primaryClass} w-full`}>
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {t("resetSubmit")}
             </button>
           </form>
           <p className="text-center mt-6">
-            <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+            <Link to="/auth" data-testid="reset-back-login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" /> {t("backToLogin")}
             </Link>
           </p>

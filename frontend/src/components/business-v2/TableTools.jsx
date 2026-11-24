@@ -1,7 +1,8 @@
 import { X } from 'lucide-react';
 import { Children, Fragment, isValidElement, useId, useRef, useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import TableToolbar, { TableCsvButton, TableSearchButton } from './TableToolbar';
+import PageToolbar, { TableCsvButton, TableSearchButton } from '../page-layout/PageToolbar';
+import {fieldSurface, focusRing, rowGap} from '../page-layout/tokens';
 
 function text(node) {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -24,11 +25,11 @@ function csv(value) {
   return '"' + cell.replaceAll('"', '""') + '"';
 }
 
-const fieldClass = 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500';
+const fieldClass = `mt-1 block w-full px-3 py-2 ${fieldSurface} ${focusRing}`;
 
 export default function TableTools({
   headers, children, c, render, searchable = true, exportVisible = true,
-  searchActions, searchContent, filters, filtersActive = false,
+  searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction,
 }) {
   const { lang } = useLanguage();
   const ar = lang === 'ar';
@@ -87,12 +88,12 @@ export default function TableTools({
   ));
 
   return (
-    <div className="space-y-3">
-      <TableToolbar search={searchControl} filtersActive={filtersActive || Boolean(value)}
+    <div className="space-y-[var(--page-control-gap)]">
+      <PageToolbar search={searchControl} primaryFilters={primaryFilters} importAction={importAction} filtersActive={filtersActive || Boolean(value)}
         exportAction={searchActions || (exportVisible && <TableCsvButton
           label={ar ? 'تصدير الصفحة CSV' : 'Export page CSV'} disabled={!matching.length} onClick={download} />)}
-        filters={<>
-          <div className="flex flex-wrap items-end gap-3">
+        filters={filters === null || filters === false || (filters === undefined && !indexes.length) ? null : <>
+          <div className={`flex flex-wrap items-end ${rowGap}`}>
             {filters || <>
               <label htmlFor={id + 'column'} className="min-w-0 max-w-full text-sm">
                 {ar ? 'تصفية حسب' : 'Filter by'}

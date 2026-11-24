@@ -1,3 +1,5 @@
+import {PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import {useState} from 'react';
 import Disclosure from './Disclosure';
 import {buttonClass,primaryClass} from './UI';
@@ -37,7 +39,7 @@ function Summary({context, api, c, lang, pinLocked}) {
     </div>
     <div className="flex gap-2" role="group" aria-label={ar?'الفترة':'Period'}>{['today','month'].map(value=><button key={value} type="button" aria-pressed={period===value} className={period===value?primaryClass:buttonClass} onClick={()=>setPeriod(value)}>{value==='today'?(ar?'اليوم':'Today'):(ar?'هذا الشهر':'This month')}</button>)}</div>
     <Feedback error={error} c={c} retry={reload} />
-    {!data && !error && <p role="status">{c('loading')}</p>}
+    {!data && !error && <LoadingState>{c('loading')}</LoadingState>}
     {data && <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(8rem,9rem))]">
       {metrics.filter(([key])=>['sales','expenses','estimatedProfit'].includes(key)&&data[key]!==undefined&&(!pinLocked||key==='sales')).map(([key,en,arabic,Icon])=><div key={key} className={`${cardClass} ${key === 'netSales' ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'}`}>
         <dt className="flex items-center gap-1 text-sm text-slate-600">
@@ -78,7 +80,9 @@ function Summary({context, api, c, lang, pinLocked}) {
   </section>;
 }
 export default function Dashboard({context,api,c,lang,onSection,visibleTabs,pinLocked}){
- return <section className="space-y-7" data-testid="business-dashboard"><div dir="ltr" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 pb-4"><span dir="auto" className="min-w-0 max-w-[55%] truncate rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs sm:text-sm font-medium text-emerald-800" title={context.business.name}>{context.business.name}</span><h2 dir={lang==='ar'?'rtl':'ltr'} className="min-w-0 break-words text-xl font-bold tracking-tight sm:text-2xl">{c('dashboard')}</h2></div><DashboardActions permissions={context.permissions} {...{lang,onSection,visibleTabs}}/><SetupProgressCard {...{context,api,lang,onSection,visibleTabs}}/>{context.permissions['reports.view']?<><Summary key={String(pinLocked)} {...{context,api,c,lang,pinLocked}}/><MoneyNext {...{context,lang,onSection,visibleTabs}}/></>:context.permissions['sales.view']&&<MySalesDay {...{context,api,c,lang,onSection,visibleTabs}}/>}</section>;
+ return <PageLayout title={c('dashboard')} data-testid="business-dashboard"
+  accessory={<bdi className="break-words rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800">{context.business.name}</bdi>}>
+  <DashboardActions permissions={context.permissions} {...{lang,onSection,visibleTabs}}/><SetupProgressCard {...{context,api,lang,onSection,visibleTabs}}/>{context.permissions['reports.view']?<><Summary key={String(pinLocked)} {...{context,api,c,lang,pinLocked}}/><MoneyNext {...{context,lang,onSection,visibleTabs}}/></>:context.permissions['sales.view']&&<MySalesDay {...{context,api,c,lang,onSection,visibleTabs}}/>}</PageLayout>;
 }
 
 function MoneyNext({context,lang,onSection,visibleTabs}){

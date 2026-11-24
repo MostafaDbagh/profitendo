@@ -1,3 +1,5 @@
+import {PageHeader} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { useEffect, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { Feedback, panelClass, primaryClass } from '../business-v2/UI';
@@ -23,7 +25,7 @@ export default function SupportContacts({api,c,lang}) {
   }
 
   return <section className={`${panelClass} max-w-3xl space-y-4`} aria-labelledby="admin-support-contacts">
-    <h2 id="admin-support-contacts" className="text-lg font-bold">{ar?'بيانات التواصل مع الدعم':'Support contact settings'}</h2>
+    <PageHeader title={ar?'بيانات التواصل مع الدعم':'Support contact settings'} titleId="admin-support-contacts"/>
     <p className="text-sm text-slate-600">{ar
       ? 'تظهر هذه البيانات في تبويب التواصل والدعم لجميع الأنشطة. أدخل أرقام الهاتف بصيغة دولية. اترك أي حقل فارغًا لإخفائه.'
       : 'These details appear in Contact & Support for all businesses. Use international phone numbers. Leave a field blank to hide it.'}</p>
@@ -33,7 +35,7 @@ export default function SupportContacts({api,c,lang}) {
         ? (ar?'تحقق من صيغة أرقام الهاتف والبريد الإلكتروني.':'Check the phone number and email formats.')
         : c(key)} retry={(error||failure==='REVISION_CONFLICT')?()=>{setFailure('');reload();}:undefined}/>
     {saved&&<p role="status" className="text-sm text-emerald-700">{ar?'تم حفظ بيانات التواصل.':'Contact settings saved.'}</p>}
-    {!form&&!error&&<p role="status">{c('loading')}</p>}
+    {!form&&!error&&<LoadingState>{c('loading')}</LoadingState>}
     {form&&<form className="space-y-4" onSubmit={save}>
       <fieldset disabled={busy||Boolean(error)||failure==='REVISION_CONFLICT'} className="grid gap-4 sm:grid-cols-2">
         {[

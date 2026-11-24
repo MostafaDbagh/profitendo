@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import {Pencil,Plus,Store,Users,Warehouse} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useResource } from './useBusinessApi';
@@ -22,16 +24,13 @@ export default function Locations({ context, api, c, lang, initialAction }) {
   }
   function done(saved=true){setDialog(null);setNotice(saved?'saved':'');reload();}
   async function changeStatus(){setBusy(true);setFailure('');try{await api(`${path}/${dialog.location.id}`,{method:'PATCH',body:{revision:dialog.location.revision,active:!!dialog.location.archivedAt}});done();}catch(e){setFailure(e.message);}finally{setBusy(false);}}
-  return <section className="space-y-4">
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-lg font-bold">{c('locations')}</h2>
-      {manage&&<div className="flex flex-wrap gap-2">
+  return <PageLayout>
+    <PageHeader title={c('locations')} accessory={manage&&<div className="flex flex-wrap gap-2">
         <button type="button" className={primaryClass} onClick={event=>open(event,'create',null,'SHOP')}><Plus aria-hidden="true"/>{addShop}</button>
         <button type="button" className={buttonClass} onClick={event=>open(event,'create',null,'WAREHOUSE')}><Plus aria-hidden="true"/>{addWarehouse}</button>
-      </div>}
-    </header>
+      </div>}/>
     <Feedback error={error} notice={notice} c={c} retry={reload}/>
-    {!data&&!error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+    {!data&&!error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     {data&&<div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {data.items.length===0?<p className="p-6 text-center text-sm text-slate-500">{c('empty')}</p>:
         <ul className="divide-y divide-slate-100">
@@ -61,5 +60,5 @@ export default function Locations({ context, api, c, lang, initialAction }) {
     {['create','edit'].includes(dialog?.type) && <LocationForm initialKind={dialog.kind} location={dialog.location} {...{path,api,c,lang,done}} close={()=>setDialog(null)} returnFocus={trigger.current}/>}
     {dialog?.type==='assign' && <LocationAssignments location={dialog.location} {...{path,api,c,lang}} close={()=>done(false)} returnFocus={trigger.current}/>}
     {dialog?.type==='status' && <Modal title={c(dialog.location.archivedAt?'reactivateLocation':'archiveLocation')} description={c(dialog.location.archivedAt?'reactivateLocationHint':'archiveLocationHint')} {...{c,lang,busy}} close={()=>setDialog(null)} returnFocus={trigger.current}><p className="font-semibold">{dialog.location.name}</p><Feedback error={failure} c={c} retry={failure==='REVISION_CONFLICT'?()=>done(false):undefined}/><div className="flex flex-wrap justify-end rtl:justify-start gap-2"><button className={buttonClass} disabled={busy} onClick={()=>setDialog(null)}>{c('cancel')}</button><button className={primaryClass} disabled={busy || failure==='REVISION_CONFLICT'} onClick={changeStatus}>{c(busy?'saving':'confirm')}</button></div></Modal>}
-  </section>;
+  </PageLayout>;
 }

@@ -1,3 +1,6 @@
+import {panelClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import { formatQuantity } from '@/lib/quantity';
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -72,40 +75,28 @@ export default function Purchases() {
   };
 
   return (
-    <div className="space-y-6 fade-up" data-testid="purchases-page">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("purchasesTitle")}</h1>
-        <div className="flex flex-wrap gap-2.5">
-          <a href={`${process.env.REACT_APP_BACKEND_URL}/api/purchases/export.xlsx`} download data-testid="export-purchases-btn"
+    <PageLayout as="div" className="fade-up" data-testid="purchases-page">
+      <PageHeader title={t("purchasesTitle")} heading="h1" accessory={<><a href={`${process.env.REACT_APP_BACKEND_URL}/api/purchases/export.xlsx`} download data-testid="export-purchases-btn"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700 font-semibold text-sm transition-colors bg-white">
             <Download className="w-4 h-4" /> {t("exportPurchases")}
-          </a>
-          {can("purchases.create") && (
+          </a>{can("purchases.create") && (
             <button onClick={() => setImportOpen(true)} data-testid="import-purchases-btn"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 font-semibold text-sm transition-colors">
               <Upload className="w-4 h-4" /> {t("importPurchases")}
             </button>
-          )}
-          {can("purchases.create") && (
+          )}{can("purchases.create") && (
             <Link to="/purchases/new" data-testid="new-purchase-btn"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors">
               <Plus className="w-4 h-4" /> {t("newPurchase")}
             </Link>
-          )}
-        </div>
-      </div>
+          )}</>}/>
 
       {!purchases ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : purchases.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="purchases-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <ShoppingBag className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{t("noPurchases")}</p>
-        </div>
+        <EmptyState icon={ShoppingBag} className={panelClass} data-testid="purchases-empty">{t("noPurchases")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="purchases-table">
+        <TableRegion data-testid="purchases-table">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -175,7 +166,7 @@ export default function Purchases() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
 
       {editTarget && (        <EditPinModal
@@ -216,6 +207,6 @@ export default function Purchases() {
       />
 
       <ImportPurchasesModal open={importOpen} onClose={() => setImportOpen(false)} onImported={load} />
-    </div>
+    </PageLayout>
   );
 }

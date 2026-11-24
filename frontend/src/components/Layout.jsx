@@ -1,3 +1,4 @@
+import {PageContainer} from './page-layout/PageLayout';
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -265,9 +266,9 @@ export default function Layout() {
             <LanguageSwitcher />
           </div>
         </header>
-        <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-7xl w-full mx-auto">
+        <PageContainer className="flex-1">
           <Outlet />
-        </main>
+        </PageContainer>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import {selectInputOnFocus} from '../lib/selectInputOnFocus';
 import RequiredMark from '../components/RequiredMark';
 import { useEffect, useMemo, useState } from "react";
@@ -215,7 +216,7 @@ export default function ProductForm() {
   }
 
   return (
-    <div className="fade-up" data-testid="product-form-page">
+    <PageLayout as="div" className="fade-up" data-testid="product-form-page">
       <button
         onClick={() => {
           if (returnTo) {
@@ -225,17 +226,12 @@ export default function ProductForm() {
           }
         }}
         data-testid="form-back-btn"
-        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors"
       >
         <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" /> {t("back")}
       </button>
 
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-          {isEdit ? t("editProductTitle") : t("addProductTitle")}
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">{t("formSubtitle")}</p>
-      </div>
+      <PageHeader title={isEdit ? t("editProductTitle") : t("addProductTitle")} heading="h1"/>
 
       <form onSubmit={submit} className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="product-form">
         <div className="lg:col-span-2 space-y-6">
@@ -447,6 +443,6 @@ export default function ProductForm() {
           <CalcPanel m={m} t={t} saving={saving} canSave={!!form.name.trim()} />
         </div>
       </form>
-    </div>
+    </PageLayout>
   );
 }

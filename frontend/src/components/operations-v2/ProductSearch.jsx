@@ -1,3 +1,4 @@
+import {LoadingState} from '../page-layout/PageResults';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Feedback, Pager, TableSearchForm, primaryClass } from '../business-v2/UI';
 import { useResource } from '../business-v2/useBusinessApi';
@@ -61,7 +62,7 @@ export default function ProductSearch({ api, root, c, lang, context, disabled, o
       />
       {path && <>
         <Feedback c={c} error={error} retry={reload} />
-        {!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+        {!data && !error && <LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
         {data && !data.items.length && <div className="rounded-lg border border-slate-200 bg-white p-3 text-center">
           <p role="status" className="text-sm text-slate-500">{lang==='ar'?'لا توجد نتائج مطابقة':'No matching products'}</p>
           {canCreate&&<button ref={addTrigger} type="button" className={`${primaryClass} mt-2`}

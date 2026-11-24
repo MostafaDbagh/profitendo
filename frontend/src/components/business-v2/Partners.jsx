@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { useRef, useState } from 'react';
 import { Handshake, Plus } from 'lucide-react';
 import { Field, inputClass } from '../auth-v2/Fields';
@@ -125,15 +127,9 @@ function PartnerHistory({ id, path, context, api, c, lang, text, close }) {
   return <section className="space-y-4">
     <button type="button" className={buttonClass} onClick={close}>{c('back')}</button>
     <Feedback error={error} retry={reload} c={c} />
-    {!data && !error && <p role="status">{c('loading')}</p>}
+    {!data && !error && <LoadingState>{c('loading')}</LoadingState>}
     {data && <>
-      <div className={`${panelClass} flex flex-wrap items-start justify-between gap-3`}>
-        <div className="min-w-0">
-          <h2 className="break-words text-lg font-bold">{partner.name}</h2>
-          <p className="mt-1 text-sm text-slate-600">{text.balance} <bdi>{data.balance} {partner.currency}</bdi></p>
-        </div>
-        {partner.active && <button ref={trigger} type="button" className={primaryClass} onClick={() => setAdding(true)}>{text.record}</button>}
-      </div>
+      <PageHeader title={partner.name} accessory={<><p className="mt-1 text-sm text-slate-600">{text.balance} <bdi>{data.balance} {partner.currency}</bdi></p>{partner.active && <button ref={trigger} type="button" className={primaryClass} onClick={() => setAdding(true)}>{text.record}</button>}</>}/>
       <Table tools={false} headers={['day','kind','amount','notes']} empty={!data.items.length} c={c}>
         {data.items.map(entry => <tr key={entry.id}>
           <td className="whitespace-nowrap p-4"><bdi>{entry.day}</bdi></td><td className="p-4">{text[entry.kind]}</td>
@@ -159,13 +155,10 @@ export default function Partners({ context, api, c, lang }) {
     setForm({partner});
   }
   if (selected) return <PartnerHistory id={selected} {...{path,context,api,lang,text}} c={t} close={() => {setSelected(null); reload();}} />;
-  return <section className="space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-xl font-bold">{text.title}</h2></div>
-      <button type="button" className={primaryClass} onClick={openAdd => open(openAdd)}><Plus className="h-4 w-4" aria-hidden="true" />{text.add}</button>
-    </div>
+  return <PageLayout>
+    <PageHeader title={text.title} accessory={<button type="button" className={primaryClass} onClick={openAdd => open(openAdd)}><Plus className="h-4 w-4" aria-hidden="true" />{text.add}</button>}/>
     <Feedback error={error} retry={reload} c={t} />
-    {!data && !error && <p role="status">{c('loading')}</p>}
+    {!data && !error && <LoadingState>{c('loading')}</LoadingState>}
     {data && (data.items.length === 0 ? <div className={`${panelClass} grid justify-items-center gap-4 py-14 text-center`}>
       <span className="rounded-xl bg-emerald-50 p-4 text-emerald-700"><Handshake className="h-6 w-6" aria-hidden="true" /></span>
       <p className="font-semibold">{text.empty}</p>
@@ -188,5 +181,5 @@ export default function Partners({ context, api, c, lang }) {
     {data?.total > data?.pageSize && <Pager {...{data,setPage}} c={t} />}
     {form && <PartnerForm partner={form.partner} {...{context,path,api,lang,text}} c={t} returnFocus={trigger.current}
       close={() => setForm(null)} done={() => {setForm(null); reload();}} />}
-  </section>;
+  </PageLayout>;
 }

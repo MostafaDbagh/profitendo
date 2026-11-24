@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { Mail, MessageCircle, Phone } from 'lucide-react';
 import ServiceRequests from './ServiceRequests';
 import { Feedback, panelClass } from './UI';
@@ -12,14 +14,14 @@ export default function ContactSupport({context, api, c, lang}) {
     {Icon:Mail,label:ar?'البريد الإلكتروني':'Email',value:data?.email,href:`mailto:${data?.email}`},
   ].filter(channel=>channel.value);
 
-  return <div className="max-w-3xl space-y-5">
-    <h2 className="text-xl font-bold">{c('contactSupport')}</h2>
+  return <PageLayout as="div" className="max-w-3xl">
+    <PageHeader title={c('contactSupport')}/>
     <section className={`${panelClass} space-y-3`} aria-labelledby="support-channels">
       <div>
         <h3 id="support-channels" className="font-semibold">{ar?'طرق التواصل':'Contact channels'}</h3>
       </div>
       <Feedback {...{c,error}} retry={reload}/>
-      {!data&&!error&&<p role="status">{c('loading')}</p>}
+      {!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
       {data&&!channels.length&&<p className="text-sm text-slate-600">
         {ar?'يمكنك التواصل مع الدعم من خلال نموذج الطلب أدناه.':'Use the request form below to contact support.'}
       </p>}
@@ -33,5 +35,5 @@ export default function ContactSupport({context, api, c, lang}) {
       </dl>}
     </section>
     <ServiceRequests {...{context,api,lang}}/>
-  </div>;
+  </PageLayout>;
 }

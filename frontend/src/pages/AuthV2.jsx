@@ -1,3 +1,4 @@
+import {PageHeader} from '../components/page-layout/PageLayout';
 import { Button } from '../components/ui/button';
 import OwnerPinField from '../components/auth-v2/OwnerPinField';
 import PhoneInput from '../components/auth-v2/PhoneInput';
@@ -120,7 +121,7 @@ export default function AuthV2() {
     <main className="flex-1 flex items-center justify-center p-6 pt-20 lg:pt-6 min-w-0">
       <div className="w-full max-w-md fade-up"><MobileLogo t={t} /><Link to="/contact" className={`${linkClass} block mb-4`}>{lang==='ar'?'تواصل معنا':'Contact Us'}</Link>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-          <h1 className="text-2xl font-bold text-slate-900">{c(title)}</h1>
+          <PageHeader title={c(title)} heading="h1"/>
           {!phone&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? (emailRequired?'registerHint':'registerHintDirect') : mode === 'pinLogin' ? 'pinLoginHint' : 'loginHint')}</p>}
           {(error || notice) && <div ref={statusRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`text-sm p-3 rounded-lg border mb-5 ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{c(error || notice)}</div>}
           {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : initialFailed ? <button type="button" className={linkClass} onClick={() => setCheckAttempt(value => value + 1)}>{c('retryConnection')}</button> : recovery.length ? <div className="space-y-5">

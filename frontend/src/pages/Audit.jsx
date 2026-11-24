@@ -1,3 +1,6 @@
+import {panelClass} from '../components/page-layout/tokens';
+import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
+import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import { useCallback, useEffect, useState } from "react";
 import { ScrollText } from "lucide-react";
 import { toast } from "sonner";
@@ -14,19 +17,14 @@ export default function Audit() {
   }, [t]);
 
   return (
-    <div className="space-y-6 fade-up" data-testid="audit-page">
-      <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("auditTitle")}</h1>
+    <PageLayout as="div" className="fade-up" data-testid="audit-page">
+      <PageHeader title={t("auditTitle")} heading="h1"/>
       {!logs ? (
-        <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" /></div>
+        <LoadingState>{t("loading")}</LoadingState>
       ) : logs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center" data-testid="audit-empty">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <ScrollText className="w-7 h-7 text-emerald-500" />
-          </div>
-          <p className="font-semibold text-slate-800">{t("noAudit")}</p>
-        </div>
+        <EmptyState icon={ScrollText} className={panelClass} data-testid="audit-empty">{t("noAudit")}</EmptyState>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto" data-testid="audit-table">
+        <TableRegion data-testid="audit-table">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-slate-500">
@@ -51,8 +49,8 @@ export default function Audit() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
-    </div>
+    </PageLayout>
   );
 }

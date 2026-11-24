@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import { useRef, useState } from 'react';
 import { BookOpen, Pencil, Plus, Power, Search, Trash2 } from 'lucide-react';
 import { Field, inputClass } from '../auth-v2/Fields';
@@ -99,20 +101,17 @@ export default function ChartAccounts({ context, api, c, lang }) {
     return write('PATCH',account,{name,category,nature,active:!active,revision});
   }
 
-  return <section className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-xl font-bold sm:text-2xl">{text.title}</h2></div>
-      <button type="button" className={primaryClass} disabled={busy} onClick={event=>open(event,'edit')}>
+  return <PageLayout>
+    <PageHeader title={text.title} accessory={<button type="button" className={primaryClass} disabled={busy} onClick={event=>open(event,'edit')}>
         <Plus className="h-4 w-4" aria-hidden="true" />{text.add}
-      </button>
-    </div>
+      </button>}/>
     <div className="relative w-full sm:max-w-sm">
       <label htmlFor="chart-search" className="sr-only">{text.search}</label>
       <Search className="pointer-events-none absolute start-3 top-3.5 h-4 w-4 text-slate-500" aria-hidden="true" />
       <input id="chart-search" type="search" className={`${inputClass} min-h-11 ps-9`} value={search} placeholder={text.search} onChange={event=>setSearch(event.target.value)} />
     </div>
     {!dialog && <Feedback error={error||loadError} c={t} retry={loadError ? reload : undefined} />}
-    {!data && !loadError && <p role="status">{c('loading')}</p>}
+    {!data && !loadError && <LoadingState>{c('loading')}</LoadingState>}
     {data && !rows.length && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{data.items.length ? text.noMatches : text.empty}</p>}
     <div className="grid gap-4 xl:grid-cols-2">
       {groups.map(group => {
@@ -159,5 +158,5 @@ export default function ChartAccounts({ context, api, c, lang }) {
           onClick={()=>write('DELETE',dialog.account,{revision:dialog.account.revision})}>{text.remove}</button>
       </div>
     </Modal>}
-  </section>;
+  </PageLayout>;
 }

@@ -1,3 +1,6 @@
+import {LoadingState} from '../components/page-layout/PageResults';
+import PageToolbar from '../components/page-layout/PageToolbar';
+import {PageHeader} from '../components/page-layout/PageLayout';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -177,37 +180,30 @@ export default function Accounts() {
 
   if (!accounts) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-10 h-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-      </div>
+      <LoadingState>{t("loading")}</LoadingState>
     );
   }
 
   return (
-    <div data-testid="accounts-page">
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t("navAccounts")}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t("accountsSubtitle")}</p>
-        </div>
-        {manage && (
+    <PageLayout as="div" data-testid="accounts-page">
+      <PageHeader title={t("navAccounts")} heading="h1" accessory={manage && (
           <button data-testid="account-add-btn" onClick={openCreate}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" /> {t("addAccount")}
           </button>
-        )}
-      </div>
+        )}/>
 
-      <div className="relative mb-5 max-w-sm">
+      <PageToolbar search={<div className="relative">
         <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
         <input
           data-testid="accounts-search-input"
+          aria-label={t("searchAccounts")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("searchAccounts")}
           className={`${inputCls} ps-9`}
         />
-      </div>
+      </div>}/>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {GROUPS.map((g) => (
@@ -256,6 +252,6 @@ export default function Accounts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import RequiredMark from '../RequiredMark';
 import SaleSteps from './SaleSteps';
 import {OptionalFields} from '../business-v2/Disclosure';
@@ -44,13 +46,13 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  const insufficientStock=rows.some(row=>exceedsStock(row.productId));
  async function save(e){e.preventDefault();if(insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <div className="mx-auto w-full max-w-5xl space-y-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-bold">{c(doc?'saleEdit':'newSale')}</h2><button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button></div><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
+ return <PageLayout as="div" className="mx-auto w-full max-w-5xl"><PageHeader title={c(doc?'saleEdit':'newSale')} accessory={<button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button>}/><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5"><fieldset className="min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2">
   <legend className="mb-2 text-sm font-medium text-slate-700">
    {c('chooseLocation')}<RequiredMark/>
   </legend>
   {!shopLocked&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
-  {!shopLocked&&!shops.data&&!shops.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
+  {!shopLocked&&!shops.data&&!shops.error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
   {!shopLocked&&shops.data?.total===0&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
   <div className="flex flex-wrap gap-2">
    {shopOptions.map(option=>{
@@ -77,7 +79,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
    <ProductSearch key={shop?.id} {...{api,root,c,lang,context}} lookupPath={`${path}/products?locationId=${shop?.id}`}
     disabled={!shop||busy||pending>0} maxLength={100} selectCreated={false} onSelect={add} inputRef={productInput}/>
   </div>
-  {pending>0&&<p role="status" className="text-xs text-emerald-700">{c('loading')}</p>}
+  {pending>0&&<LoadingState className="text-xs text-emerald-700">{c('loading')}</LoadingState>}
  </div></section>
 
  <form onSubmit={save} className="space-y-5"><fieldset disabled={busy||pending>0} className="space-y-4 min-w-0"><legend className="font-semibold mb-3">{c('saleItems')} ({rows.length})</legend>{!rows.length&&<div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{c('saleEmpty')}</p></div>}
@@ -96,5 +98,5 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 xl:col-span-5" title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
  <button type="button" className={`${buttonClass} border-dashed !text-emerald-700`} disabled={!shop||busy||pending>0} onClick={()=>productInput.current?.focus()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
  <OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'} hasValue={Boolean(customer||notes)}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></OptionalFields></fieldset><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-4"><span className="text-sm text-slate-600">{c('saleItems')}: <bdi className="font-bold text-slate-900">{rows.length}</bdi></span><button className={`${primaryClass} min-h-11`} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></div></form>
- </div>;
+ </PageLayout>;
 }

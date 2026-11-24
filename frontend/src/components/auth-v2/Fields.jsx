@@ -1,9 +1,10 @@
 import RequiredMark from '../RequiredMark';
+import {fieldSurface, focusRing} from '../page-layout/tokens';
 import PasswordStrength from './PasswordStrength';
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Eye, EyeOff, Loader2, Mail, Lock, User, Building2, ShieldCheck } from 'lucide-react';
-export const inputClass = 'w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm placeholder:text-slate-500 placeholder:opacity-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors';
+export const inputClass = `${fieldSurface} w-full px-3 py-2 placeholder:text-slate-500 placeholder:opacity-100 ${focusRing} focus:border-primary transition-colors`;
 export function Field({ label, id, hint, showPasswordStrength = true, ...props }) {
   const [visible, setVisible] = useState(false);
   const { lang } = useLanguage();

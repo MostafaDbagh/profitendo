@@ -1,3 +1,5 @@
+import {PageLayout} from '../page-layout/PageLayout';
+import {panelClass} from '../page-layout/tokens';
 import RequiredMark from '../RequiredMark';
 import { Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -8,18 +10,9 @@ const TITLES = { login: "loginTitle", kiosk: "kioskLoginTitle", "owner-setup": "
 
 export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit, t }) {
   const isSetup = mode === "owner-setup" || mode === "kiosk-setup";
-  const subtitle =
-    mode === "login" ? t("loginSubtitle")
-    : mode === "kiosk" ? t("kioskLoginSubtitle")
-    : mode === "owner-setup" ? t("ownerSetupSubtitle")
-    : mode === "kiosk-setup" ? t("setupPasswordDesc", { name: form.username })
-    : t("registerSubtitle");
-
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-      <h2 className="text-2xl font-bold text-slate-900" data-testid="auth-title">{t(TITLES[mode])}</h2>
-      <p className="text-slate-500 text-sm mt-1 mb-6">{subtitle}</p>
-
+    <PageLayout className={panelClass} title={t(TITLES[mode])} heading="h1" titleTestId="auth-title">
+      {mode==='kiosk-setup'&&<p className="text-sm text-slate-600">{t("setupPasswordDesc",{name:form.username})}</p>}
       <form onSubmit={onSubmit} className="space-y-4" data-testid="auth-form">
         {mode === "register" && (
           <div>
@@ -129,6 +122,6 @@ export function AuthCard({ mode, form, set, setForm, setMode, loading, onSubmit,
           </button>
         </p>
       )}
-    </div>
+    </PageLayout>
   );
 }

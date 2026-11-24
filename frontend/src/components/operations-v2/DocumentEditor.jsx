@@ -1,3 +1,4 @@
+import {PageHeader} from '../page-layout/PageLayout';
 import LocationChips from '../business-v2/LocationChips';
 import ReceiptCsv from './ReceiptCsv';
 import RequiredMark from '../RequiredMark';
@@ -84,9 +85,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  const addingPurchase=kind==='RECEIPT'&&!doc&&!seed;
  return <section className="mx-auto w-full max-w-5xl space-y-5">
  <header className="flex flex-wrap items-center justify-between gap-3">
-  {(addingPurchase||!embedded)&&<h2 className="text-xl font-bold">
-   {addingPurchase?(lang==='ar'?'إضافة شراء':'Add purchase'):c(kind==='ORDER'?'newOrder':'newReceipt')}
-  </h2>}
+  {(addingPurchase||!embedded)&&<PageHeader title={addingPurchase?(lang==='ar'?'إضافة شراء':'Add purchase'):c(kind==='ORDER'?'newOrder':'newReceipt')}/>}
   <button type="button" className={buttonClass} disabled={busy||scanning||importing} onClick={close}>
    <ArrowRight aria-hidden="true" className={`h-4 w-4 ${lang==='ar'?'':'rotate-180'}`}/>
    {embedded?(lang==='ar'?'عرض سجل المشتريات':'Show purchase history'):c('back')}

@@ -1,3 +1,5 @@
+import {PageHeader, PageLayout} from '../page-layout/PageLayout';
+import {LoadingState} from '../page-layout/PageResults';
 import {useLocalDraft,LocalDraftNotice} from '../../lib/localDraft';
 import {useRef,useState} from 'react';
 import {RotateCcw} from 'lucide-react';
@@ -18,15 +20,15 @@ export default function CustomerReturn({context,api,c:parentCopy,lang,close,init
  const [busy,setBusy]=useState(false),[sale,setSale]=useState(initialSale||null),[picker,setPicker]=useState(null),[doc,setDoc]=useState(null);
  const resource=useResource(api,sale?`${root}/workflows/adjustments/source/${sale.id}?kind=CUSTOMER_RETURN`:null);
  if(doc)return <AdjustmentDetail {...{doc,api,c,lang,close}} done={setDoc}/>;
- return <div className="max-w-3xl mx-auto space-y-5">
-  <div className="flex flex-wrap justify-between gap-3"><h2 className="text-xl font-bold">{ar?'إرجاع منتجات من الزبون':'Customer return'}</h2><button className={buttonClass} disabled={busy} onClick={close}>{c('back')}</button></div>
+ return <PageLayout as="div" className="max-w-3xl mx-auto">
+  <PageHeader title={ar?'إرجاع منتجات من الزبون':'Customer return'} accessory={<button className={buttonClass} disabled={busy} onClick={close}>{c('back')}</button>}/>
   <ol className="flex flex-wrap gap-3 text-sm text-slate-600" aria-label={ar?'خطوات الإرجاع':'Return steps'}>{(ar?['اختر الفاتورة','اختر المنتجات','راجع المبلغ والمخزون']:['Choose sale','Select items','Review refund and stock']).map((label,i)=><li key={label} className={i===(sale?1:0)?'font-semibold text-emerald-700':''}>{`${i+1}. ${label}`}</li>)}</ol>
   <div className={`${panelClass} space-y-3`}><p>{sale?.reference||c('chooseSourceHint')}</p><button className={buttonClass} disabled={busy} onClick={e=>setPicker(e.currentTarget)}>{sale?(ar?'اختيار فاتورة أخرى':'Choose another sale'):c('chooseSource')}</button></div>
   <Feedback c={c} error={resource.error} retry={resource.reload}/>
-  {sale&&!resource.data&&!resource.error&&<p role="status">{c('loading')}</p>}
+  {sale&&!resource.data&&!resource.error&&<LoadingState>{c('loading')}</LoadingState>}
   {resource.data&&<ReturnItems key={sale.id} {...{api,c,lang,root}} source={{...resource.data,id:sale.id}} done={setDoc} onBusy={setBusy}/>}
   {picker&&<DocumentPicker {...{api,c,lang}} path={`${root}/sales?status=COMPLETED`} returnFocus={picker} close={()=>setPicker(null)} onSelect={r=>{if(r.id===sale?.id)resource.reload();setSale(r);setPicker(null);}}/>}
- </div>;
+ </PageLayout>;
 }
 export function ReturnItems({source,api,c,lang,root,done,onBusy=()=>{}}){
  const ar=lang==='ar',[rows,setRows]=useState(()=>source.lines.filter(l=>scale(l.remaining)>0n).map(l=>({...l,selected:false,quantity:'',condition:'RESTOCK'}))),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');

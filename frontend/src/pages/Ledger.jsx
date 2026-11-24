@@ -1,4 +1,4 @@
-import { BookMarked } from "lucide-react";
+import {PageHeader, PageLayout} from '../components/page-layout/PageLayout';
 import { useLanguage } from "../context/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { JournalTab } from "../components/ledger/JournalTab";
@@ -7,20 +7,12 @@ import { IncomeStatementTab } from "../components/ledger/IncomeStatementTab";
 import { BalanceSheetTab } from "../components/ledger/BalanceSheetTab";
 
 export default function Ledger() {
-  const { t } = useLanguage();
+  const { t, dir } = useLanguage();
   return (
-    <div className="space-y-6" data-testid="ledger-page">
-      <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm">
-          <BookMarked className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900" data-testid="ledger-title">{t("ledgerTitle")}</h1>
-          <p className="text-sm text-slate-500">{t("ledgerSubtitle")}</p>
-        </div>
-      </div>
+    <PageLayout as="div" data-testid="ledger-page">
+      <PageHeader title={t("ledgerTitle")} heading="h1" titleTestId="ledger-title"/>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
-        <Tabs defaultValue="journal" dir="rtl">
+        <Tabs defaultValue="journal" dir={dir}>
           <TabsList className="mb-5" data-testid="ledger-tabs">
             <TabsTrigger value="journal" data-testid="tab-journal">{t("tabJournal")}</TabsTrigger>
             <TabsTrigger value="trial-balance" data-testid="tab-trial-balance">{t("tabTrialBalance")}</TabsTrigger>
@@ -33,6 +25,6 @@ export default function Ledger() {
           <TabsContent value="balance-sheet"><BalanceSheetTab /></TabsContent>
         </Tabs>
       </div>
-    </div>
+    </PageLayout>
   );
 }

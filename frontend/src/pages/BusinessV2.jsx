@@ -1,3 +1,5 @@
+import {PageContainer, PageLayout} from '../components/page-layout/PageLayout';
+import {LoadingState} from '../components/page-layout/PageResults';
 import RequestStatus from '../components/business-v2/RequestStatus';
 import WorkspaceErrorBoundary from '../components/business-v2/WorkspaceErrorBoundary';
 import ContactSupport from '../components/business-v2/ContactSupport';
@@ -68,10 +70,10 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
   const {contentRef,requestScroll}=useTabScroll(section);
   const businessName = loadedContext?.business.name;
   useEffect(() => { if (businessName) onName(businessName); }, [businessName, onName]);
-  if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <p role="status">{c('loading')}</p>}</div>;
+  if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <LoadingState>{c('loading')}</LoadingState>}</div>;
   if (context.business.initialSetupPending && context.role === 'OWNER' && context.permissions['business.edit']) {
     return <DraftScope.Provider value={{...context, lang}}>
-      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="mx-auto max-w-xl px-4 py-8 sm:py-12 lg:min-h-0 lg:overflow-y-auto">
+      <PageContainer dir={lang === 'ar' ? 'rtl' : 'ltr'} className="!max-w-xl lg:min-h-0 lg:overflow-y-auto">
         <div className="mb-6 flex items-center justify-center gap-3 text-xl font-bold">
           <span className="rounded-xl bg-emerald-600 p-2.5 text-white"><TrendingUp className="h-6 w-6" aria-hidden="true" /></span>
           <span dir="ltr">ProfitLens</span>
@@ -82,7 +84,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
           <button type="button" className={buttonClass} onClick={logout} disabled={loggingOut}>{c('logout')}</button>
         </div>
         <Feedback error={logoutError} c={c} />
-      </main>
+      </PageContainer>
     </DraftScope.Provider>;
   }
   const tabOrder = savedPreferences?.tabOrder ?? context.tabOrder ?? [];
@@ -142,9 +144,9 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
       <nav aria-label={menuLabel} className="hidden w-64 shrink-0 flex-col gap-2 border-e border-slate-200 bg-white p-4 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable] xl:w-72 xl:p-6">
         {items}{logoutButton}<Feedback error={logoutError} c={c} />
       </nav>
-    <main ref={contentRef} tabIndex={-1} className="min-w-0 flex-1 px-3 py-4 outline-none sm:px-5 sm:py-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain xl:p-8"><div className="max-w-7xl mx-auto"><div className="space-y-6"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{initialAction==='setup'&&<button type="button" className={buttonClass} onClick={()=>setSection('guidance')}>{lang==='ar'?'العودة إلى خطوات البداية':'Back to setup steps'}</button>}{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
+    <PageContainer ref={contentRef} tabIndex={-1} className="flex-1 outline-none lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain"><PageLayout as="div"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{initialAction==='setup'&&<button type="button" className={buttonClass} onClick={()=>setSection('guidance')}>{lang==='ar'?'العودة إلى خطوات البداية':'Back to setup steps'}</button>}{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
       ? <OwnerPinUnlock {...{context,api,c,lang}} onPinStatus={setPinStatus} />
-      : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</div></div></main>
+      : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</PageLayout></PageContainer>
   </div></UpgradeContext.Provider></DraftScope.Provider>;
 }
 export default function BusinessV2() {
@@ -180,8 +182,8 @@ export default function BusinessV2() {
     <h1 className="sr-only">{c('title')}</h1>
     <RequestStatus {...{api,lang}} businessId={selected}/>
     <div className="px-4 md:px-8"><Feedback error={error} c={c} retry={() => setVersion(v => v + 1)} /></div>
-    {!businesses && !error && <p role="status" className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</p>}
-    {businesses?.length === 0 && params.get('tab')==='security'&&<main className="p-4 md:p-8 max-w-5xl mx-auto"><Security {...{api,lang}}/></main>}
+    {!businesses && !error && <LoadingState className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</LoadingState>}
+    {businesses?.length === 0 && params.get('tab')==='security'&&<PageContainer><Security {...{api,lang}}/></PageContainer>}
     {businesses?.length === 0 && params.get('tab')!=='security' && <div className="px-4 md:px-8 space-y-4"><p className="text-sm text-slate-500">{c('noBusiness')}</p><Link className={buttonClass} to="/billing-v2">{lang==='ar'?'الفوترة وإلغاء الاشتراك':'Billing and cancellation'}</Link><Link className={`${buttonClass} ms-2`} to="/contact">{lang==='ar'?'تواصل معنا':'Contact Us'}</Link></div>}
     {hasBusiness && <WorkspaceErrorBoundary key={selected} lang={lang}><BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onName={onName} /></WorkspaceErrorBoundary>}
   </div>;
