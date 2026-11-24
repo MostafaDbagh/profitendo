@@ -33,7 +33,10 @@ test.each(['en','ar'])('search, options, and export share one row in logical ord
  const controls=toolbar(),{toggle,row}=controls;
  const button=row.querySelector('button[aria-label*="CSV"]');
  expect(row.children).toHaveLength(3);
- expect(row.children[0].querySelector('input')).not.toBeNull();
+ const input=row.children[0].querySelector('input');
+ expect(input).not.toBeNull();
+ expect(input.form.lastElementChild.getAttribute('aria-label')).toBe(lang==='ar'?'بحث':'Search');
+ expect(input.hasAttribute('aria-autocomplete')).toBe(false);
  expect(row.children[1]).toBe(toggle);
  expect(row.children[2].contains(button)).toBe(true);
  expect(row.dir).toBe(lang==='ar'?'rtl':'ltr');
@@ -66,6 +69,8 @@ test('clearing table search restores matching rows, keeps the column filter and 
  change(controls.panel.querySelector('select'),'1');change(controls.panel.querySelectorAll('select')[1],'Inactive');
  act(()=>controls.toggle.click());
  const input=host.querySelector('input');act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Milk');input.dispatchEvent(new Event('input',{bubbles:true}));});
+ expect(host.querySelectorAll('tbody tr')).toHaveLength(1);
+ act(()=>input.form.querySelector('button[type="submit"]').click());
  expect(host.querySelectorAll('tbody tr')).toHaveLength(0);
  act(()=>host.querySelector('button[aria-label="Clear search"]').click());
  expect(host.querySelectorAll('tbody tr')).toHaveLength(1);expect(host.querySelector('tbody').textContent).toContain('Bread');expect(document.activeElement).toBe(input);

@@ -1,11 +1,11 @@
-import { Search } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { primaryClass } from '../business-v2/UI';
+import { primaryClass } from './UI';
+import { TableSearchButton } from './TableToolbar';
 
 const MAX_SUGGESTIONS = 8;
 
-export default function CatalogueSearch({ c, lang, value, results, failed, onChange, onSearch, onSelect, onAdd }) {
+export default function ProductTableSearch({ id, c, lang, value, results, failed, onChange, onSearch, onSelect, onAdd }) {
   const listId = useId();
   const input = useRef(null);
   const option = useRef(null);
@@ -61,7 +61,7 @@ export default function CatalogueSearch({ c, lang, value, results, failed, onCha
         onSearch(term);
       }}>
       <div className="min-w-0 flex-1">
-        <Field ref={input} id="catalogue-search" label={c('searchProducts')} placeholder={c('productSearchPlaceholder')}
+        <Field ref={input} id={id} label={c('searchProducts')} placeholder={c('productSearchPlaceholder')}
           value={value} maxLength={160} autoComplete="off" role="combobox" aria-autocomplete="list"
           aria-expanded={showOptions} aria-controls={showOptions ? listId : undefined}
           aria-activedescendant={active ? `${listId}-${highlight}` : undefined}
@@ -72,10 +72,7 @@ export default function CatalogueSearch({ c, lang, value, results, failed, onCha
             onChange(event.target.value);
           }}/>
       </div>
-      <button type="submit" aria-label={c('search')} className={`${primaryClass} shrink-0 !px-2 sm:!px-3`}>
-        <Search aria-hidden="true"/>
-        <span className="hidden sm:inline">{c('search')}</span>
-      </button>
+      <TableSearchButton label={c('search')} />
       {showPanel && <div className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white p-1 shadow-md">
         {!results && <p role="status" className="p-2 text-sm text-slate-500">{c('loading')}</p>}
         {results && !matches.length && <div className="space-y-2 p-3 text-center">

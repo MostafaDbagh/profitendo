@@ -1,18 +1,23 @@
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
+import {operationsCopy} from '../operations-v2/copy';
 import LocationChips from './LocationChips';
 jest.mock('./UI',()=>({Feedback:({error,retry})=>error?<button onClick={retry}>{error}</button>:null}));
 global.IS_REACT_ACT_ENVIRONMENT=true;
 let host,root;
-const context={business:{id:'tenant'}},c=k=>k;
+const context={business:{id:'tenant'}};
 beforeEach(()=>{host=document.createElement('div');document.body.append(host);root=createRoot(host);});
 afterEach(()=>{act(()=>root.unmount());host.remove();});
-async function render(props){await act(async()=>root.render(<LocationChips {...{context,c}} lang="en" {...props}/>));}
+async function render({lang='en',...props}){await act(async()=>root.render(<LocationChips {...{context,lang}} c={key=>operationsCopy[lang][key]??key} {...props}/>));}
 test.each(['en','ar'])('shows all paginated shops inline and selects a chip (%s)',async lang=>{
  const first={id:'a',name:'متجر أول'},second={id:'b',name:'Second shop'},onChange=jest.fn();
  const api=jest.fn().mockResolvedValueOnce({items:[first],total:2}).mockResolvedValueOnce({items:[second],total:2});
  await render({api,lang,value:first,onChange});
  expect(api.mock.calls.map(call=>call[0])).toEqual(['/businesses/tenant/locations?state=active&page=1','/businesses/tenant/locations?state=active&page=2']);
+ const group=host.querySelector('[role=group]');
+ const label=document.getElementById(group.getAttribute('aria-labelledby'));
+ expect(label).toBe(group.previousElementSibling);
+ expect(label.textContent).toBe(lang==='ar'?'اختر المتجر':'Choose store');
  const buttons=host.querySelectorAll('button');expect(buttons).toHaveLength(2);expect(buttons[0].getAttribute('aria-pressed')).toBe('true');expect(host.querySelector('[role=dialog]')).toBeNull();
  act(()=>buttons[1].click());expect(onChange).toHaveBeenCalledWith(second);expect(host.firstChild.dir).toBe(lang==='ar'?'rtl':'ltr');
 });

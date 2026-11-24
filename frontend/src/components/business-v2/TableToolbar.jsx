@@ -1,8 +1,18 @@
-import { ChevronDown, Download } from 'lucide-react';
+import { ChevronDown, Download, Search } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 const controlClass = 'flex h-11 min-w-0 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-1.5 text-center text-xs font-semibold leading-tight text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 sm:px-2 sm:text-sm';
+
+export function TableSearchButton({ label, type = 'submit', disabled, onClick }) {
+  return (
+    <button type={type} disabled={disabled} onClick={onClick} aria-label={label}
+      className={`${controlClass} !w-auto shrink-0 !border-emerald-500 !bg-emerald-500 !px-2 !text-white hover:!bg-emerald-600 sm:!px-3`}>
+      <Search aria-hidden="true" className="h-4 w-4 shrink-0" />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
 
 export function TableCsvButton({ label, disabled, onClick }) {
   const { lang } = useLanguage();
@@ -33,7 +43,7 @@ export default function TableToolbar({ search, filters, filtersActive, exportAct
   return (
     <Popover>
       <div dir={dir} className={`grid items-end gap-2 sm:gap-3 ${columns}`}>
-        {search && <div className="min-w-0 [&_input]:min-h-11">{search}</div>}
+        {search && <div className="min-w-0 [&_input]:min-h-11 [&_input]:border-emerald-500 [&_input]:bg-emerald-50/40">{search}</div>}
         <PopoverTrigger asChild>
           <button type="button" className={`${controlClass} group relative ${filtersActive ? '!border-emerald-200 !bg-emerald-50 !text-emerald-800' : ''}`}
             aria-label={filtersActive ? `${optionsLabel} (${activeLabel})` : optionsLabel}>

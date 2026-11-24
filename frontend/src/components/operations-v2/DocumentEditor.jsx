@@ -95,10 +95,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
- <div className="min-w-0">
-  <p className="mb-1.5 text-sm font-medium text-slate-700">{c('selectedLocation')}<RequiredMark/></p>
-  <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing||!!doc||Boolean(seed?.locationId)}/>
- </div>
+ <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing||!!doc||Boolean(seed?.locationId)} required/>
  <div className="min-w-0 space-y-2">
   <SupplierSearch {...{api,c,lang}} path={`${root}/operations/suppliers`} value={supplier} onSelect={setSupplier}
    disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}/>

@@ -33,10 +33,7 @@ export default function Migration({context,api,c,lang,initialLocation=null}){
   <form className={`${panelClass} max-w-4xl space-y-4`} onSubmit={prepare}>
    <LocalDraftNotice {...{draft,lang,busy}} />
    <fieldset disabled={busy||!!preview} className="min-w-0 space-y-4">
-    <div className="space-y-1.5">
-     <p className="text-sm font-semibold">{ar?'المتجر أو المستودع':'Shop or warehouse'}</p>
-     <LocationChoice {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={!!preview||busy} />
-    </div>
+    <LocationChoice {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={!!preview||busy} />
     <div className="space-y-3 border-t border-slate-200 pt-4">
      <button type="button" className={buttonClass} onClick={()=>downloadCsv({filename:'opening-stock-template.csv',csv:'sku,quantity\r\nMILK-001,100\r\n'})}>
       <Download className="h-4 w-4" aria-hidden="true" />{c('downloadOpeningTemplate')}

@@ -12,7 +12,7 @@ import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 import ProductForm from './ProductForm';
 import ProductImport from './ProductImport';
-import CatalogueSearch from './CatalogueSearch';
+import ProductTableSearch from '../business-v2/ProductTableSearch';
 export default function Catalogue({context,api,c,lang,reload:refreshContext,initialAction}){
   const path=`/businesses/${context.business.id}/products`,cost=context.permissions['catalogue.cost'],manage=context.permissions['catalogue.edit'],create=context.permissions['catalogue.create'];
   const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[scan,setScan]=useState(''),[found,setFound]=useState(null),[scanError,setScanError]=useState(''),[scanning,setScanning]=useState(false),[edit,setEdit]=useState(() => ['new','setup'].includes(initialAction) && create && cost ? {product:null} : null),[importing,setImporting]=useState(false),[notice,setNotice]=useState('');
@@ -83,7 +83,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
       <form onSubmit={lookup} className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3"><label htmlFor="catalogue-scan" className="block text-sm font-medium text-slate-700">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}<RequiredMark/></label><div className="flex flex-wrap gap-2"><input ref={scanRef} id="catalogue-scan" aria-label={lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'} className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-slate-200 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500" dir="ltr" placeholder="001234567890" value={scan} onChange={e=>setScan(e.target.value)} maxLength={128} required/><button className={buttonClass} disabled={scanning}>{c(scanning?'loading':'findProduct')}</button></div><p className="text-xs text-slate-500">{lang==='ar'?'رمز الصنف (SKU): رمز داخلي لتنظيم منتجاتك، مثل MOCK-001. الباركود: الرمز المقروء بالماسح والموجود عادةً على العبوة. يمكنك البحث بأيٍّ منهما هنا وفي المشتريات.':'SKU: your internal product code, such as MOCK-001. Barcode: the scannable code usually printed on the packaging. You can use either here and in Purchases.'}</p><Feedback error={scanError} c={c}/>{found&&<div className="flex items-center gap-2"><p role="status" className="text-sm text-emerald-700">{c('productFound')}: {found.name} · <CopyableCode>{found.sku}</CopyableCode></p><button type="button" onClick={()=>setFound(null)} aria-label={lang==='ar'?'إخفاء نتيجة البحث':'Dismiss search result'} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X aria-hidden="true" className="h-4 w-4" /></button></div>}</form>
     </details>
     <TableToolbar
-      search={<CatalogueSearch {...{c,lang}} value={search} onChange={setSearch} onSearch={applySearch}
+      search={<ProductTableSearch id="catalogue-search" {...{c,lang}} value={search} onChange={setSearch} onSearch={applySearch}
         results={checkAllProducts?allProducts.data:currentResults}
         failed={query===search.trim()&&Boolean(error||allProducts.error)}
         onSelect={selectSuggestion} onAdd={create&&cost?addFromSearch:undefined}/>}

@@ -1,13 +1,17 @@
-import {History,Pencil,Plus} from 'lucide-react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, History, Pencil, Plus } from 'lucide-react';
 import SupplierForm from './SupplierForm';
 import Adjustments from '../completion-v2/Adjustments';
 import { useRef, useState } from 'react';
 import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Pager, Select, Table, TableSearchForm, buttonClass, primaryClass } from '../business-v2/UI';
 import Purchases from './Purchases';
+
+const rowActionClass = `${buttonClass} !border-transparent !bg-transparent !px-2.5 whitespace-nowrap hover:!bg-slate-100`;
+
 export default function Suppliers({context,api,c,lang,initialAction}){
  const path=`/businesses/${context.business.id}/operations/suppliers`,manage=context.permissions['suppliers.edit'],create=context.permissions['suppliers.create'];
+ const canViewHistory=context.permissions['purchasing.view'];
+ const showActions=manage||canViewHistory;
  const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[edit,setEdit]=useState(() => initialAction === 'new' && create ? {row:null} : null),[history,setHistory]=useState(null),[historyView,setHistoryView]=useState('purchases'),[notice,setNotice]=useState('');
  const trigger=useRef(null),{data,error,reload}=useResource(api,`${path}?page=${page}&state=${state}&search=${encodeURIComponent(query)}`);
  useLiveSearch(search,query,setQuery,setPage);
@@ -15,9 +19,44 @@ export default function Suppliers({context,api,c,lang,initialAction}){
  return <section className="space-y-5">
   <div className="flex flex-wrap gap-3 justify-between items-center"><div><h2 className="font-bold text-lg">{lang==='ar'?'الموردون (مندوبو الشركات)':c('suppliers')}</h2></div>{create&&<button className={primaryClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row:null});}}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addSupplier')}</button>}</div>
   <Feedback {...{error,notice,c}} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
-  <Table showRows={!!data} searchContent={<TableSearchForm id="supplier-search" label={c('search')} submitLabel={c('search')}
+  <Table showRows={!!data}
+      tableClassName={`[&_thead_th]:px-4 sm:[&_thead_th]:px-5 ${showActions?'[&_thead_th:last-child]:text-end':''}`}
+      searchContent={<TableSearchForm id="supplier-search" label={c('search')} submitLabel={c('search')}
       placeholder={c('supplierSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)}
-      onSearch={()=>{setQuery(search.trim());setPage(1);}} />} filters={<Select id="supplier-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>{['active','inactive','all'].map(k=><option key={k} value={k}>{c(k)}</option>)}</Select>} filtersActive={state!=='active'} headers={['supplierName','contact','status','actions']} empty={!data?.items.length} c={c}>{data?.items.map(row=><tr key={row.id}><td className="px-5 py-3 font-semibold">{row.name}</td><td className="px-5 py-3"><span>{row.contact}</span><span className="block" dir="ltr">{row.phone}</span></td><td className="px-5 py-3">{c(row.active?'active':'inactive')}</td><td className="px-5 py-3"><div className="flex gap-2">{manage&&<button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row});}}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('editSupplier')}</button>}{context.permissions['purchasing.view']&&<button className={buttonClass} onClick={()=>setHistory(row)}><History aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('history')}</button>}</div></td></tr>)}</Table>
+      onSearch={()=>{setQuery(search.trim());setPage(1);}} />}
+      filters={<Select id="supplier-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>
+        {['active','inactive','all'].map(k=><option key={k} value={k}>{c(k)}</option>)}
+      </Select>}
+      filtersActive={state!=='active'} headers={['supplierName','contact','status',...(showActions?['actions']:[])]} empty={!data?.items.length} c={c}>
+   {data?.items.map(row=>(
+    <tr key={row.id}>
+     <th scope="row" className="min-w-32 px-4 py-3 text-start font-semibold text-slate-900 [overflow-wrap:anywhere] sm:px-5">
+      <bdi>{row.name}</bdi>
+     </th>
+     <td className="w-1/3 px-4 py-3 sm:px-5">
+      <div className="space-y-0.5 [overflow-wrap:anywhere]">
+       {row.contact&&<div className="font-medium text-slate-800"><bdi>{row.contact}</bdi></div>}
+       {row.phone&&<div className="text-xs text-slate-600"><bdi dir="ltr" className="inline-block">{row.phone}</bdi></div>}
+      </div>
+     </td>
+     <td className="w-px px-4 py-3 sm:px-5">
+      <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${row.active?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-slate-100 text-slate-600'}`}>
+       {c(row.active?'active':'inactive')}
+      </span>
+     </td>
+     {showActions&&<td className="w-px px-4 py-2 sm:px-5">
+      <div className="flex justify-end gap-1">
+       {manage&&<button type="button" className={rowActionClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row});}}>
+        <Pencil aria-hidden="true"/>{c('editSupplier')}
+       </button>}
+       {canViewHistory&&<button type="button" className={rowActionClass} onClick={()=>setHistory(row)}>
+        <History aria-hidden="true"/>{c('history')}
+       </button>}
+      </div>
+     </td>}
+    </tr>
+   ))}
+  </Table>
  {data&&<Pager {...{data,setPage,c}}/>}
   {edit&&<SupplierForm canDelete={context.permissions['suppliers.delete']} {...{path,api,c,lang}} row={edit.row} returnFocus={trigger.current} close={()=>setEdit(null)} done={()=>{setEdit(null);setNotice('supplierSaved');reload();}}/>}
  </section>;

@@ -46,8 +46,8 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
  return <div className="mx-auto w-full max-w-5xl space-y-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-bold">{c(doc?'saleEdit':'newSale')}</h2><button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button></div><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5"><fieldset className="min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2">
-  <legend className="mb-2 text-xs font-semibold text-slate-500">
-   {lang==='ar'?'المتجر':'Store'} <RequiredMark/>
+  <legend className="mb-2 text-sm font-medium text-slate-700">
+   {c('chooseLocation')}<RequiredMark/>
   </legend>
   {!shopLocked&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
   {!shopLocked&&!shops.data&&!shops.error&&<p role="status" className="text-sm text-slate-500">{c('loading')}</p>}

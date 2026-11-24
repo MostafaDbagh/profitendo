@@ -1,7 +1,7 @@
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Children, Fragment, isValidElement, useId, useRef, useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import TableToolbar, { TableCsvButton } from './TableToolbar';
+import TableToolbar, { TableCsvButton, TableSearchButton } from './TableToolbar';
 
 function text(node) {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -35,6 +35,7 @@ export default function TableTools({
   const id = useId();
   const searchRef = useRef(null);
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
   const [column, setColumn] = useState('all');
   const [value, setValue] = useState('');
 
@@ -42,7 +43,7 @@ export default function TableTools({
   const cells = rows.map(row => flatten(row.props?.children).map(cell => text(cell)));
   const indexes = headers.map((_, index) => index).filter(index => !['actions', 'action'].includes(headers[index]));
   const values = column === 'all' ? [] : [...new Set(cells.map(row => row[Number(column)]?.trim()).filter(Boolean))].sort();
-  const keyword = search.toLocaleLowerCase();
+  const keyword = query.toLocaleLowerCase();
   const matchingIndexes = rows.map((_, index) => index).filter(index => {
     const row = cells[index];
     return indexes.map(key => (row[key] ?? '').trim()).join(' ').toLocaleLowerCase().includes(keyword)
@@ -65,19 +66,24 @@ export default function TableTools({
 
   const searchLabel = ar ? 'بحث في الصفحة الحالية' : 'Search current page';
   const searchControl = searchContent || (searchable && (
-    <label htmlFor={id + 'search'} className="block text-sm">
-      {searchLabel}
-      <span className="relative block">
-        <Search aria-hidden="true" className="pointer-events-none absolute start-3 top-3 h-4 w-4 text-slate-400" />
-        <input ref={searchRef} id={id + 'search'} className={`${fieldClass} min-h-11 ps-9 ${search ? 'pe-9' : 'pe-3'}`}
-          placeholder={ar ? 'اكتب كلمة للبحث…' : 'Type a keyword…'} value={search} onChange={event => setSearch(event.target.value)} />
-        {search && <button type="button" aria-label={ar ? 'مسح البحث' : 'Clear search'}
-          className="absolute end-0.5 top-1 inline-flex h-9 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-emerald-500"
-          onClick={() => { setSearch(''); searchRef.current?.focus(); }}>
-          <X aria-hidden="true" className="h-4 w-4" />
-        </button>}
-      </span>
-    </label>
+    <form className="flex min-w-0 items-end gap-2" onSubmit={event => {
+      event.preventDefault();
+      setQuery(search.trim());
+    }}>
+      <div className="min-w-0 flex-1">
+        <label htmlFor={id + 'search'} className="block text-sm">{searchLabel}</label>
+        <div className="relative">
+          <input ref={searchRef} id={id + 'search'} autoComplete="off" className={`${fieldClass} ${search || query ? 'pe-9' : ''}`}
+            placeholder={ar ? 'اكتب كلمة للبحث…' : 'Type a keyword…'} value={search} onChange={event => setSearch(event.target.value)} />
+          {(search || query) && <button type="button" aria-label={ar ? 'مسح البحث' : 'Clear search'}
+            className="absolute end-0.5 top-1 inline-flex h-9 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-emerald-100 focus-visible:ring-2 focus-visible:ring-emerald-500"
+            onClick={() => { setSearch(''); setQuery(''); searchRef.current?.focus(); }}>
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>}
+        </div>
+      </div>
+      <TableSearchButton label={ar ? 'بحث' : 'Search'} />
+    </form>
   ));
 
   return (
@@ -112,7 +118,7 @@ export default function TableTools({
           </p>}
         </>}
       />
-      {(search || value) && <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+      {(query || value) && <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
         <span role="status">{ar ? `عرض ${matching.length} من ${rows.length} في هذه الصفحة` : `Showing ${matching.length} of ${rows.length} on this page`}</span>
         {value && <button type="button" className="min-h-9 rounded px-2 font-semibold text-emerald-700 underline focus-visible:ring-2 focus-visible:ring-emerald-500"
           onClick={() => { setColumn('all'); setValue(''); }}>
