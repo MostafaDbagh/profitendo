@@ -17,3 +17,21 @@ test('resolves in selected business and rejects draft duplicates or barcode mism
  await expect(resolveReceiptRows([{sku:'barcode',quantity:'1'}],api,'/businesses/b',[])).rejects.toThrow();
 });
 test('escapes spreadsheet formulas on export',()=>expect(receiptCsv([{sku:'=1+1',quantity:'1'}],false)).toContain('"\'=1+1"'));
+test.each(['ar','en'])('exports names and units and reimports in either language (%s)',lang=>{
+ const csv=receiptCsv([{sku:'0001',name:'حليب، طازج',unit:'LITRE',quantity:'2',unitCost:'90'}],true,lang);
+ expect(csv).toContain('حليب، طازج');
+ expect(csv).toContain(lang==='ar'?'اسم المنتج':'name');
+ expect(csv).toContain(lang==='ar'?'لتر':'LITRE');
+ expect(parseReceiptCsv(csv,true)).toEqual([{sku:'0001',quantity:'2',unitCost:'90'}]);
+});
+test('accepts reordered Arabic columns and preserves cost restrictions',()=>{
+ expect(parseReceiptCsv('اسم المنتج,الكمية,رمز الصنف\nحليب,2,001',false)).toEqual([{sku:'001',quantity:'2'}]);
+ expect(()=>parseReceiptCsv('رمز الصنف,الكمية,تكلفة الوحدة\n001,2,90',false)).toThrow('HEADERS');
+ expect(()=>parseReceiptCsv('sku,رمز الصنف,quantity\n001,001,2',false)).toThrow('HEADERS');
+});
+test('reports the supplied unknown SKU without creating products or partial rows',async()=>{
+ const rows=parseReceiptCsv('sku,quantity,unit_cost\nMILK-001,1,90\nsafi,2,100',true);
+ const api=jest.fn().mockResolvedValueOnce({product:{id:'p',sku:'MILK-001',name:'Milk'}}).mockRejectedValueOnce(new Error('PRODUCT_NOT_FOUND'));
+ await expect(resolveReceiptRows(rows,api,'/businesses/b',[],true)).rejects.toThrow('PRODUCT:3:safi');
+ expect(api.mock.calls.every(args=>args.length===1)).toBe(true);
+});

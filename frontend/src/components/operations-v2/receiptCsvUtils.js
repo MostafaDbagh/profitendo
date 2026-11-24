@@ -14,18 +14,25 @@ export function parseReceiptCsv(text, cost) {
  if(quoted)throw new Error('CSV');
  row.push(cell);if(row.some(v=>v.trim()))rows.push(row);
  const headers=rows.shift()?.map(v=>v.trim());
- const columns=headers?.join(',');
- if(columns!=='sku,quantity'&&(!cost||columns!=='sku,quantity,unit_cost'))throw new Error('HEADERS');
+ const aliases={'رمز الصنف':'sku','اسم المنتج':'name','الوحدة الأساسية':'unit','الكمية':'quantity','تكلفة الوحدة':'unit_cost',product_name:'name'};
+ const keys=headers?.map(header=>aliases[header]??header);
+ if(!keys||!keys.includes('sku')||!keys.includes('quantity')||new Set(keys).size!==keys.length||keys.some(key=>!['sku','name','unit','quantity',...(cost?['unit_cost']:[])].includes(key)))throw new Error('HEADERS');
  if(!rows.length||rows.length>100)throw new Error('CSV');
  const seen=new Set();
  return rows.map((values,index)=>{
-  const [sku,quantity,unitCost]=values.map(v=>v.trim());
+  const record=Object.fromEntries(keys.map((key,i)=>[key,values[i]?.trim()]));
+  const {sku,quantity,unit_cost:unitCost}=record;
   if(values.length!==headers.length||!sku||sku.length>128||seen.has(sku.toUpperCase())||! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(quantity)||Number(quantity)<=0||(unitCost&&! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(unitCost)))throw new Error(`ROW:${index+2}`);
   seen.add(sku.toUpperCase());return {sku,quantity,...(unitCost!==undefined?{unitCost}:{})};
  });
 }
 export function csvCell(value){const text=String(value??'');return '"'+(/^[\s]*[=+\-@]/.test(text)?"'":'')+text.replaceAll('"','""')+'"';}
-export function receiptCsv(lines,cost){return [(cost?['sku','quantity','unit_cost']:['sku','quantity']).join(','),...lines.map(l=>(cost?[l.sku,l.quantity,l.unitCost]:[l.sku,l.quantity]).map(csvCell).join(','))].join('\r\n');}
+export function receiptCsv(lines,cost,lang='en'){
+ const keys=['sku','name','unit','quantity',...(cost?['unitCost']:[])];
+ const labels=lang==='ar'?['رمز الصنف','اسم المنتج','الوحدة الأساسية','الكمية',...(cost?['تكلفة الوحدة']:[])]:['sku','name','unit','quantity',...(cost?['unit_cost']:[])];
+ const units={PIECE:'قطعة',BOX:'علبة',CARTON:'كرتون',KG:'كيلوغرام',GRAM:'غرام',LITRE:'لتر',METRE:'متر'};
+ return [labels.join(','),...lines.map(line=>keys.map(key=>csvCell(key==='unit'&&lang==='ar'?(units[line.unit]??line.unit):line[key])).join(','))].join('\r\n');
+}
 const decimalKey=(value='')=>value.includes('.')?value.replace(/0+$/,'').replace(/\.$/,''):value;
 
 async function findReceiptProduct(api, root, sku) {
@@ -61,7 +68,7 @@ export async function resolveReceiptRows(rows, api, root, existing, cost=false) 
   let product;
   try{product=await findReceiptProduct(api,root,sku);}
   catch(error){
-   if(['PRODUCT_NOT_FOUND','PRODUCT_INACTIVE'].includes(error.message))throw new Error(`PRODUCT:${index+2}`);
+   if(['PRODUCT_NOT_FOUND','PRODUCT_INACTIVE'].includes(error.message))throw new Error(`PRODUCT:${index+2}:${row.sku}`);
    throw error;
   }
   if(ids.has(product.id))throw new Error(`CONFLICT:${index+2}`);
