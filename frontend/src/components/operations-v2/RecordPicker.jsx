@@ -1,11 +1,12 @@
 import CopyableCode from '../CopyableCode';
 import { useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { useResource } from '../business-v2/useBusinessApi';
+import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Modal, Feedback, Pager, buttonClass } from '../business-v2/UI';
 export default function RecordPicker({path,api,c,lang,title,onSelect,close,returnFocus,emptyHelp,onAddSupplier,selectedId}){
  const [page,setPage]=useState(1),[search,setSearch]=useState(''),[query,setQuery]=useState('');
  const {data,error,reload}=useResource(api,`${path}${path.includes('?')?'&':'?'}page=${page}&search=${encodeURIComponent(query)}`);
+ useLiveSearch(search,query,setQuery,setPage);
  return <Modal {...{c,lang,close,returnFocus}} title={title} description={c('chooseHint')}>
   <div className="space-y-4 min-w-0"><form className="flex flex-wrap gap-2 items-end" onSubmit={e=>{e.preventDefault();setQuery(search.trim());setPage(1);}}><div className="flex-1 min-w-0"><Field id="record-search" label={c('search')} placeholder={c(path.includes('/products')?'productSearchPlaceholder':'recordSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)} maxLength={160} autoComplete="off"/></div><button className={buttonClass}>{c('search')}</button></form>
   <Feedback {...{c,error}} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}

@@ -5,6 +5,17 @@ export function useBusinessApi() {
  const navigate=useNavigate();
  return useMemo(()=>createBusinessClient({navigate}),[navigate]);
 }
+export function useLiveSearch(search, query, setQuery, setPage) {
+  useEffect(() => {
+    const next=search.trim();
+    if(next===query)return;
+    const timer=setTimeout(()=>{
+      setQuery(next);
+      setPage(1);
+    },220);
+    return ()=>clearTimeout(timer);
+  },[search,query,setQuery,setPage]);
+}
 export function useResource(api, path) {
   const [state, setState] = useState({ path: null, data: null, error: '' }), [version, refresh] = useState(0);
   useEffect(() => {

@@ -2,10 +2,10 @@ import {errorText} from './feedbackCopy';
 import RequiredMark from '../RequiredMark';
 import TableTools from './TableTools';
 import {useLanguage} from '../../context/LanguageContext';
-import { ChevronDown, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Search } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
-import { inputClass } from '../auth-v2/Fields';
+import { Field, inputClass } from '../auth-v2/Fields';
 export const buttonClass = 'inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2.5 rounded-lg [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50';
 export const primaryClass = `${buttonClass} !bg-emerald-500 hover:!bg-emerald-600 !text-white !border-emerald-500`;
 export const panelClass = 'bg-white border border-slate-200 rounded-xl shadow-sm p-5 md:p-6';
@@ -32,6 +32,22 @@ export function Pager({ data, setPage, c }) {
   const {lang}=useLanguage();
   const Previous=lang==='ar'?ChevronRight:ChevronLeft,Next=lang==='ar'?ChevronLeft:ChevronRight;
   return <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-sm text-slate-600"><span>{c('page')} {data.page} · {c('total')} {data.total}</span><div className="flex gap-2"><button className={buttonClass} disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}><Previous aria-hidden="true"/>{c('previous')}</button><button className={buttonClass} disabled={data.page * data.pageSize >= data.total} onClick={() => setPage(data.page + 1)}>{c('next')}<Next aria-hidden="true"/></button></div></div>;
+}
+export function TableSearchForm({ onSearch, submitLabel, inputRef, insideForm=false, ...fieldProps }) {
+  const Wrapper=insideForm?'div':'form';
+  return (
+    <Wrapper className="flex min-w-0 flex-nowrap items-end gap-2" onSubmit={insideForm?undefined:event => {
+      event.preventDefault();
+      onSearch();
+    }}>
+      <div className="min-w-0 flex-1"><Field ref={inputRef} {...fieldProps} /></div>
+      <button type={insideForm?'button':'submit'} onClick={insideForm?onSearch:undefined} disabled={fieldProps.disabled}
+        aria-label={submitLabel} className={`${buttonClass} shrink-0`}>
+        <Search aria-hidden="true" />
+        <span className="hidden sm:inline">{submitLabel}</span>
+      </button>
+    </Wrapper>
+  );
 }
 export function Table({ headers, children, empty, c, tableClassName = '', tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, showRows = true }) {
   if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;

@@ -9,7 +9,7 @@ import ProductAssets from './ProductAssets';
 import References from './References';
 import { useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { useResource } from '../business-v2/useBusinessApi';
+import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 import ProductForm from './ProductForm';
 import ProductImport from './ProductImport';
@@ -20,6 +20,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
   const stock=context.permissions['inventory.view']&&context.permissions['locations.view'],sales=context.permissions['sales.view']&&context.permissions['locations.view'];
   const quantity=value=>new Intl.NumberFormat(lang==='ar'?'ar-u-nu-latn':'en',{maximumFractionDigits:4}).format(Number(value??0));
   const insightsPath=`${path}/insights?page=${page}&state=${state}&search=${encodeURIComponent(query)}&filter=${filter}`;
+  useLiveSearch(search,query,setQuery,setPage);
   async function exportRows(){setExporting(true);setExportError('');try{downloadCsv(await api(`${insightsPath}&export=true&lang=${lang==='ar'?'ar':'en'}`));}catch(e){setExportError(e.message);}finally{setExporting(false);}}
   const [assets,setAssets]=useState(null),[references,setReferences]=useState(false);
   const [stockProduct,setStockProduct]=useState(null);
@@ -56,6 +57,14 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     <form onSubmit={e=>{e.preventDefault();setQuery(search.trim());setPage(1);}} className="flex flex-nowrap gap-2 sm:gap-3 items-end"><div className="min-w-0 flex-1 sm:max-w-md"><Field id="catalogue-search" label={c('searchProducts')} placeholder={c('productSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)} maxLength={160}/></div><button type="submit" aria-label={c('search')} className={`${primaryClass} shrink-0`}><Search aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="hidden sm:inline">{c('search')}</span></button><button type="button" aria-label={lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'} className={`${buttonClass} shrink-0 !bg-sky-50 !text-sky-700 !border-sky-200 hover:!bg-sky-100 focus-visible:!ring-sky-500`} disabled={exporting||!data} onClick={exportRows}><Download aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="sm:hidden">CSV</span><span className="hidden sm:inline">{lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'}</span></button></form>
     <MoreOptions active={state!=='active'||filter!=='all'}><div className="flex flex-wrap gap-3 items-end"><Select id="catalogue-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>{['active','inactive','all'].map(v=><option key={v} value={v}>{c(v)}</option>)}</Select><Select id="catalogue-filter" label={lang==='ar'?'عرض المنتجات':'Product view'} value={filter} onChange={e=>{setFilter(e.target.value);setPage(1);}}><option value="all">{c('all')}</option>{sales&&<option value="top">{lang==='ar'?'أكثر 10 منتجات مبيعاً':'Top 10 best sellers'}</option>}{stock&&<option value="low">{lang==='ar'?'مخزون منخفض':'Low stock'}</option>}</Select></div></MoreOptions>
     <Feedback error={error||exportError} notice={notice} c={c} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
+    {query&&data?.items.length===0&&create&&cost&&state==='active'&&filter==='all'&&
+      <div className={`${panelClass} space-y-2 text-center`}>
+        <p className="text-sm text-slate-500">{lang==='ar'?'لا توجد نتائج مطابقة':'No matching products'}</p>
+        <button type="button" className={primaryClass} onClick={event=>{
+          trigger.current=event.currentTarget;
+          setEdit({product:null,name:query});
+        }}>{c('addProduct')}</button>
+      </div>}
     {data&&<><p className="text-xs text-slate-500">{c('pricesCurrency')}: {data.currency}</p><Table tools={false} tableClassName="min-w-[1500px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-[260px]">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <span>{c('productAvailable')}: <bdi className="font-semibold">{quantity(p.available)}</bdi></span>
@@ -86,6 +95,6 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     {references&&<References canDelete={context.permissions['catalogue.delete']} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>setReferences(false)}/>}
     {assets&&<ProductAssets canDelete={context.permissions['catalogue.delete']} product={assets} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>{setAssets(null);reload();}}/>}
     {importing&&<ProductImport businessId={context.business.id} {...{api,c,lang}} returnFocus={trigger.current} close={()=>{setImporting(false);reload();}} done={()=>{setImporting(false);refreshContext();}}/>}
-    {edit&&<ProductForm canDelete={context.permissions['catalogue.delete']} product={edit.product} {...{cost,path,api,c,lang}} returnFocus={trigger.current} close={()=>setEdit(null)} done={(saved=true)=>{const created=saved&&!edit.product;setEdit(null);setFound(null);reload();setNotice(saved?'saved':'');if(created)refreshContext();}}/>}
+    {edit&&<ProductForm canDelete={context.permissions['catalogue.delete']} product={edit.product} initialName={edit.name} {...{cost,path,api,c,lang}} returnFocus={trigger.current} close={()=>setEdit(null)} done={(saved=true)=>{const created=saved&&!edit.product;setEdit(null);setFound(null);reload();setNotice(saved?'saved':'');if(created)refreshContext();}}/>}
   </section>;
 }

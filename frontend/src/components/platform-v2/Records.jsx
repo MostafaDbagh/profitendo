@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { useResource } from '../business-v2/useBusinessApi';
-import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
+import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
+import { Feedback, Modal, Pager, Select, Table, TableSearchForm, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 function ChangeStatus({ row, kind, api, c, lang, close, done, returnFocus }) {
   const [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const action = row.active ? kind === 'businesses' ? 'suspend' : 'disable' : 'reactivate';
@@ -13,14 +13,17 @@ export function Records({ kind, api, c, lang }) {
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [status, setStatus] = useState('all'), [page, setPage] = useState(1), [editing, setEditing] = useState(null), [notice, setNotice] = useState('');
   const trigger = useRef(null), isBusiness = kind === 'businesses';
   const { data, error, reload } = useResource(api, `/platform/${kind}?${new URLSearchParams({ page: String(page), q: search, status })}`);
+  useLiveSearch(query,search,setSearch,setPage);
   return <section className="space-y-5"><h2 className="text-lg font-bold">{c(kind)}</h2>
-    <form className="flex flex-wrap items-end gap-3" onSubmit={e => { e.preventDefault(); setSearch(query.trim()); setPage(1); }}><div className="w-full sm:w-80"><Field id="platform-search" label={c('search')} placeholder={c(isBusiness ? 'businessSearch' : 'userSearch')} type="search" value={query} onChange={e => setQuery(e.target.value)} maxLength={100} /></div><Select id="platform-status" label={c('status')} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="all">{c('all')}</option><option value="active">{c('active')}</option><option value="inactive">{c(isBusiness ? 'suspended' : 'disabled')}</option></Select><button className={buttonClass}>{c('search')}</button></form>
+    <div className="max-w-xs"><Select id="platform-status" label={c('status')} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="all">{c('all')}</option><option value="active">{c('active')}</option><option value="inactive">{c(isBusiness ? 'suspended' : 'disabled')}</option></Select></div>
     <Feedback error={error} notice={notice} c={c} retry={reload} />{!data && !error && <p role="status" className="text-sm text-slate-500">{c('loading')}</p>}
-    {data && <><Table searchable={false} headers={isBusiness ? ['business','members','status','actions'] : ['memberName','email','role','verified','status','actions']} c={c} empty={!data.items.length}>{data.items.map(row => <tr key={row.id}>
+    <Table showRows={!!data} searchContent={<TableSearchForm id="platform-search" label={c('search')} submitLabel={c('search')}
+      placeholder={c(isBusiness ? 'businessSearch' : 'userSearch')} type="search" value={query}
+      onChange={e => setQuery(e.target.value)} maxLength={100} onSearch={() => { setSearch(query.trim()); setPage(1); }} />} headers={isBusiness ? ['business','members','status','actions'] : ['memberName','email','role','verified','status','actions']} c={c} empty={!data?.items.length}>{data?.items.map(row => <tr key={row.id}>
       <td className="px-5 py-3 text-slate-800 font-semibold">{row.name}</td>{isBusiness ? <td className="px-5 py-3 text-slate-600">{row.memberCount}</td> : <><td className="px-5 py-3 text-slate-600"><span dir="ltr">{row.email}</span></td><td className="px-5 py-3 whitespace-nowrap text-slate-600">{c(row.platformRole)}</td><td className="px-5 py-3 text-slate-600">{c(row.verified ? 'yes' : 'no')}</td></>}
       <td className="px-5 py-3"><span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${row.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{c(row.active ? 'active' : isBusiness ? 'suspended' : 'disabled')}</span></td>
       <td className="px-5 py-3">{row.platformRole === 'SUPER_ADMIN' ? <span className="text-xs text-slate-500 whitespace-nowrap">{c('protected')}</span> : <button className={`${buttonClass} whitespace-nowrap`} onClick={event => { trigger.current = event.currentTarget; setNotice(''); setEditing(row); }}>{c(row.active ? isBusiness ? 'suspend' : 'disable' : 'reactivate')}</button>}</td>
-    </tr>)}</Table><Pager data={data} setPage={setPage} c={c} /></>}
+    </tr>)}</Table>{data && <Pager data={data} setPage={setPage} c={c} />}
     {editing && <ChangeStatus row={editing} {...{ kind, api, c, lang }} returnFocus={trigger.current} close={() => setEditing(null)} done={saved => { setEditing(null); reload(); setNotice(saved ? 'saved' : ''); }} />}
   </section>;
 }

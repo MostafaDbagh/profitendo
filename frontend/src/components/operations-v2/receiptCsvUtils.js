@@ -14,22 +14,60 @@ export function parseReceiptCsv(text, cost) {
  if(quoted)throw new Error('CSV');
  row.push(cell);if(row.some(v=>v.trim()))rows.push(row);
  const headers=rows.shift()?.map(v=>v.trim());
- if(!headers||headers.join(',')!==(cost?'sku,quantity,unit_cost':'sku,quantity')||!rows.length||rows.length>100)throw new Error('CSV');
+ const columns=headers?.join(',');
+ if(columns!=='sku,quantity'&&(!cost||columns!=='sku,quantity,unit_cost'))throw new Error('HEADERS');
+ if(!rows.length||rows.length>100)throw new Error('CSV');
  const seen=new Set();
  return rows.map((values,index)=>{
   const [sku,quantity,unitCost]=values.map(v=>v.trim());
-  if(values.length!==headers.length||!sku||sku.length>128||seen.has(sku.toUpperCase())||! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(quantity)||Number(quantity)<=0||(cost&&! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(unitCost)))throw new Error(`ROW:${index+2}`);
-  seen.add(sku.toUpperCase());return {sku,quantity,...(cost?{unitCost}:{})};
+  if(values.length!==headers.length||!sku||sku.length>128||seen.has(sku.toUpperCase())||! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(quantity)||Number(quantity)<=0||(unitCost&&! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(unitCost)))throw new Error(`ROW:${index+2}`);
+  seen.add(sku.toUpperCase());return {sku,quantity,...(unitCost!==undefined?{unitCost}:{})};
  });
 }
 export function csvCell(value){const text=String(value??'');return '"'+(/^[\s]*[=+\-@]/.test(text)?"'":'')+text.replaceAll('"','""')+'"';}
 export function receiptCsv(lines,cost){return [(cost?['sku','quantity','unit_cost']:['sku','quantity']).join(','),...lines.map(l=>(cost?[l.sku,l.quantity,l.unitCost]:[l.sku,l.quantity]).map(csvCell).join(','))].join('\r\n');}
-export async function resolveReceiptRows(rows,api,root,existing){
- const result=[],seen=new Set(existing.map(l=>l.productId));
- for(const row of rows){
-  const {product}=await api(`${root}/products/barcode?value=${encodeURIComponent(row.sku)}`);
-  if(product.sku.toUpperCase()!==row.sku.toUpperCase()||seen.has(product.id))throw new Error('DUPLICATE');
-  seen.add(product.id);result.push({productId:product.id,name:product.name,sku:product.sku,unit:product.unit,quantity:row.quantity,unitCost:row.unitCost??''});
+const decimalKey=(value='')=>value.includes('.')?value.replace(/0+$/,'').replace(/\.$/,''):value;
+
+async function findReceiptProduct(api, root, sku) {
+ const code=encodeURIComponent(sku);
+ try {
+  const {product}=await api(`${root}/products/barcode?value=${code}`);
+  if(product.sku?.toUpperCase()===sku)return product;
+ } catch(error) {
+  if(error.message!=='PRODUCT_CODE_AMBIGUOUS')throw error;
  }
+ // A barcode can match another product's SKU. Only accept the exact SKU.
+ for(let page=1;page<=10000;page++){
+  const data=await api(`${root}/products?state=active&page=${page}&search=${code}`);
+  const product=data.items?.find(item=>item.sku?.toUpperCase()===sku);
+  if(product)return product;
+  if(!data.items?.length||page*data.pageSize>=data.total)break;
+ }
+ throw new Error('PRODUCT_NOT_FOUND');
+}
+
+export async function resolveReceiptRows(rows, api, root, existing, cost=false) {
+ const result=[];
+ const bySku=new Map(existing.filter(line=>line.sku).map(line=>[line.sku.toUpperCase(),line]));
+ const ids=new Set(existing.map(line=>line.productId));
+ for(const [index,row] of rows.entries()){
+  const sku=row.sku.toUpperCase(), current=bySku.get(sku);
+  if(current){
+   const sameQuantity=decimalKey(current.quantity)===decimalKey(row.quantity);
+   const sameCost=row.unitCost===undefined||decimalKey(current.unitCost)===decimalKey(row.unitCost);
+   if(!sameQuantity||!sameCost)throw new Error(`CONFLICT:${index+2}`);
+   continue;
+  }
+  let product;
+  try{product=await findReceiptProduct(api,root,sku);}
+  catch(error){
+   if(['PRODUCT_NOT_FOUND','PRODUCT_INACTIVE'].includes(error.message))throw new Error(`PRODUCT:${index+2}`);
+   throw error;
+  }
+  if(ids.has(product.id))throw new Error(`CONFLICT:${index+2}`);
+  ids.add(product.id);
+  result.push({productId:product.id,name:product.name,sku:product.sku,unit:product.unit,quantity:row.quantity,unitCost:row.unitCost??(cost?product.purchasePrice??'':'')});
+ }
+ if(existing.length+result.length>100)throw new Error('CSV');
  return result;
 }

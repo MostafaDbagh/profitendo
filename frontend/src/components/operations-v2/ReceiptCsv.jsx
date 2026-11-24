@@ -3,6 +3,18 @@ import {Download,Upload} from 'lucide-react';
 import {buttonClass} from '../business-v2/UI';
 import {downloadCsv} from '../completion-v2/Shared';
 import {parseReceiptCsv,receiptCsv,resolveReceiptRows} from './receiptCsvUtils';
+
+function importError(code, ar) {
+ const [reason,line]=code.split(':');
+ if(reason==='HEADERS')return ar?'هذا ليس ملف أصناف استلام. استخدم ملف «تصدير CSV» من شاشة الاستلام أو القالب الموجود هنا.':'This is not a receipt items file. Use the CSV exported from Receive stock or the template on this screen.';
+ if(reason==='ROW')return ar?`السطر ${line}: تحقق من رمز الصنف والكمية والتكلفة، وتأكد أن الرمز يظهر مرة واحدة في الملف.`:`Row ${line}: Check the SKU, quantity, and cost, and make sure the SKU appears only once in the file.`;
+ if(reason==='PRODUCT')return ar?`السطر ${line}: رمز الصنف لا يطابق منتجاً نشطاً في هذا النشاط.`:`Row ${line}: The SKU does not match an active product in this business.`;
+ if(reason==='CONFLICT')return ar?`السطر ${line}: الصنف موجود في المسودة بكمية أو تكلفة مختلفة. عدّل سطره في المسودة أو أزله قبل استيراده.`:`Row ${line}: This item already has a different quantity or cost in the draft. Edit the draft line or remove it before importing.`;
+ if(reason==='CSV')return ar?'تحقق من أن الملف صالح وأن المسودة بعد الاستيراد لا تتجاوز ١٠٠ صنف.':'Check that the file is valid and the resulting draft has at most 100 items.';
+ if(reason==='FORBIDDEN')return ar?'لا تملك صلاحية البحث عن المنتجات المطلوبة.':'You do not have permission to look up the required products.';
+ return ar?'تعذّر التحقق من الأصناف. حاول مرة أخرى.':'Could not verify the items. Try again.';
+}
+
 export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,onBusy}){
  const ar=lang==='ar',file=useRef(null),lock=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  async function upload(event){
@@ -11,10 +23,14 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
   try{
    if(selected.size>1000000)throw new Error('CSV');
    const rows=parseReceiptCsv(await selected.text(),cost);
-   if(rows.length+lines.length>100)throw new Error('CSV');
-   const imported=await resolveReceiptRows(rows,api,root,lines);
-   onImport(imported);setNotice(ar?'أُضيفت الأصناف للمسودة. راجعها قبل تأكيد الاستلام.':'Items added to the draft. Review them before confirming receipt.');
-  }catch(e){setError(ar?'تعذّر الاستيراد. استخدم القالب (حتى ١٠٠ صنف)، وتحقق من رموز المنتجات والكميات والتكرارات والصلاحيات. لم تُضف أي أصناف.':'Could not import. Use the template (up to 100 items), and check product SKUs, quantities, duplicates and permissions. No items were added.');}
+   const imported=await resolveReceiptRows(rows,api,root,lines,cost);
+   if(imported.length){
+    onImport(imported);
+    setNotice(ar?'أُضيفت الأصناف الجديدة للمسودة. راجعها قبل تأكيد الاستلام.':'New items were added to the draft. Review them before confirming receipt.');
+   }else{
+    setNotice(ar?'الملف يطابق الأصناف الموجودة في المسودة.':'The file matches items already in the draft.');
+   }
+  }catch(e){setError(`${importError(e.message,ar)} ${ar?'لم تُضف أي أصناف.':'No items were added.'}`);}
   finally{lock.current=false;setBusy(false);onBusy(false);}
  }
  return <div className="space-y-2">

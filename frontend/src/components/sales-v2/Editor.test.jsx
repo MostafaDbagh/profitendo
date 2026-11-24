@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import Editor from './Editor';
 import {LanguageProvider} from '../../context/LanguageContext';
 jest.mock('@/lib/quantity',()=>({formatQuantity:v=>String(Number(v))}),{virtual:true});
+jest.mock('@/lib/utils',()=>jest.requireActual('../../lib/utils'),{virtual:true});
 jest.mock('@/components/CopyableCode',()=>({__esModule:true,default:({children})=><span>{children}</span>}),{virtual:true});
 jest.mock('react-router-dom',()=>({useNavigate:()=>()=>{}}),{virtual:true});
 jest.mock('../ui/dialog',()=>({Dialog:({children})=><div>{children}</div>,DialogContent:({children})=><div>{children}</div>,DialogTitle:({children})=><h2>{children}</h2>,DialogDescription:({children})=><p>{children}</p>}));

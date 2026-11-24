@@ -7,6 +7,10 @@ import { Feedback, Modal, Select, buttonClass, primaryClass } from './UI';
 export default function LocationForm({ location, path, api, c, lang, close, done, returnFocus, initialKind }) {
   const [form,setForm] = useState(location || {name:'',kind:initialKind||'',address:''});
   const [busy,setBusy] = useState(false), [error,setError] = useState('');
+  const ar=lang==='ar';
+  const warehouse=form.kind==='WAREHOUSE';
+  const nameLabel=warehouse?(ar?'اسم المستودع':'Warehouse name'):(ar?'اسم المتجر':'Shop name');
+  const title=location?c('editLocation'):warehouse?(ar?'إضافة مستودع':'Add warehouse'):(ar?'إضافة متجر':'Add shop');
  const draft=useLocalDraft(`location:${location?.id||initialKind||'new'}:${location?.revision||0}`,{form},saved=>{setForm({...saved.form,...(!location&&initialKind?{kind:initialKind}:{})});});
   const set = key => e => setForm(f => ({...f,[key]:e.target.value}));
   async function save(e) {
@@ -14,10 +18,10 @@ export default function LocationForm({ location, path, api, c, lang, close, done
     try { await api(location ? `${path}/${location.id}` : path,{method:location?'PATCH':'POST',body:location?{revision:location.revision,name:form.name,address:form.address}:{name:form.name,kind:form.kind,address:form.address}});draft.clear();done(); }
     catch(e) {setError(e.message);} finally {setBusy(false);}
   }
-  return <Modal title={c(location?'editLocation':'addLocation')} description={c('locationFormHint')} {...{close,returnFocus,lang,c,busy}}>
+  return <Modal title={title} description={c('locationFormHint')} {...{close,returnFocus,lang,c,busy}}>
     <form className="space-y-4" onSubmit={save}><LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>
       <fieldset disabled={busy || error==='REVISION_CONFLICT'} className="space-y-4">
-        <Field id="location-name" label={lang === 'ar' ? 'اسم المتجر' : 'Shop name'} placeholder={c('locationNamePlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required />
+        <Field id="location-name" label={nameLabel} placeholder={warehouse?(ar?'مثال: المستودع الرئيسي':'e.g. Main warehouse'):c('locationNamePlaceholder')} value={form.name} onChange={set('name')} minLength={2} maxLength={120} required />
         {!location && !initialKind && <Select id="location-kind" label={c('locationKind')} required value={form.kind} onChange={set('kind')}><option value="" disabled>{lang === 'ar' ? 'اختر نوع الموقع' : 'Choose a location type'}</option><option value="WAREHOUSE">{c('WAREHOUSE')}</option><option value="SHOP">{c('SHOP')}</option></Select>}
         <Field id="location-address" label={c('locationAddress')} placeholder={c('locationAddressPlaceholder')} value={form.address} onChange={set('address')} maxLength={500} />
       </fieldset>

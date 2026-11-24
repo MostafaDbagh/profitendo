@@ -6,14 +6,15 @@ import { formatQuantity } from '@/lib/quantity';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, buttonClass, panelClass, primaryClass } from '../business-v2/UI';
-import RecordPicker from './RecordPicker';
+import SupplierSearch from './SupplierSearch';
+import ProductSearch from './ProductSearch';
 
 const newItem = () => ({key:crypto.randomUUID(),name:'',quantity:''});
 const quantityPattern = '(0|[1-9][0-9]{0,13})([.][0-9]{1,4})?';
 
 export default function PlannedOrderEditor({context,api,c,lang,document,initialSupplier,close,done,embedded=false,onBusyChange}) {
   const ar=lang==='ar';
-  const path=`/businesses/${context.business.id}/operations`;
+  const root=`/businesses/${context.business.id}`,path=`${root}/operations`;
   const [form,setForm]=useState(()=>({
     clientKey:crypto.randomUUID(),
     documentDate:document?.documentDate??new Intl.DateTimeFormat('en-CA',{timeZone:context.business.timezone}).format(new Date()),
@@ -21,8 +22,8 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     notes:document?.notes??'',
     items:document?.plannedItems.map(item=>({key:item.id,name:item.name,quantity:formatQuantity(item.quantity)}))??[newItem()],
   }));
-  const [picker,setPicker]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const trigger=useRef(null),request=useRef(null);
+  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const request=useRef(null);
   const draft=useLocalDraft(`planned-purchase:${document?.id??'new'}:${document?.revision??0}`,{...form,request:request.current},saved=>{const {request:prior,...fields}=saved;request.current=prior??null;setForm(fields);});
   const change=patch=>setForm(value=>({...value,...patch}));
   const editItem=(key,field,value)=>setForm(current=>({...current,items:current.items.map(item=>item.key===key?{...item,[field]:value}:item)}));
@@ -61,8 +62,12 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
     <form className={panelClass} onSubmit={save}>
       <fieldset disabled={busy} className="min-w-0 space-y-5">
         {form.items.map((item,index)=><div key={item.key} className="grid items-start gap-4 sm:grid-cols-2">
-          <Field id={`planned-name-${index}`} label={ar?'اسم المنتج':'Product name'} placeholder={ar?'اكتب اسم المنتج':'Enter product name'}
-            value={item.name} onChange={event=>editItem(item.key,'name',event.target.value)} required maxLength={160}/>
+          {context.permissions['catalogue.view']
+            ? <ProductSearch {...{api,root,c,lang,context}} label={ar?'اسم المنتج':'Product name'} required disabled={busy}
+                value={item.name} onTextChange={value=>editItem(item.key,'name',value)}
+                onSelect={product=>editItem(item.key,'name',product.name)}/>
+            : <Field id={`planned-name-${index}`} label={ar?'اسم المنتج':'Product name'} placeholder={ar?'اكتب اسم المنتج':'Enter product name'}
+                value={item.name} onChange={event=>editItem(item.key,'name',event.target.value)} required maxLength={160}/>}
           <div className="flex items-start gap-2">
            <div className="min-w-0 flex-1"><Field id={`planned-quantity-${index}`} {...selectInputOnFocus} label={c('quantity')} placeholder="10" dir="ltr" inputMode="decimal" pattern={quantityPattern}
             value={item.quantity} onChange={event=>editItem(item.key,'quantity',event.target.value)} required/></div>
@@ -76,16 +81,8 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
         <div className="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
           <Field id="planned-order-date" label={ar?'تاريخ طلب الشراء':'Purchase request date'} type="date" value={form.documentDate}
             onChange={event=>change({documentDate:event.target.value})} required/>
-          <div className="space-y-1.5">
-            <p id="planned-supplier-label" className="text-sm font-medium text-slate-700">{ar?'المورد أو المصدر (اختياري)':'Supplier or source (optional)'}</p>
-            <div className="flex gap-2">
-              <button type="button" ref={trigger} aria-describedby="planned-supplier-label" className={`${buttonClass} min-w-0 flex-1`}
-                onClick={()=>setPicker(true)}>{form.supplier?.name||c('chooseSupplier')}</button>
-              {form.supplier&&<button type="button" className={buttonClass} aria-label={c('clearFilter')} onClick={()=>change({supplier:null})}>
-                <X aria-hidden="true" className="h-4 w-4"/>
-              </button>}
-            </div>
-          </div>
+          <SupplierSearch {...{api,c,lang}} path={`${path}/suppliers`} value={form.supplier}
+            onSelect={supplier=>change({supplier})} disabled={busy}/>
         </div>
         <OptionalFields hasValue={Boolean(form.notes)}>
           <label htmlFor="planned-order-notes" className="mb-1.5 block text-sm font-medium text-slate-700">{ar?'ملاحظات (اختياري)':'Notes (optional)'}</label>
@@ -94,7 +91,5 @@ export default function PlannedOrderEditor({context,api,c,lang,document,initialS
         <button type="submit" className={primaryClass} disabled={!valid||!form.documentDate}>{c(busy?'saving':'saveDraft')}</button>
       </fieldset>
     </form>
-    {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/suppliers?state=active`} title={c('chooseSupplier')}
-      returnFocus={trigger.current} close={()=>setPicker(false)} onSelect={supplier=>{change({supplier});setPicker(false);}}/>}
   </section>;
 }

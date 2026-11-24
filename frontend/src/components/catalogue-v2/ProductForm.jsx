@@ -10,22 +10,22 @@ import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, Modal, Select, buttonClass, primaryClass } from '../business-v2/UI';
 
 
-export default function ProductForm({canDelete, product, cost, path, api, c, lang, close, done, returnFocus }) {
+export default function ProductForm({canDelete, product, cost, path, api, c, lang, close, done, returnFocus, initialName='' }) {
   const [categoriesOpen,setCategoriesOpen]=useState(false);
   const references=useResource(api,`${path}/references`);
   const categories=references.data?.items.filter(r=>r.kind==='CATEGORY'&&r.active)||[];
-  const [form,setForm]=useState(product ? {...product,minimumStock:formatQuantity(product.minimumStock).replace(/^0$/, ''),barcodes:product.barcodes.join('\n')} : {name:'',sku:'',unit:'PIECE',category:'',brand:'',description:'',purchasePrice:'',sellingPrice:'',minimumStock:'',active:true,barcodes:''});
+  const [form,setForm]=useState(product ? {...product,minimumStock:formatQuantity(product.minimumStock).replace(/^0$/, ''),barcodes:product.barcodes.join('\n')} : {name:initialName,sku:'',unit:'PIECE',category:'',brand:'',description:'',purchasePrice:'',sellingPrice:'',minimumStock:'',active:true,barcodes:''});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
  const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}`,{form},saved=>{setForm({...saved.form,minimumStock:formatQuantity(saved.form.minimumStock).replace(/^0$/, '')});});
   const set=key=>e=>setForm(f=>({...f,[key]:e.target.value}));
   async function save(e){
-    e.preventDefault();setBusy(true);setError('');
+    e.preventDefault();e.stopPropagation();setBusy(true);setError('');
     const body=Object.fromEntries(['name','category','brand','description','sellingPrice','minimumStock','active',...(cost?['purchasePrice']:[])].map(k=>[k,form[k]]));
     body.minimumStock ||= '0';
     body.sellingPrice ||= '0';
     body.barcodes=form.barcodes.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);
     if(product)body.revision=product.revision;else{if(form.sku.trim())body.sku=form.sku;body.unit=form.unit;}
-    try{await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});draft.clear();done();}catch(e){setError(e.message);}finally{setBusy(false);}
+    try{const saved=await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});draft.clear();done(true,saved);}catch(e){setError(e.message);}finally{setBusy(false);}
   }
   return <Modal title={c(product?'editProduct':'addProduct')} description={lang==='ar'?'بيانات المنتج فقط. أضف الكميات من استلام المخزون.':'Product details only. Add quantities through Receive stock.'} {...{close,returnFocus,c,lang,busy}}>
     <form onSubmit={save} className="space-y-4"><LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>

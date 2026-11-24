@@ -2,7 +2,7 @@ import RequiredMark from '../RequiredMark';
 import SaleSteps from './SaleSteps';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Check, Store, Barcode, Search, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import { Check, Store, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import { useResource } from '../business-v2/useBusinessApi';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
@@ -12,11 +12,12 @@ import { unitLabel } from '../catalogue-v2/units';
 import { useEffect,useRef,useState } from 'react';
 import { Field } from '../auth-v2/Fields';
 import { Feedback,Pager,Select,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
-import RecordPicker from '../operations-v2/RecordPicker';
+import ProductSearch from '../operations-v2/ProductSearch';
 const scale=v=>{const [a,b='']=v.split('.');return BigInt(a||0)*10000n+BigInt(b.padEnd(4,'0'));};
 const plusOne=v=>{const n=scale(v)+10000n;return `${n/10000n}.${String(n%10000n).padStart(4,'0')}`;};
 export default function Editor({context,api,c,lang,doc,done,close}){
- const path=`/businesses/${context.business.id}/sales`,[shop,setShop]=useState(doc?{id:doc.locationId,name:doc.locationName}:null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[picker,setPicker]=useState(null),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
+ const root=`/businesses/${context.business.id}`;
+ const path=`${root}/sales`,[shop,setShop]=useState(doc?{id:doc.locationId,name:doc.locationName}:null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
  const [shopPage,setShopPage]=useState(1);
  const shops=useResource(api,`/businesses/${context.business.id}/locations?state=active&page=${shopPage}`);
  const onlyShop=shops.data?.total===1?shops.data.items[0]:null;
@@ -25,7 +26,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  },[onlyShop,doc,rows.length,pending]);
  const shopLocked=!!doc||rows.length>0||pending>0||busy;
  const shopOptions=shopLocked&&shop?[shop]:shops.data?.items??[];
- const scanner=useRef(null),queue=useRef(Promise.resolve()),key=useRef(crypto.randomUUID()),request=useRef(null);
+ const productInput=useRef(null),scanner=useRef(null),queue=useRef(Promise.resolve()),key=useRef(crypto.randomUUID()),request=useRef(null);
  const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(row=>percentageRow({...row,quantity:formatQuantity(row.quantity)})));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
  const change=(id,patch)=>setRows(old=>old.map(r=>r.key===id?{...r,...patch,...(['discountPercent','quantity','packId'].some(k=>k in patch)?{legacyDiscount:undefined}:{})}:r));
  function add(p){setRows(old=>{const same=old.find(r=>r.productId===p.id&&!r.packId);if(same){if(!/^(0|[1-9]\d{0,12})(\.\d{1,4})?$/.test(same.quantity)){setError('VALIDATION_ERROR');return old;}return old.map(r=>r.key===same.key?{...r,quantity:formatQuantity(plusOne(r.quantity)),legacyDiscount:undefined}:r);}return [...old,{key:crypto.randomUUID(),productId:p.id,name:p.name,sku:p.sku,unit:p.unit,quantity:'1',packId:null,packs:p.packs,unitPrice:p.sellingPrice,available:p.available,discountPercent:'0',discountReason:''}];});}
@@ -67,13 +68,14 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  </fieldset></div>
  <div className="space-y-3 p-4 sm:p-5">
   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShoppingBasket className="h-4 w-4 text-emerald-600" aria-hidden="true"/>{lang==='ar'?'إضافة منتجات للبيع':'Add sale items'}</div>
-  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+  <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
    <form ref={scanner} onSubmit={scan} className="min-w-0">
     <label htmlFor="pos-barcode" className="mb-1.5 block text-xs font-medium text-slate-600">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}</label>
     <div className="flex gap-2"><div className="relative min-w-0 flex-1"><Barcode aria-hidden="true" className="pointer-events-none absolute start-3 top-3.5 h-5 w-5 text-slate-400"/><input id="pos-barcode" className="h-12 w-full rounded-lg border border-slate-200 bg-white ps-10 pe-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder={lang==='ar'?'امسح الباركود أو اكتب الرمز':'Scan barcode or enter code'} value={barcode} onChange={e=>setBarcode(e.target.value)} disabled={!shop||busy} autoComplete="off" maxLength={100}/></div>
     <button className={`${buttonClass} h-12 shrink-0`} disabled={!shop||busy||!barcode.trim()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة':'Add'}</button></div>
    </form>
-   <button type="button" className={`${primaryClass} min-h-12 w-full lg:w-auto`} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}><Search className="h-4 w-4" aria-hidden="true"/>{c('searchProducts')}</button>
+   <ProductSearch key={shop?.id} {...{api,root,c,lang,context}} lookupPath={`${path}/products?locationId=${shop?.id}`}
+    disabled={!shop||busy||pending>0} maxLength={100} selectCreated={false} onSelect={add} inputRef={productInput}/>
   </div>
   {pending>0&&<p role="status" className="text-xs text-emerald-700">{c('loading')}</p>}
  </div></section>
@@ -92,7 +94,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <div><p className="mb-1.5 text-sm font-medium text-slate-700">{lang==='ar'?'سعر الوحدة الأساسية':'Base-unit price'}</p><div className="min-h-11 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700"><bdi>{r.unitPrice}</bdi> <span className="text-xs font-normal">{context.business.baseCurrency}</span></div></div>
  <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 xl:mt-7" aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
  {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 xl:col-span-5" title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
- <button type="button" className={`${buttonClass} border-dashed !text-emerald-700`} disabled={!shop||busy||pending>0} onClick={e=>setPicker({kind:'product',focus:e.currentTarget})}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
+ <button type="button" className={`${buttonClass} border-dashed !text-emerald-700`} disabled={!shop||busy||pending>0} onClick={()=>productInput.current?.focus()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
  <OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'} hasValue={Boolean(customer||notes)}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></OptionalFields></fieldset><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-4"><span className="text-sm text-slate-600">{c('saleItems')}: <bdi className="font-bold text-slate-900">{rows.length}</bdi></span><button className={`${primaryClass} min-h-11`} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></div></form>
- {picker&&<RecordPicker {...{api,c,lang}} path={`${path}/products?locationId=${shop.id}`} title={c('searchProducts')} close={()=>setPicker(null)} returnFocus={picker.focus} onSelect={row=>{add(row);setPicker(null);}}/>}</div>;
+ </div>;
 }
