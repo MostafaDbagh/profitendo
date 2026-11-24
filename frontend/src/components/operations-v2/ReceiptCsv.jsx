@@ -22,17 +22,19 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
  const ar=lang==='ar',file=useRef(null),lock=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [pending,setPending]=useState(null),[creating,setCreating]=useState(false);
  const canCreate=Boolean(context?.permissions['catalogue.create']&&context?.permissions['catalogue.cost']&&cost);
- async function process(rows){
-  if(lock.current)return;
+ async function process(source){
+  if(disabled||lock.current)return;
+  let rows=Array.isArray(source)?source:null;
   lock.current=true;setBusy(true);onBusy(true);setError('');setNotice('');
   try{
+   if(!rows)rows=await source();
    const imported=await resolveReceiptRows(rows,api,root,lines,cost);
    if(imported.length)onImport(imported);
    setPending(null);
    setNotice(imported.length?(ar?'أُضيفت أصناف الملف إلى المسودة. راجعها قبل تأكيد الاستلام.':'File items added to the draft. Review before confirming receipt.'):(ar?'الملف يطابق أصناف المسودة.':'The file matches items already in the draft.'));
   }catch(e){
    const parts=e.message.split(':');
-   setPending({rows,index:parts[0]==='PRODUCT'?Number(parts[1])-2:null});
+   setPending(rows?{rows,index:parts[0]==='PRODUCT'?Number(parts[1])-2:null}:null);
    setError(`${importError(e.message,ar)} ${ar?'لم تُضف أي أصناف إلى المسودة.':'No items were added.'}`);
   }finally{lock.current=false;setBusy(false);onBusy(false);}
  }
@@ -43,11 +45,10 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
  }
  async function upload(event){
   const selected=event.target.files?.[0];event.target.value='';if(!selected||lock.current)return;
-  try{
+  await process(async()=>{
    if(selected.size>1000000)throw new Error('CSV');
-   const rows=parseReceiptCsv(await selected.text(),cost,true);
-   setPending(null);await process(rows);
-  }catch(e){setPending(null);setError(importError(e.message,ar));}
+   return parseReceiptCsv(await selected.text(),cost,true);
+  });
  }
  const missing=pending?.index!=null?pending.rows[pending.index]:null;
 

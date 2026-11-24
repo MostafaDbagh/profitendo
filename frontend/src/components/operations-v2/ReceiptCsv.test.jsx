@@ -86,3 +86,46 @@ test('network failure retains file for successful retry without reupload',async(
  await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Retry retained file').click());
  expect(onImport).toHaveBeenCalledTimes(1);
 });
+test('locks import before file reading so a second selection cannot race it',async()=>{
+ let finishRead;
+ const api=jest.fn().mockResolvedValue({product:{id:'p',sku:'001'}}),onImport=jest.fn(),onBusy=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport,onBusy}} lang="en" root="/businesses/b" lines={[]}/>));
+ const input=host.querySelector('input');
+ Object.defineProperty(input,'files',{configurable:true,value:[{size:30,text:()=>new Promise(resolve=>{finishRead=resolve;})}]});
+ act(()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ expect(input.disabled).toBe(true);
+ await upload('sku,quantity\n001,9');
+ await act(async()=>finishRead('sku,quantity\n001,2'));
+ expect(onImport).toHaveBeenCalledTimes(1);
+ expect(onImport.mock.calls[0][0][0].quantity).toBe('2');
+ expect(onBusy.mock.calls).toEqual([[true],[false]]);
+});
+test('read failure unlocks the importer and clears an earlier success notice',async()=>{
+ const api=jest.fn().mockResolvedValue({product:{id:'p',sku:'001'}}),onImport=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport}} lang="en" root="/businesses/b" onBusy={()=>{}} lines={[]}/>));
+ await upload('sku,quantity\n001,2');
+ expect(host.querySelector('[role=status]')).not.toBeNull();
+ const input=host.querySelector('input');
+ Object.defineProperty(input,'files',{value:[{size:30,text:async()=>{throw new Error('READ_FAILED');}}]});
+ await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ expect(input.disabled).toBe(false);expect(host.querySelector('[role=status]')).toBeNull();
+ expect(host.querySelector('[role=alert]')).not.toBeNull();
+});
+test('rejects oversized files before reading or looking up products',async()=>{
+ const api=jest.fn(),read=jest.fn(),onImport=jest.fn(),onBusy=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport,onBusy}} lang="en" root="/businesses/b" lines={[]}/>));
+ const input=host.querySelector('input');Object.defineProperty(input,'files',{value:[{size:1000001,text:read}]});
+ await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ expect(read).not.toHaveBeenCalled();expect(api).not.toHaveBeenCalled();expect(onImport).not.toHaveBeenCalled();expect(input.disabled).toBe(false);
+});
+test('repeated retry clicks issue only one lookup while pending',async()=>{
+ let finish;
+ const api=jest.fn().mockRejectedValueOnce(new Error('NETWORK_ERROR')).mockImplementation(()=>new Promise(resolve=>{finish=resolve;})),onImport=jest.fn();
+ act(()=>root.render(<ReceiptCsv {...{api,onImport}} lang="en" root="/businesses/b" onBusy={()=>{}} lines={[]}/>));
+ await upload('sku,quantity\n001,2');
+ const retry=[...host.querySelectorAll('button')].find(b=>b.textContent==='Retry retained file');
+ act(()=>{retry.click();retry.click();});
+ expect(api).toHaveBeenCalledTimes(2);
+ await act(async()=>finish({product:{id:'p',sku:'001'}}));
+ expect(onImport).toHaveBeenCalledTimes(1);
+});
