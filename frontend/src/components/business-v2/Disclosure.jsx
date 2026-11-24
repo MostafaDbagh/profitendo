@@ -16,5 +16,4 @@ export default function Disclosure({title,children,hasValue=false,active=false,c
   <div className="space-y-3 border-t border-slate-100 p-3">{children}</div>
  </details>;
 }
-export function MoreOptions(props){const {lang}=useLanguage();return <Disclosure title={lang==='ar'?'خيارات إضافية':'More options'} {...props}/>;}
 export function OptionalFields(props){const {lang}=useLanguage();return <Disclosure title={lang==='ar'?'تفاصيل اختيارية':'Optional details'} {...props}/>;}

@@ -1,8 +1,8 @@
 import {Pencil,Plus,Upload} from 'lucide-react';
 import RequiredMark from '../RequiredMark';
-import {MoreOptions} from '../business-v2/Disclosure';
+import TableToolbar, { TableCsvButton } from '../business-v2/TableToolbar';
 import CopyableCode from '@/components/CopyableCode';
-import { Search, Download, Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
+import { Search, Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
 import {downloadCsv} from '../completion-v2/Shared';
 import { unitLabel } from '../catalogue-v2/units';
 import ProductAssets from './ProductAssets';
@@ -54,8 +54,36 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
       </summary>
       <form onSubmit={lookup} className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3"><label htmlFor="catalogue-scan" className="block text-sm font-medium text-slate-700">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}<RequiredMark/></label><div className="flex flex-wrap gap-2"><input ref={scanRef} id="catalogue-scan" aria-label={lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'} className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-slate-200 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500" dir="ltr" placeholder="001234567890" value={scan} onChange={e=>setScan(e.target.value)} maxLength={128} required/><button className={buttonClass} disabled={scanning}>{c(scanning?'loading':'findProduct')}</button></div><p className="text-xs text-slate-500">{lang==='ar'?'رمز الصنف (SKU): رمز داخلي لتنظيم منتجاتك، مثل MOCK-001. الباركود: الرمز المقروء بالماسح والموجود عادةً على العبوة. يمكنك البحث بأيٍّ منهما هنا وفي المشتريات.':'SKU: your internal product code, such as MOCK-001. Barcode: the scannable code usually printed on the packaging. You can use either here and in Purchases.'}</p><Feedback error={scanError} c={c}/>{found&&<div className="flex items-center gap-2"><p role="status" className="text-sm text-emerald-700">{c('productFound')}: {found.name} · <CopyableCode>{found.sku}</CopyableCode></p><button type="button" onClick={()=>setFound(null)} aria-label={lang==='ar'?'إخفاء نتيجة البحث':'Dismiss search result'} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X aria-hidden="true" className="h-4 w-4" /></button></div>}</form>
     </details>
-    <form onSubmit={e=>{e.preventDefault();setQuery(search.trim());setPage(1);}} className="flex flex-nowrap gap-2 sm:gap-3 items-end"><div className="min-w-0 flex-1 sm:max-w-md"><Field id="catalogue-search" label={c('searchProducts')} placeholder={c('productSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)} maxLength={160}/></div><button type="submit" aria-label={c('search')} className={`${primaryClass} shrink-0`}><Search aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="hidden sm:inline">{c('search')}</span></button><button type="button" aria-label={lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'} className={`${buttonClass} shrink-0 !bg-sky-50 !text-sky-700 !border-sky-200 hover:!bg-sky-100 focus-visible:!ring-sky-500`} disabled={exporting||!data} onClick={exportRows}><Download aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="sm:hidden">CSV</span><span className="hidden sm:inline">{lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'}</span></button></form>
-    <MoreOptions active={state!=='active'||filter!=='all'}><div className="flex flex-wrap gap-3 items-end"><Select id="catalogue-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>{['active','inactive','all'].map(v=><option key={v} value={v}>{c(v)}</option>)}</Select><Select id="catalogue-filter" label={lang==='ar'?'عرض المنتجات':'Product view'} value={filter} onChange={e=>{setFilter(e.target.value);setPage(1);}}><option value="all">{c('all')}</option>{sales&&<option value="top">{lang==='ar'?'أكثر 10 منتجات مبيعاً':'Top 10 best sellers'}</option>}{stock&&<option value="low">{lang==='ar'?'مخزون منخفض':'Low stock'}</option>}</Select></div></MoreOptions>
+    <TableToolbar
+      search={<form className="flex items-end gap-2" onSubmit={event=>{
+        event.preventDefault();
+        setQuery(search.trim());
+        setPage(1);
+      }}>
+        <div className="min-w-0 flex-1">
+          <Field id="catalogue-search" label={c('searchProducts')} placeholder={c('productSearchPlaceholder')}
+            value={search} onChange={event=>setSearch(event.target.value)} maxLength={160}/>
+        </div>
+        <button type="submit" aria-label={c('search')} className={`${primaryClass} shrink-0 !px-2 sm:!px-3`}>
+          <Search aria-hidden="true"/>
+          <span className="hidden sm:inline">{c('search')}</span>
+        </button>
+      </form>}
+      filtersActive={state!=='active'||filter!=='all'}
+      filters={<div className="flex flex-wrap items-end gap-3">
+        <Select id="catalogue-state" label={c('status')} value={state} onChange={event=>{setState(event.target.value);setPage(1);}}>
+          {['active','inactive','all'].map(value=><option key={value} value={value}>{c(value)}</option>)}
+        </Select>
+        <Select id="catalogue-filter" label={lang==='ar'?'عرض المنتجات':'Product view'} value={filter}
+          onChange={event=>{setFilter(event.target.value);setPage(1);}}>
+          <option value="all">{c('all')}</option>
+          {sales&&<option value="top">{lang==='ar'?'أكثر 10 منتجات مبيعاً':'Top 10 best sellers'}</option>}
+          {stock&&<option value="low">{lang==='ar'?'مخزون منخفض':'Low stock'}</option>}
+        </Select>
+      </div>}
+      exportAction={<TableCsvButton label={lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'}
+        disabled={exporting||!data} onClick={exportRows}/>}
+    />
     <Feedback error={error||exportError} notice={notice} c={c} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
     {query&&data?.items.length===0&&create&&cost&&state==='active'&&filter==='all'&&
       <div className={`${panelClass} space-y-2 text-center`}>

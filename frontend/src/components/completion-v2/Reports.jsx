@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { TableCsvButton } from '../business-v2/TableToolbar';
 import Disclosure from '../business-v2/Disclosure';
 import { OwnerPinUnlock } from '../business-v2/OwnerPin';
 import { useState } from 'react';
@@ -136,7 +136,7 @@ export default function Reports({ context, api, c, lang, pinLocked, onPinStatus,
       {safeData.estimatedProfit !== undefined && <p className="text-sm text-slate-500">{c(data.unvaluedTransferLosses ? 'profitMissingLossCosts' : 'profitEstimateHint')}</p>}
     </> : <>
       {moneyView&&<div className="mb-4 space-y-2"><h3 className="text-lg font-semibold">{lang==='ar'?(view==='balances'?'مبالغ الموردين':'مبالغ يجب إعادتها للعملاء'):(view==='balances'?'Supplier money owed':'Customer refunds to pay')}</h3>{context.permissions['payments.manage']&&visibleTabs.includes('payments')&&(view!=='balances'||context.permissions['purchasing.manage'])&&<button type="button" className={primaryClass} onClick={()=>onSection('payments',view==='refunds'?'refund':'new')}>{view==='refunds'?(lang==='ar'?'تسجيل رد المبلغ':'Record refund'):c('recordPayment')}</button>}</div>}
-      <Table searchActions={<button type="button" aria-label={c('exportCsv')} className={buttonClass} disabled={busy} onClick={exportRows}><Download aria-hidden="true" className="h-4 w-4 shrink-0"/><span className="sm:hidden">CSV</span><span className="hidden sm:inline">{c('exportCsv')}</span></button>} c={key => moneyView&&key==='outstanding'?(lang==='ar'?(view==='balances'?'عليك للمورد':'المتبقي للعميل'):(view==='balances'?'You owe supplier':'Still owed to customer')):moneyView&&key==='refundDue'?(lang==='ar'?'المورد مدين لك':'Supplier owes you'):c(`column_${key}`,key)} headers={moneyView?data.headers.filter(key=>['reference','supplier','location','outstanding','refundDue','currency'].includes(key)):data.headers} empty={!data.items.length}>
+      <Table searchActions={<TableCsvButton label={c('exportCsv')} disabled={busy} onClick={exportRows}/>} c={key => moneyView&&key==='outstanding'?(lang==='ar'?(view==='balances'?'عليك للمورد':'المتبقي للعميل'):(view==='balances'?'You owe supplier':'Still owed to customer')):moneyView&&key==='refundDue'?(lang==='ar'?'المورد مدين لك':'Supplier owes you'):c(`column_${key}`,key)} headers={moneyView?data.headers.filter(key=>['reference','supplier','location','outstanding','refundDue','currency'].includes(key)):data.headers} empty={!data.items.length}>
         {data.items.map((row, index) => <tr key={index}>{(moneyView?data.headers.filter(key=>['reference','supplier','location','outstanding','refundDue','currency'].includes(key)):data.headers).map(name => <td key={name} className="whitespace-nowrap p-4">
           <ReportCell {...{name,lang,timezone,c}} value={row[name]} />
         </td>)}</tr>)}
