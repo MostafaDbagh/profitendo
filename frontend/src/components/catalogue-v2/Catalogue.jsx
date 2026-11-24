@@ -2,17 +2,17 @@ import {Pencil,Plus,Upload} from 'lucide-react';
 import RequiredMark from '../RequiredMark';
 import TableToolbar, { TableCsvButton } from '../business-v2/TableToolbar';
 import CopyableCode from '@/components/CopyableCode';
-import { Search, Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
+import { Info, X, ChevronDown, ScanBarcode } from 'lucide-react';
 import {downloadCsv} from '../completion-v2/Shared';
 import { unitLabel } from '../catalogue-v2/units';
 import ProductAssets from './ProductAssets';
 import References from './References';
 import { useRef, useState } from 'react';
-import { Field } from '../auth-v2/Fields';
 import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Modal, Pager, Select, Table, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 import ProductForm from './ProductForm';
 import ProductImport from './ProductImport';
+import CatalogueSearch from './CatalogueSearch';
 export default function Catalogue({context,api,c,lang,reload:refreshContext,initialAction}){
   const path=`/businesses/${context.business.id}/products`,cost=context.permissions['catalogue.cost'],manage=context.permissions['catalogue.edit'],create=context.permissions['catalogue.create'];
   const [page,setPage]=useState(1),[state,setState]=useState('active'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[scan,setScan]=useState(''),[found,setFound]=useState(null),[scanError,setScanError]=useState(''),[scanning,setScanning]=useState(false),[edit,setEdit]=useState(() => ['new','setup'].includes(initialAction) && create && cost ? {product:null} : null),[importing,setImporting]=useState(false),[notice,setNotice]=useState('');
@@ -26,8 +26,36 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
   const [stockProduct,setStockProduct]=useState(null);
   const trigger=useRef(null),scanRef=useRef(null);
   const {data,error,reload}=useResource(api,insightsPath);
+  const currentResults=query===search.trim()?data:null;
+  const checkAllProducts=Boolean(query&&currentResults?.items.length===0&&(state!=='all'||filter!=='all'));
+  const allProducts=useResource(api,checkAllProducts?`${path}?state=all&page=1&search=${encodeURIComponent(query)}`:null);
   async function lookup(e){e.preventDefault();if(scanning)return;setScanning(true);setScanError('');setFound(null);try{const result=await api(`${path}/barcode?value=${encodeURIComponent(scan.trim())}`);setFound(result.product);setScan('');}catch(e){setScanError(e.message);}finally{setScanning(false);scanRef.current?.focus();}}
   function open(e,product){trigger.current=e.currentTarget;setNotice('');setEdit({product});}
+  function applySearch(term){
+    setSearch(term);
+    setQuery(term);
+    setPage(1);
+  }
+  function selectSuggestion(product){
+    if(checkAllProducts){
+      setState('all');
+      setFilter('all');
+    }
+    applySearch(product.sku||product.name);
+  }
+  function addFromSearch(name,input){
+    trigger.current=input;
+    setNotice('');
+    setEdit({product:null,name});
+  }
+  function finishProduct(saved=true){
+    const created=saved&&!edit.product;
+    setEdit(null);
+    setFound(null);
+    reload();
+    setNotice(saved?'saved':'');
+    if(created)refreshContext();
+  }
   return <section className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -55,20 +83,10 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
       <form onSubmit={lookup} className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3"><label htmlFor="catalogue-scan" className="block text-sm font-medium text-slate-700">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}<RequiredMark/></label><div className="flex flex-wrap gap-2"><input ref={scanRef} id="catalogue-scan" aria-label={lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'} className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-slate-200 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500" dir="ltr" placeholder="001234567890" value={scan} onChange={e=>setScan(e.target.value)} maxLength={128} required/><button className={buttonClass} disabled={scanning}>{c(scanning?'loading':'findProduct')}</button></div><p className="text-xs text-slate-500">{lang==='ar'?'رمز الصنف (SKU): رمز داخلي لتنظيم منتجاتك، مثل MOCK-001. الباركود: الرمز المقروء بالماسح والموجود عادةً على العبوة. يمكنك البحث بأيٍّ منهما هنا وفي المشتريات.':'SKU: your internal product code, such as MOCK-001. Barcode: the scannable code usually printed on the packaging. You can use either here and in Purchases.'}</p><Feedback error={scanError} c={c}/>{found&&<div className="flex items-center gap-2"><p role="status" className="text-sm text-emerald-700">{c('productFound')}: {found.name} · <CopyableCode>{found.sku}</CopyableCode></p><button type="button" onClick={()=>setFound(null)} aria-label={lang==='ar'?'إخفاء نتيجة البحث':'Dismiss search result'} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X aria-hidden="true" className="h-4 w-4" /></button></div>}</form>
     </details>
     <TableToolbar
-      search={<form className="flex items-end gap-2" onSubmit={event=>{
-        event.preventDefault();
-        setQuery(search.trim());
-        setPage(1);
-      }}>
-        <div className="min-w-0 flex-1">
-          <Field id="catalogue-search" label={c('searchProducts')} placeholder={c('productSearchPlaceholder')}
-            value={search} onChange={event=>setSearch(event.target.value)} maxLength={160}/>
-        </div>
-        <button type="submit" aria-label={c('search')} className={`${primaryClass} shrink-0 !px-2 sm:!px-3`}>
-          <Search aria-hidden="true"/>
-          <span className="hidden sm:inline">{c('search')}</span>
-        </button>
-      </form>}
+      search={<CatalogueSearch {...{c,lang}} value={search} onChange={setSearch} onSearch={applySearch}
+        results={checkAllProducts?allProducts.data:currentResults}
+        failed={query===search.trim()&&Boolean(error||allProducts.error)}
+        onSelect={selectSuggestion} onAdd={create&&cost?addFromSearch:undefined}/>}
       filtersActive={state!=='active'||filter!=='all'}
       filters={<div className="flex flex-wrap items-end gap-3">
         <Select id="catalogue-state" label={c('status')} value={state} onChange={event=>{setState(event.target.value);setPage(1);}}>
@@ -85,14 +103,6 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
         disabled={exporting||!data} onClick={exportRows}/>}
     />
     <Feedback error={error||exportError} notice={notice} c={c} retry={reload}/>{!data&&!error&&<p role="status">{c('loading')}</p>}
-    {query&&data?.items.length===0&&create&&cost&&state==='active'&&filter==='all'&&
-      <div className={`${panelClass} space-y-2 text-center`}>
-        <p className="text-sm text-slate-500">{lang==='ar'?'لا توجد نتائج مطابقة':'No matching products'}</p>
-        <button type="button" className={primaryClass} onClick={event=>{
-          trigger.current=event.currentTarget;
-          setEdit({product:null,name:query});
-        }}>{c('addProduct')}</button>
-      </div>}
     {data&&<><p className="text-xs text-slate-500">{c('pricesCurrency')}: {data.currency}</p><Table tools={false} tableClassName="min-w-[1500px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-[260px]">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <span>{c('productAvailable')}: <bdi className="font-semibold">{quantity(p.available)}</bdi></span>
@@ -123,6 +133,6 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     {references&&<References canDelete={context.permissions['catalogue.delete']} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>setReferences(false)}/>}
     {assets&&<ProductAssets canDelete={context.permissions['catalogue.delete']} product={assets} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>{setAssets(null);reload();}}/>}
     {importing&&<ProductImport businessId={context.business.id} {...{api,c,lang}} returnFocus={trigger.current} close={()=>{setImporting(false);reload();}} done={()=>{setImporting(false);refreshContext();}}/>}
-    {edit&&<ProductForm canDelete={context.permissions['catalogue.delete']} product={edit.product} initialName={edit.name} {...{cost,path,api,c,lang}} returnFocus={trigger.current} close={()=>setEdit(null)} done={(saved=true)=>{const created=saved&&!edit.product;setEdit(null);setFound(null);reload();setNotice(saved?'saved':'');if(created)refreshContext();}}/>}
+    {edit&&<ProductForm canDelete={context.permissions['catalogue.delete']} product={edit.product} initialName={edit.name} {...{cost,path,api,c,lang}} returnFocus={trigger.current} close={()=>setEdit(null)} done={finishProduct}/>}
   </section>;
 }
