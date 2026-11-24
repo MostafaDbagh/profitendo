@@ -5,7 +5,7 @@ import { Field } from '../auth-v2/Fields';
 import { Feedback, Pager, buttonClass } from '../business-v2/UI';
 import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 
-export default function SupplierSearch({ api, path, c, lang, value, onSelect, disabled, required }) {
+export default function SupplierSearch({ api, path, c, lang, value, onSelect, disabled, required, labelAction }) {
   const id=useId();
   const [search,setSearch]=useState(''),[query,setQuery]=useState(''),[page,setPage]=useState(1);
   useLiveSearch(search,query,setQuery,setPage);
@@ -20,7 +20,7 @@ export default function SupplierSearch({ api, path, c, lang, value, onSelect, di
     <div className="min-w-0 space-y-2">
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
-          <Field id={id} label={label} placeholder={c('supplierSearchPlaceholder')} value={value?.name??search}
+          <Field id={id} label={label} labelAction={labelAction} placeholder={c('supplierSearchPlaceholder')} value={value?.name??search}
             disabled={disabled} readOnly={Boolean(value)} required={required} maxLength={120} autoComplete="off"
             onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{
               if(event.key==='Escape')setSearch('');

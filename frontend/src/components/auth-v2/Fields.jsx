@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Eye, EyeOff, Loader2, Mail, Lock, User, Building2, ShieldCheck } from 'lucide-react';
 export const inputClass = `${fieldSurface} w-full px-3 py-2 placeholder:text-slate-500 placeholder:opacity-100 ${focusRing} focus:border-primary transition-colors`;
-export function Field({ label, id, hint, wrapperClassName, showPasswordStrength = true, ...props }) {
+export function Field({ label, labelAction, id, hint, wrapperClassName, showPasswordStrength = true, ...props }) {
   const [visible, setVisible] = useState(false);
   const { lang } = useLanguage();
   const password = props.type === 'password';
@@ -18,7 +18,7 @@ export function Field({ label, id, hint, wrapperClassName, showPasswordStrength 
   // physical space using the form language, matching the surrounding icons.
   const leftPadding = lang === 'ar' ? (password ? 'pl-12' : 'pl-3') : (Icon ? 'pl-10' : 'pl-3');
   const rightPadding = lang === 'ar' ? (Icon ? 'pr-10' : 'pr-3') : (password ? 'pr-12' : 'pr-3');
-  return <div className={wrapperClassName}><label htmlFor={id} className="text-sm font-medium text-slate-700 mb-1.5 block">{label}<RequiredMark required={!!props.required}/></label>
+  return <div className={wrapperClassName}>{labelAction ? <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1"><label htmlFor={id} className="text-sm font-medium text-slate-700">{label}<RequiredMark required={!!props.required}/></label>{labelAction}</div> : <label htmlFor={id} className="text-sm font-medium text-slate-700 mb-1.5 block">{label}<RequiredMark required={!!props.required}/></label>}
     <div className="relative">{Icon && <Icon aria-hidden="true" className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />}<input id={id} className={`${inputClass.replace('px-3', '')} ${leftPadding} ${rightPadding}`} {...props} aria-describedby={describedBy} type={password && visible ? 'text' : props.type} />
       {password && <button type="button" aria-label={visibilityLabel} title={visibilityLabel} aria-controls={id} aria-pressed={visible} disabled={props.disabled} onClick={() => setVisible(value => !value)} className="absolute end-1 top-1/2 -translate-y-1/2 w-9 h-9 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50">{visible ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}</button>}
     </div>

@@ -98,10 +98,10 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing} documentLocation={source?.locationId?{id:source.locationId,name:source.locationName}:null} required/>
  <div className="min-w-0 space-y-2">
   <SupplierSearch {...{api,c,lang}} path={`${root}/operations/suppliers`} value={supplier} onSelect={setSupplier}
-   disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}/>
-  {canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning||importing}
+   disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}
+   labelAction={canChooseSupplier&&context.permissions['suppliers.create']&&<button type="button" disabled={busy||scanning||importing}
    className="rounded text-sm font-semibold text-emerald-700 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
-   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}
+   onClick={e=>{trigger.current=e.currentTarget;setAddingSupplier(true);}}>{c('addSupplier')}</button>}/>
  </div>
  <Field id="document-date" form={formId} label={c('documentDate')} type="date" className={`${inputClass} min-h-11`}
   value={date} disabled={busy||importing} required onChange={e=>setDate(e.target.value)}/>
