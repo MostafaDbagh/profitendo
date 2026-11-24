@@ -1,85 +1,104 @@
 import {useRef,useState} from 'react';
 import {Download,Upload} from 'lucide-react';
-import {buttonClass} from '../business-v2/UI';
+import {buttonClass,primaryClass} from '../business-v2/UI';
+import {inputClass} from '../auth-v2/Fields';
 import {downloadCsv} from '../completion-v2/Shared';
+import {useLocalDraft,LocalDraftNotice} from '../../lib/localDraft';
 import ProductSearch from './ProductSearch';
 import ProductForm from '../catalogue-v2/ProductForm';
-import {parseReceiptCsv,receiptCsv,resolveReceiptRows} from './receiptCsvUtils';
-
-function importError(code, ar) {
- const [reason,line,...details]=code.split(':');
- const sku=details.join(':');
- if(reason==='HEADERS')return ar?'هذا ليس ملف أصناف استلام. استخدم ملف «تصدير CSV» من شاشة الاستلام أو القالب الموجود هنا.':'This is not a receipt items file. Use the CSV exported from Receive stock or the template on this screen.';
- if(reason==='ROW')return ar?`السطر ${line}: تحقق من رمز الصنف والكمية والتكلفة، وتأكد أن الرمز يظهر مرة واحدة في الملف.`:`Row ${line}: Check the SKU, quantity, and cost, and make sure the SKU appears only once in the file.`;
- if(reason==='PRODUCT')return ar?`السطر ${line}: رمز الصنف «${sku}» غير موجود أو غير نشط. اختر المنتج المطابق أو أنشئ منتجاً من الخيارات أدناه، ثم نكمل الملف المحفوظ.`:`Row ${line}: SKU “${sku}” was not found or is inactive. Match or create the product below to continue the retained file.`;
- if(reason==='CONFLICT')return ar?`السطر ${line}: الصنف موجود في المسودة بكمية أو تكلفة مختلفة. عدّل سطره في المسودة أو أزله قبل استيراده.`:`Row ${line}: This item already has a different quantity or cost in the draft. Edit the draft line or remove it before importing.`;
- if(reason==='CSV')return ar?'تحقق من أن الملف صالح وأن المسودة بعد الاستيراد لا تتجاوز ١٠٠ صنف.':'Check that the file is valid and the resulting draft has at most 100 items.';
- if(reason==='FORBIDDEN')return ar?'لا تملك صلاحية البحث عن المنتجات المطلوبة.':'You do not have permission to look up the required products.';
- return ar?'تعذّر التحقق من الأصناف. حاول مرة أخرى.':'Could not verify the items. Try again.';
-}
-
+import {receiptCsv,csvCell} from './receiptCsvUtils';
+import {readReceiptWorkbook} from './readReceiptWorkbook';
+import {importFields,fieldLabels,detectMapping,readCsvGrid,mappedRows,inspectRows,readyLines,canApply,unitCode,decimal} from './receiptImport';
+const messages={
+ MISSING:['هذا المنتج غير موجود في قائمة منتجاتك النشطة. أضفه أولاً.','This item is not in your active product list. Add it first.'],
+ AMBIGUOUS:['يوجد أكثر من تطابق. اختر المنتج الصحيح.','Multiple matches. Select the correct product.'],
+ QUANTITY:['أدخل كمية موجبة حتى ٤ منازل عشرية.','Enter a positive quantity with up to 4 decimal places.'],
+ COST:['تحقق من تكلفة الوحدة وسعر البيع.','Check unit cost and selling price.'],
+ IDENTIFIER:['أدخل رمز الصنف أو الباركود أو الاسم.','Enter SKU, barcode or name.'],
+ UNIT:['الوحدة لا تطابق الوحدة الأساسية للمنتج. صححها والكمية.','Unit differs from the product base unit. Correct the unit and quantity.'],
+ DUPLICATE:['منتج مكرر في الملف. عدّل السطر أو استبعده.','Duplicate product in file. Edit or exclude this row.'],
+ CONFLICT:['المنتج موجود في المسودة بكمية أو تكلفة مختلفة.','Product already exists in the draft with different quantity or cost.'],
+ LIMIT:['المسودة تتجاوز ١٠٠ صنف. استبعد بعض الصفوف.','Draft exceeds 100 items. Exclude some rows.'],
+ LOOKUP:['تعذر التحقق. أعد المحاولة.','Could not verify. Retry.'],
+ READY:['جاهز','Ready'],EXISTS:['موجود في المسودة — لن يتكرر','Already in draft — will not duplicate'],SKIPPED:['مستبعد','Excluded'],
+ MAPPING:['اختر عمود الكمية ومعرّف المنتج، ولا تربط نفس الحقل مرتين.','Map quantity and a product identifier; map each field only once.'],
+ CSV:['استخدم ملفاً بحد أقصى ١ ميغابايت و١٠٠ صنف و١٠٠ عمود، مع صف عناوين.','Use a file up to 1 MB, 100 items and 100 columns, with a header row.'],
+ WORKBOOK:['تعذر قراءة Excel. استخدم XLSX دون خلايا مدمجة، بحد أقصى ١٠٠ صنف و١٠٠ عمود لكل ورقة.','Could not read Excel. Use XLSX without merged cells, up to 100 items and 100 columns per sheet.'],
+ FORMULA:['حوّل الصيغ والروابط والتواريخ إلى قيم نصية أو رقمية قبل الاستيراد.','Convert formulas, links and dates to plain text or numbers before importing.']
+};
 export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,onBusy,context,c}){
- const ar=lang==='ar',file=useRef(null),lock=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [pending,setPending]=useState(null),[creating,setCreating]=useState(false);
- const canCreate=Boolean(context?.permissions['catalogue.create']&&context?.permissions['catalogue.cost']&&cost);
- async function process(source){
-  if(disabled||lock.current)return;
-  let rows=Array.isArray(source)?source:null;
-  lock.current=true;setBusy(true);onBusy(true);setError('');setNotice('');
-  try{
-   if(!rows)rows=await source();
-   const imported=await resolveReceiptRows(rows,api,root,lines,cost);
-   if(imported.length)onImport(imported);
-   setPending(null);
-   setNotice(imported.length?(ar?'أُضيفت أصناف الملف إلى المسودة. راجعها قبل تأكيد الاستلام.':'File items added to the draft. Review before confirming receipt.'):(ar?'الملف يطابق أصناف المسودة.':'The file matches items already in the draft.'));
-  }catch(e){
-   const parts=e.message.split(':');
-   setPending(rows?{rows,index:parts[0]==='PRODUCT'?Number(parts[1])-2:null}:null);
-   if(parts[0]==='PRODUCT'){
-    setNotice(ar?'تم تحميل الملف. يوجد منتج يحتاج إلى إضافته أو مطابقته قبل نقل الأصناف إلى مسودة الشراء.':'File loaded. A product needs to be added or matched before the items can enter the purchase draft.');
-   }else{
-    setError(`${importError(e.message,ar)} ${ar?'لم تُضف أي أصناف إلى المسودة.':'No items were added.'}`);
-   }
-  }finally{lock.current=false;setBusy(false);onBusy(false);}
+ const ar=lang==='ar',file=useRef(null),lock=useRef(false);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [sheets,setSheets]=useState([]),[sheet,setSheet]=useState(0),[mapping,setMapping]=useState([]),[rows,setRows]=useState([]),[active,setActive]=useState(null),[creating,setCreating]=useState(false);
+ const draft=useLocalDraft('receipt-import-review',{sheets,sheet,mapping,rows},saved=>{setSheets(saved.sheets);setSheet(saved.sheet);setMapping(saved.mapping);setRows(saved.rows);});
+ const text=key=>(messages[key]||messages.LOOKUP)[ar?0:1];
+ const fields=importFields.filter(key=>cost||!['unitCost','sellingPrice'].includes(key));
+ const label=key=>fieldLabels[ar?'ar':'en'][importFields.indexOf(key)];
+ const canCreate=Boolean(cost&&context?.permissions['catalogue.create']&&context?.permissions['catalogue.cost']);
+ async function run(action){
+  if(disabled||lock.current)return;lock.current=true;setBusy(true);onBusy(true);setError('');setNotice('');
+  try{await action();}catch(e){setError(text(e.message));}finally{lock.current=false;setBusy(false);onBusy(false);}
  }
- function match(product){
-  if(!product?.active&&product?.active!==undefined)return;
-  const rows=pending.rows.map((row,index)=>index===pending.index?{...row,sku:product.sku}:row);
-  process(rows);
- }
+ function reset(){setSheets([]);setRows([]);setMapping([]);setActive(null);setCreating(false);setError('');setNotice('');draft.clear();}
  async function upload(event){
-  const selected=event.target.files?.[0];event.target.value='';if(!selected||lock.current)return;
-  await process(async()=>{
-   if(selected.size>1000000)throw new Error('CSV');
-   return parseReceiptCsv(await selected.text(),cost,true);
+  const selected=event.target.files?.[0];event.target.value='';if(!selected)return;
+  await run(async()=>{
+   if(selected.size>1000000)throw Error('CSV');
+   const incoming=/\.xlsx$/i.test(selected.name||'')?await readReceiptWorkbook(await selected.arrayBuffer()):[{name:ar?'CSV':'CSV',grid:readCsvGrid(await selected.text())}];
+   setSheets(incoming);setSheet(0);setMapping(detectMapping(incoming[0].grid[0]).map(key=>fields.includes(key)?key:''));setRows([]);setActive(null);setCreating(false);
   });
  }
- const missing=pending?.index!=null?pending.rows[pending.index]:null;
-
- return <div className="space-y-2">
+ async function review(){await run(async()=>{const next=mappedRows(sheets[sheet].grid,mapping,cost);setRows(await inspectRows(next,api,root,lines,cost));});}
+ function edit(index,key,value){setRows(previous=>previous.map((row,i)=>i===index?{...row,[key]:value,status:null,...(['sku','barcode','name'].includes(key)?{product:null}:{})}:row));}
+ async function check(){await run(async()=>setRows(await inspectRows(rows,api,root,lines,cost)));}
+ async function apply(){await run(async()=>{
+  const checked=await inspectRows(rows,api,root,lines,cost);setRows(checked);
+  if(!canApply(checked))return;
+  const items=readyLines(checked);if(items.length)onImport(items);
+  reset();setNotice(ar?'أُضيفت الأصناف إلى مسودة الشراء. لا يتغير المخزون حتى تأكيد الاستلام.':'Items added to the purchase draft. Stock changes only after confirming receipt.');
+ });}
+ function match(product){if(product.active===false)return;setRows(previous=>previous.map((row,i)=>i===active?{...row,product,sku:product.sku,name:product.name,status:null}:row));setActive(null);}
+ function exportReview(){
+  const headers=fields.map(label);
+  downloadCsv({filename:'purchase-import-review.csv',csv:[headers.map(csvCell).join(','),...rows.map(row=>fields.map(key=>csvCell(row[key])).join(','))].join('\r\n')});
+ }
+ const current=active==null?null:rows[active];
+ return <div className="space-y-3">
   <div className="flex flex-wrap gap-2">
-   <input ref={file} type="file" accept=".csv,text/csv" className="hidden" aria-label={ar?'استيراد CSV':'Import CSV'} onChange={upload} disabled={disabled||busy}/>
-   <button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>file.current.click()}><Upload className="h-4 w-4" aria-hidden="true"/>{busy?(ar?'جارٍ الاستيراد…':'Importing…'):(ar?'استيراد CSV':'Import CSV')}</button>
-   <button type="button" className={buttonClass} disabled={disabled||busy||!lines.length} onClick={()=>downloadCsv({filename:'receipt-items.csv',csv:receiptCsv(lines,cost,lang)})}><Download className="h-4 w-4" aria-hidden="true"/>{ar?'تصدير CSV':'Export CSV'}</button>
+   <input ref={file} type="file" accept=".csv,.tsv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" aria-label={ar?'استيراد ملف':'Import file'} onChange={upload} disabled={disabled||busy}/>
+   <button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>file.current.click()}><Upload className="h-4 w-4" aria-hidden="true"/>{busy?(ar?'جارٍ التحقق…':'Checking…'):(ar?'استيراد CSV / Excel':'Import CSV / Excel')}</button>
+   <button type="button" className={buttonClass} disabled={disabled||busy||!lines.length} onClick={()=>downloadCsv({filename:'receipt-items.csv',csv:receiptCsv(lines,cost,lang)})}><Download className="h-4 w-4" aria-hidden="true"/>{ar?'تصدير المسودة CSV':'Export draft CSV'}</button>
    <button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>downloadCsv({filename:'receipt-template.csv',csv:receiptCsv([],cost,lang)+'\r\n'})}>{ar?'تنزيل قالب CSV':'Download CSV template'}</button>
   </div>
-  <p className="text-xs text-slate-500">{ar?'استورد رمز الصنف واسم المنتج والوحدة والكمية وتكلفة الوحدة. نطابق المنتجات الموجودة بالرمز، ويمكنك إنشاء المنتجات الجديدة هنا بعد مراجعة بياناتها. التصدير يشمل أصناف المسودة فقط، ولا يتغير المخزون حتى تأكيد الاستلام.':'Import SKU, product name, unit, quantity and unit cost. Existing products match by SKU; new products can be created here after reviewing their details. Export includes only current draft items. Stock changes only after receipt confirmation.'}</p>
+  <p className="text-xs text-slate-500">{ar?'حتى ١٠٠ عمود و١٠٠ صنف. نستخدم الحقول المدعومة فقط ونتجاهل البقية. راجع المطابقة والكميات قبل الإضافة؛ الكميات بالوحدة الأساسية.':'Up to 100 columns and 100 items. Only supported fields are used; extra columns are ignored. Review matches and base-unit quantities before adding.'}</p>
+  <LocalDraftNotice {...{draft,lang,busy}}/>
   {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}{notice&&<p role="status" className="text-sm text-emerald-700">{notice}</p>}
-  {pending&&<div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-   <p className="text-sm font-medium">{ar?'الملف محفوظ هنا حتى اكتمال المطابقة. إنشاء منتج يحفظه في دليل المنتجات فقط؛ المخزون لا يتغير.':'Your file is retained here while you resolve it. Creating a product saves it to the catalogue only; stock does not change.'}</p>
-   {missing&&<>
-    <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{ar?'هذا المنتج غير موجود ضمن منتجاتك النشطة. أضف المنتج أو اختر منتجاً موجوداً لمتابعة الاستيراد.':'This item is not in your active products. Add the product or match an existing one to continue importing.'}</p>
-    <p className="text-sm">{ar?'السطر':'Row'} {pending.index+2}: <bdi>{missing.sku}</bdi>{missing.name&&` — ${missing.name}`} · {ar?'الكمية':'Quantity'}: {missing.quantity}</p>
-    <ProductSearch {...{api,root,c,lang}} disabled={disabled||busy} onSelect={match} label={ar?'مطابقة مع منتج موجود':'Match an existing product'}/>
-    {canCreate&&<button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>setCreating(true)}>{ar?'إضافة المنتج':'Add product'}</button>}
-    {!canCreate&&<p className="text-sm text-slate-500">{ar?'إنشاء المنتجات يحتاج صلاحية إضافة المنتجات وعرض التكلفة. يمكنك مطابقة منتج موجود.':'Creating products requires product creation and cost access. You can match an existing product.'}</p>}
+  {!!sheets.length&&<section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4" aria-label={ar?'مراجعة الاستيراد':'Import review'}>
+   {!rows.length&&<>
+    {sheets.length>1&&<label className="block text-sm">{ar?'ورقة Excel':'Worksheet'}<select className={inputClass} value={sheet} disabled={busy||disabled} onChange={e=>{const i=Number(e.target.value);setSheet(i);setMapping(detectMapping(sheets[i].grid[0]).map(key=>fields.includes(key)?key:''));}}>{sheets.map((item,i)=><option key={i} value={i}>{item.name}</option>)}</select></label>}
+    <h3 className="font-semibold">{ar?'مطابقة الأعمدة':'Map columns'}</h3>
+    <p className="text-sm text-slate-500">{ar?'الأعمدة غير المعروفة تُتجاهل تلقائياً. يمكنك ربطها بحقل مدعوم.':'Unrecognized columns are ignored automatically. You can map them to a supported field.'}</p>
+    <div className="grid max-h-80 gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">{sheets[sheet].grid[0].map((header,i)=><label key={i} className="min-w-0 text-sm"><span className="block truncate" title={header}>{header||`${ar?'عمود':'Column'} ${i+1}`}</span><select aria-label={`${ar?'ربط العمود':'Map column'} ${i+1}`} className={inputClass} value={mapping[i]} disabled={busy||disabled} onChange={e=>setMapping(old=>old.map((key,n)=>n===i?e.target.value:key))}><option value="">{ar?'تجاهل':'Ignore'}</option>{fields.map(key=><option key={key} value={key}>{label(key)}</option>)}</select></label>)}</div>
+    <button type="button" className={primaryClass} disabled={busy||disabled} onClick={review}>{ar?'معاينة الأصناف':'Preview items'}</button>
    </>}
-   <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>process(pending.rows)}>{ar?'إعادة التحقق من الملف':'Retry retained file'}</button>
-   <button type="button" className={buttonClass} disabled={disabled||busy} onClick={()=>{setPending(null);setError('');}}>{ar?'إلغاء الاستيراد':'Cancel import'}</button></div>
-  </div>}
-  {creating&&missing&&<ProductForm {...{api,c,lang}} cost path={`${root}/products`} initialName={missing.name} initialSku={missing.sku}
-   initialPurchasePrice={missing.unitCost??''} draftScope={`receipt-import:${missing.sku}`}
-   initialUnit={({قطعة:'PIECE',علبة:'BOX',كرتون:'CARTON',كيلوغرام:'KG',غرام:'GRAM',لتر:'LITRE',متر:'METRE'})[missing.unit]||missing.unit||'PIECE'}
-   close={()=>setCreating(false)} done={(saved,product)=>{setCreating(false);if(saved&&product)match(product);}}/>}
+   {!!rows.length&&<>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{ar?'مراجعة الأصناف':'Review items'} ({rows.length})</h3><button type="button" className={buttonClass} onClick={exportReview} disabled={busy||disabled}><Download className="h-4 w-4" aria-hidden="true"/>{ar?'تصدير المعاينة CSV':'Export preview CSV'}</button></div>
+    <p className="text-sm text-slate-500">{ar?'الصفوف الحمراء تحتاج تصحيحاً أو إضافة المنتج أولاً. يمكنك تصديرها أو استبعادها. لا تُنشأ منتجات أو قيود مخزون تلقائياً.':'Red rows need correction or the product added first. You can export or exclude them. Products and stock entries are not created automatically.'}</p>
+    <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[850px] text-start text-sm"><thead className="bg-slate-50"><tr><th className="p-2 text-start">{ar?'تضمين':'Include'}</th>{fields.map(key=><th key={key} className="p-2 text-start">{label(key)}</th>)}<th className="p-2 text-start">{ar?'الحالة':'Status'}</th></tr></thead><tbody>{rows.map((row,index)=>{
+     const problem=row.status&&!['READY','EXISTS','SKIPPED'].includes(row.status);
+     return <tr key={index} data-import-row={row.sourceRow} className={problem?'border-t border-red-200 bg-red-50':'border-t border-slate-100'}>
+      <td className="p-2"><label className="flex items-center gap-2"><input type="checkbox" checked={!row.skip} disabled={busy||disabled} onChange={e=>edit(index,'skip',!e.target.checked)} aria-label={`${ar?'تضمين السطر':'Include row'} ${row.sourceRow}`}/>{row.sourceRow}</label></td>
+      {fields.map(key=><td key={key} className="p-2"><input aria-label={`${label(key)} ${row.sourceRow}`} className={`${inputClass} min-w-24 ${problem?'!border-red-200 !bg-red-50':''}`} value={row[key]||''} disabled={busy||disabled||row.skip} maxLength={key==='name'?160:128} onChange={e=>edit(index,key,e.target.value)} inputMode={['quantity','unitCost','sellingPrice'].includes(key)?'decimal':undefined}/></td>)}
+      <td className="min-w-64 space-y-2 p-2"><p className={problem?'text-red-700':'text-slate-600'}>{row.status?text(row.status):(ar?'أعد التحقق بعد التعديل':'Recheck after editing')}</p>
+       {row.product&&<p className="text-xs text-slate-500">{row.product.name} · <bdi>{row.product.sku}</bdi> · {row.product.unit}</p>}
+       {problem&&<div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>setActive(index)}>{ar?'اختيار منتج':'Choose product'}</button>{canCreate&&row.status==='MISSING'&&<button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>{setActive(index);setCreating(true);}}>{ar?'إضافة المنتج':'Add product'}</button>}</div>}
+      </td></tr>;
+    })}</tbody></table></div>
+    {current&&!creating&&<div className="space-y-2 rounded-lg border border-slate-200 p-3"><p>{ar?'مطابقة السطر':'Match row'} {current.sourceRow}</p><ProductSearch {...{api,root,c,lang}} disabled={disabled||busy} onSelect={match}/><button type="button" className={buttonClass} onClick={()=>setActive(null)}>{ar?'إغلاق المطابقة':'Close matching'}</button></div>}
+    <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={busy||disabled} onClick={check}>{ar?'إعادة التحقق':'Recheck rows'}</button><button type="button" className={primaryClass} disabled={busy||disabled||!canApply(rows)} onClick={apply}>{ar?'إضافة الأصناف المراجعة إلى المسودة':'Add reviewed items to draft'}</button><button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>{setRows([]);setActive(null);}}>{ar?'تعديل ربط الأعمدة':'Change column mapping'}</button></div>
+   </>}
+   <button type="button" className={buttonClass} disabled={busy||disabled} onClick={reset}>{ar?'إلغاء الاستيراد':'Cancel import'}</button>
+  </section>}
+  {creating&&current&&<ProductForm {...{api,c,lang}} cost path={`${root}/products`} initialName={current.name||''} initialSku={current.sku||''} initialPurchasePrice={decimal(current.unitCost)} initialSellingPrice={decimal(current.sellingPrice)} initialBarcodes={current.barcode||''} initialUnit={unitCode(current.unit)} draftScope={`receipt-import:${current.sku||current.name||current.sourceRow}`} close={()=>{setCreating(false);setActive(null);}} done={(saved,product)=>{setCreating(false);if(saved&&product)match(product);else setActive(null);}}/>}
  </div>;
 }

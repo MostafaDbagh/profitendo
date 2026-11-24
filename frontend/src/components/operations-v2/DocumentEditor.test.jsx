@@ -117,6 +117,7 @@ test.each(['en','ar'])('CSV recovery uses the real product form and preserves pu
  const added={id:'new-product',sku:'SAFI',name:'Safi milk',unit:'LITRE',purchasePrice:'100',active:true};
  api.mockImplementation(async(path,options)=>{
   if(options?.method==='POST'&&path.endsWith('/products')){created=true;return added;}
+  if(path.endsWith('/products/new-product'))return added;
   if(path.includes('/products/barcode?')){if(!created)throw new Error('PRODUCT_NOT_FOUND');return {product:added};}
   return {items:[],page:1,pageSize:25,total:0};
  });
@@ -124,6 +125,7 @@ test.each(['en','ar'])('CSV recovery uses the real product form and preserves pu
  const input=host.querySelector('input[type=file]');
  Object.defineProperty(input,'files',{value:[{size:100,text:async()=> 'sku,name,unit,quantity,unit_cost\nsafi,Safi milk,LITRE,2,100'}]});
  await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ await act(async()=>button(lang==='ar'?'معاينة الأصناف':'Preview items').click());
  const createLabel=lang==='ar'?'إضافة المنتج':'Add product';
  await act(async()=>button(createLabel).click());
  expect(host.querySelector('#product-name').value).toBe('Safi milk');
@@ -132,6 +134,8 @@ test.each(['en','ar'])('CSV recovery uses the real product form and preserves pu
  expect(host.querySelector('#product-purchasePrice').value).toBe('100');
  await act(async()=>host.querySelector('#product-name').form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(host.querySelector('#line-quantity-0').value).toBe('1');
+ await act(async()=>button(lang==='ar'?'إعادة التحقق':'Recheck rows').click());
+ await act(async()=>button(lang==='ar'?'إضافة الأصناف المراجعة إلى المسودة':'Add reviewed items to draft').click());
  expect(host.querySelector('#line-quantity-1').value).toBe('2');
  expect(host.querySelector('#line-cost-1').value).toBe('100');
  const writes=api.mock.calls.filter(([,options])=>options?.method);
