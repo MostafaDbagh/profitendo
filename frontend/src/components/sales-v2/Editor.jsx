@@ -22,12 +22,13 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  const path=`${root}/sales`,[requestedShop,setShop]=useState(null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
  const [shopPage,setShopPage]=useState(1);
  const shops=useLocationOptions(api,doc?null:`${root}/locations?state=active`);
- const shop=doc?{id:doc.locationId,name:doc.locationName}:shops.items.find(item=>item.id===requestedShop?.id);
+ const availableShop=shops.items.find(item=>item.id===requestedShop?.id);
+ const shop=doc?{id:doc.locationId,name:doc.locationName}:availableShop;
  const onlyShop=shops.items.length===1?shops.items[0]:null;
- const shopUnavailable=!doc&&requestedShop&&!shop&&!shops.loading&&!shops.error;
+ const shopUnavailable=!doc&&requestedShop&&!availableShop&&!shops.loading&&!shops.error;
  useEffect(()=>{
-  if(!doc&&!rows.length&&!pending&&!shop&&(onlyShop||shopUnavailable))setShop(onlyShop);
- },[doc,rows.length,pending,shop,onlyShop,shopUnavailable]);
+  if(!doc&&!rows.length&&!pending&&!availableShop&&(onlyShop||shopUnavailable))setShop(onlyShop);
+ },[doc,rows.length,pending,availableShop,onlyShop,shopUnavailable]);
  const shopLocked=!!doc||rows.length>0||pending>0||busy;
  const pageSize=shops.pageSize??25;
  const shopOptions=shopLocked&&shop?[shop]:shops.items.slice((shopPage-1)*pageSize,shopPage*pageSize);
