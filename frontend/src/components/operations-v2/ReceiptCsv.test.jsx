@@ -67,3 +67,45 @@ test('a failed file read unlocks controls and leaves existing preview intact',as
  Object.defineProperty(input,'files',{configurable:true,value:[{size:20,name:'bad.csv',text:async()=>{throw Error('READ');}}]});await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
  expect(input.disabled).toBe(false);expect(host.querySelector('[data-import-row]')).not.toBeNull();expect(host.querySelector('[role=alert]')).not.toBeNull();
 });
+for(const lang of ['en','ar'])test(`auto-add creates a product from the row without receiving stock (${lang})`,async()=>{
+ let created=null;
+ const api=jest.fn(async(path,options)=>{
+  if(options?.method==='POST'){created={...options.body,id:'new',sku:'NEW'};return created;}
+  if(path.endsWith('/products/new'))return created;
+  if(created)return {product:created};
+  throw Error('PRODUCT_NOT_FOUND');
+ });
+ const {onImport}=render({api,lang,context:{permissions:{'catalogue.create':true,'catalogue.cost':true}}});
+ await upload('sku,barcode,name,unit,quantity,unit_cost,selling price\nNEW,00123,New milk,لتر,2,450,600');await click(lang==='ar'?'معاينة الأصناف':'Preview items');
+ expect(button(lang==='ar'?'اختيار منتج':'Choose product')).toBeUndefined();
+ await click(lang==='ar'?'إضافة تلقائية':'Auto-add');
+ expect(api.mock.calls.filter(([,o])=>o?.method==='POST')).toEqual([['/businesses/b/products',{method:'POST',body:{sku:'NEW',name:'New milk',unit:'LITRE',purchasePrice:'450',sellingPrice:'600',barcodes:['00123'],minimumStock:'0',active:true}}]]);
+ expect(onImport).not.toHaveBeenCalled();
+ await click(lang==='ar'?'إضافة الأصناف المراجعة إلى المسودة':'Add reviewed items to draft');
+ expect(onImport.mock.calls[0][0][0]).toMatchObject({productId:'new',quantity:'2',unitCost:'450'});
+});
+test('auto-add rechecks products and avoids creating a duplicate',async()=>{
+ let exists=false;const api=jest.fn(async()=>{if(exists)return {product};throw Error('PRODUCT_NOT_FOUND');});
+ render({api,context:{permissions:{'catalogue.create':true,'catalogue.cost':true}}});
+ await upload('sku,name,quantity,unit_cost\n001,Milk,2,3');await click('Preview items');exists=true;await click('Auto-add');
+ expect(api.mock.calls.some(([,o])=>o?.method==='POST')).toBe(false);
+ expect(button('Add reviewed items to draft').disabled).toBe(false);
+});
+test('auto-add requires name and cost and respects creation permissions',async()=>{
+ const api=jest.fn().mockRejectedValue(Error('PRODUCT_NOT_FOUND'));
+ render({api,context:{permissions:{'catalogue.create':true,'catalogue.cost':true}}});
+ await upload('sku,quantity\nNEW,1');await click('Preview items');await click('Auto-add');
+ expect(host.querySelector('[role=alert]').textContent).toContain('Enter the product name and unit cost');
+ expect(api.mock.calls.some(([,o])=>o?.method==='POST')).toBe(false);
+ render({api,context:{permissions:{'catalogue.create':false,'catalogue.cost':true}}});expect(button('Auto-add')).toBeUndefined();
+});
+test('auto-add blocks double clicks and retains rows after a failed save',async()=>{
+ let rejectSave;const api=jest.fn(async(path,o)=>{if(o?.method==='POST')return new Promise((resolve,reject)=>{rejectSave=reject;});throw Error('PRODUCT_NOT_FOUND');});
+ render({api,context:{permissions:{'catalogue.create':true,'catalogue.cost':true}}});
+ await upload('sku,name,quantity,unit_cost\nNEW,New milk,2,3');await click('Preview items');
+ await act(async()=>{button('Auto-add').click();button('Auto-add').click();});
+ expect(button('Auto-add').disabled).toBe(true);expect(api.mock.calls.filter(([,o])=>o?.method==='POST')).toHaveLength(1);
+ await act(async()=>rejectSave(Error('NETWORK_ERROR')));
+ expect(host.querySelector('[role=alert]').textContent).toContain('Could not add the product');
+ expect(host.querySelector('input[aria-label="Product name 2"]').value).toBe('New milk');expect(button('Auto-add').disabled).toBe(false);
+});

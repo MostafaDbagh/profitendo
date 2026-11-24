@@ -10,6 +10,8 @@ import {receiptCsv,csvCell} from './receiptCsvUtils';
 import {readReceiptWorkbook} from './readReceiptWorkbook';
 import {importFields,fieldLabels,detectMapping,readCsvGrid,mappedRows,inspectRows,readyLines,canApply,unitCode,decimal} from './receiptImport';
 const messages={
+ CREATE_DETAILS:['أدخل اسم المنتج وتكلفة الوحدة أولاً، أو استخدم إضافة المنتج.','Enter the product name and unit cost first, or use Add product.'],
+ CREATE_FAILED:['تعذرت إضافة المنتج. راجع بيانات السطر وأعد المحاولة.','Could not add the product. Check the row and retry.'],
  MISSING:['هذا المنتج غير موجود في قائمة منتجاتك النشطة. أضفه أولاً.','This item is not in your active product list. Add it first.'],
  AMBIGUOUS:['يوجد أكثر من تطابق. اختر المنتج الصحيح.','Multiple matches. Select the correct product.'],
  QUANTITY:['أدخل كمية موجبة حتى ٤ منازل عشرية.','Enter a positive quantity with up to 4 decimal places.'],
@@ -57,6 +59,28 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
   const items=readyLines(checked);if(items.length)onImport(items);
   reset();setNotice(ar?'أُضيفت الأصناف إلى مسودة الشراء. لا يتغير المخزون حتى تأكيد الاستلام.':'Items added to the purchase draft. Stock changes only after confirming receipt.');
  });}
+ async function autoAdd(index){
+  if(!canCreate||rows[index]?.status!=='MISSING'||rows[index]?.skip)return;
+  await run(async()=>{
+   // Recheck first: a previous request or another user may have created it already.
+   const checked=await inspectRows(rows,api,root,lines,cost);setRows(checked);
+   const row=checked[index];if(row.status!=='MISSING')return;
+   if(!row.name?.trim()||row.name.trim().length<2||!decimal(row.unitCost))throw Error('CREATE_DETAILS');
+   let product;
+   try{
+    product=await api(`${root}/products`,{method:'POST',body:{
+     name:row.name.trim(),...(row.sku?.trim()?{sku:row.sku.trim()}:{}),
+     unit:unitCode(row.unit?.trim()),purchasePrice:decimal(row.unitCost),
+     sellingPrice:decimal(row.sellingPrice)||'0',barcodes:row.barcode?.trim()?[row.barcode.trim()]:[],
+     minimumStock:'0',active:true,
+    }});
+   }catch(e){setError(c?.(e.message)&&c(e.message)!==e.message?c(e.message):text('CREATE_FAILED'));return;}
+   const linked=checked.map((item,i)=>i===index?{...item,product,sku:product.sku,name:product.name,status:null}:item);
+   setRows(linked);
+   setRows(await inspectRows(linked,api,root,lines,cost));
+   setNotice(ar?'تمت إضافة المنتج. أضف الأصناف المراجعة إلى المسودة للمتابعة.':'Product added. Add the reviewed items to the draft to continue.');
+  });
+ }
  function match(product){if(product.active===false)return;setRows(previous=>previous.map((row,i)=>i===active?{...row,product,sku:product.sku,name:product.name,status:null}:row));setActive(null);}
  function exportReview(){
   const headers=fields.map(label);
@@ -83,7 +107,7 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
    </>}
    {!!rows.length&&<>
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{ar?'مراجعة الأصناف':'Review items'} ({rows.length})</h3><button type="button" className={buttonClass} onClick={exportReview} disabled={busy||disabled}><Download className="h-4 w-4" aria-hidden="true"/>{ar?'تصدير المعاينة CSV':'Export preview CSV'}</button></div>
-    <p className="text-sm text-slate-500">{ar?'الصفوف الحمراء تحتاج تصحيحاً أو إضافة المنتج أولاً. يمكنك تصديرها أو استبعادها. لا تُنشأ منتجات أو قيود مخزون تلقائياً.':'Red rows need correction or the product added first. You can export or exclude them. Products and stock entries are not created automatically.'}</p>
+    <p className="text-sm text-slate-500">{ar?'الصفوف الحمراء تحتاج تصحيحاً أو إضافة المنتج أولاً. يمكنك تصديرها أو استبعادها. الإضافة التلقائية تنشئ المنتج من بيانات السطر عند الضغط عليها فقط؛ المخزون لا يتغير.':'Red rows need correction or the product added first. You can export or exclude them. Auto-add creates the product from the row only when clicked; stock stays unchanged.'}</p>
     <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[850px] text-start text-sm"><thead className="bg-slate-50"><tr><th className="p-2 text-start">{ar?'تضمين':'Include'}</th>{fields.map(key=><th key={key} className="p-2 text-start">{label(key)}</th>)}<th className="p-2 text-start">{ar?'الحالة':'Status'}</th></tr></thead><tbody>{rows.map((row,index)=>{
      const problem=row.status&&!['READY','EXISTS','SKIPPED'].includes(row.status);
      return <tr key={index} data-import-row={row.sourceRow} className={problem?'border-t border-red-200 bg-red-50':'border-t border-slate-100'}>
@@ -91,7 +115,7 @@ export default function ReceiptCsv({api,root,lang,cost,lines,onImport,disabled,o
       {fields.map(key=><td key={key} className="p-2"><input aria-label={`${label(key)} ${row.sourceRow}`} className={`${inputClass} min-w-24 ${problem?'!border-red-200 !bg-red-50':''}`} value={row[key]||''} disabled={busy||disabled||row.skip} maxLength={key==='name'?160:128} onChange={e=>edit(index,key,e.target.value)} inputMode={['quantity','unitCost','sellingPrice'].includes(key)?'decimal':undefined}/></td>)}
       <td className="min-w-64 space-y-2 p-2"><p className={problem?'text-red-700':'text-slate-600'}>{row.status?text(row.status):(ar?'أعد التحقق بعد التعديل':'Recheck after editing')}</p>
        {row.product&&<p className="text-xs text-slate-500">{row.product.name} · <bdi>{row.product.sku}</bdi> · {row.product.unit}</p>}
-       {problem&&<div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>setActive(index)}>{ar?'اختيار منتج':'Choose product'}</button>{canCreate&&row.status==='MISSING'&&<button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>{setActive(index);setCreating(true);}}>{ar?'إضافة المنتج':'Add product'}</button>}</div>}
+       {problem&&<div className="flex flex-wrap gap-2">{canCreate&&row.status==='MISSING'?<button type="button" className={primaryClass} disabled={busy||disabled||row.skip} onClick={()=>autoAdd(index)}>{ar?'إضافة تلقائية':'Auto-add'}</button>:<button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>setActive(index)}>{ar?'اختيار منتج':'Choose product'}</button>}{canCreate&&row.status==='MISSING'&&<button type="button" className={buttonClass} disabled={busy||disabled} onClick={()=>{setActive(index);setCreating(true);}}>{ar?'إضافة المنتج':'Add product'}</button>}</div>}
       </td></tr>;
     })}</tbody></table></div>
     {current&&!creating&&<div className="space-y-2 rounded-lg border border-slate-200 p-3"><p>{ar?'مطابقة السطر':'Match row'} {current.sourceRow}</p><ProductSearch {...{api,root,c,lang}} disabled={disabled||busy} onSelect={match}/><button type="button" className={buttonClass} onClick={()=>setActive(null)}>{ar?'إغلاق المطابقة':'Close matching'}</button></div>}

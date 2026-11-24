@@ -1,3 +1,4 @@
+import CopyableCode from '../CopyableCode';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
 import { Mail, MessageCircle, Phone } from 'lucide-react';
@@ -30,7 +31,7 @@ export default function ContactSupport({context, api, c, lang}) {
           <dt className="flex items-center gap-2 text-sm font-semibold">
             <Icon className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true"/>{label}
           </dt>
-          <dd className="mt-1 break-words text-sm text-slate-600"><a href={href} className="text-emerald-700 underline-offset-4 hover:underline focus-visible:underline"><bdi dir="ltr">{value}</bdi></a></dd>
+          <dd className="mt-1 break-words text-sm text-slate-600"><CopyableCode kind={href.startsWith('mailto:')?'email':'phone'} href={href}>{value}</CopyableCode></dd>
         </div>)}
       </dl>}
     </section>

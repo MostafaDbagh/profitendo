@@ -1,3 +1,4 @@
+import CopyableCode from '../CopyableCode';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import { Monitor, UserRound } from 'lucide-react';
 import MfaSettings from './MfaSettings';
@@ -21,7 +22,7 @@ export default function Security({api,lang,context,c:businessCopy,onPinStatus}){
   </span>
   <div className="min-w-0">
    <p className="break-words font-semibold"><bdi>{account.data.user.name}</bdi></p>
-   <p className="break-all text-sm text-slate-500"><bdi>{account.data.user.email}</bdi></p>
+   <p className="break-all text-sm text-slate-500"><bdi><CopyableCode kind="email">{account.data.user.email}</CopyableCode></bdi></p>
   </div>
  </div>}
  {<MfaSettings {...{api,lang,c}} account={account.data} onChanged={()=>{account.reload();sessions.reload();}}/>}

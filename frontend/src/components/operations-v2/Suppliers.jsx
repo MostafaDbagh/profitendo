@@ -1,3 +1,4 @@
+import CopyableCode from '../CopyableCode';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
 import { ArrowRight, History, Pencil, Plus } from 'lucide-react';
@@ -38,7 +39,8 @@ export default function Suppliers({context,api,c,lang,initialAction}){
      <td className="w-1/3 px-4 py-3 sm:px-5">
       <div className="space-y-0.5 [overflow-wrap:anywhere]">
        {row.contact&&<div className="font-medium text-slate-800"><bdi>{row.contact}</bdi></div>}
-       {row.phone&&<div className="text-xs text-slate-600"><bdi dir="ltr" className="inline-block">{row.phone}</bdi></div>}
+       {row.phone&&<div className="text-xs text-slate-600"><bdi dir="ltr" className="inline-block"><CopyableCode kind="phone">{row.phone}</CopyableCode></bdi></div>}
+       {row.email&&<div className="text-xs text-slate-600"><CopyableCode kind="email">{row.email}</CopyableCode></div>}
       </div>
      </td>
      <td className="w-px px-4 py-3 sm:px-5">
