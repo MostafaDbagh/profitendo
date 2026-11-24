@@ -10,13 +10,13 @@ import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, Modal, Select, buttonClass, primaryClass } from '../business-v2/UI';
 
 
-export default function ProductForm({canDelete, product, cost, path, api, c, lang, close, done, returnFocus, initialName='' }) {
+export default function ProductForm({canDelete, product, cost, path, api, c, lang, close, done, returnFocus, initialName='', initialSku='', initialPurchasePrice='', initialUnit='PIECE', initialSellingPrice='', initialBarcodes='', draftScope='' }) {
   const [categoriesOpen,setCategoriesOpen]=useState(false);
   const references=useResource(api,`${path}/references`);
   const categories=references.data?.items.filter(r=>r.kind==='CATEGORY'&&r.active)||[];
-  const [form,setForm]=useState(product ? {...product,minimumStock:formatQuantity(product.minimumStock).replace(/^0$/, ''),barcodes:product.barcodes.join('\n')} : {name:initialName,sku:'',unit:'PIECE',category:'',brand:'',description:'',purchasePrice:'',sellingPrice:'',minimumStock:'',active:true,barcodes:''});
+  const [form,setForm]=useState(product ? {...product,minimumStock:formatQuantity(product.minimumStock).replace(/^0$/, ''),barcodes:product.barcodes.join('\n')} : {name:initialName,sku:initialSku,unit:initialUnit,category:'',brand:'',description:'',purchasePrice:initialPurchasePrice,sellingPrice:initialSellingPrice,minimumStock:'',active:true,barcodes:initialBarcodes});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
- const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}`,{form},saved=>{setForm({...saved.form,minimumStock:formatQuantity(saved.form.minimumStock).replace(/^0$/, '')});});
+ const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}${draftScope?`:${draftScope}`:''}`,{form},saved=>{setForm({...saved.form,minimumStock:formatQuantity(saved.form.minimumStock).replace(/^0$/, '')});});
   const set=key=>e=>setForm(f=>({...f,[key]:e.target.value}));
   async function save(e){
     e.preventDefault();e.stopPropagation();setBusy(true);setError('');

@@ -99,7 +99,7 @@ test('selecting an inline result for a planned item preserves the source item an
 });
 test('failed draft save preserves entered quantity for retry',async()=>{
  api.mockRejectedValueOnce(Error('NETWORK_ERROR')).mockResolvedValue(doc);await render();const quantity=host.querySelector('#line-quantity-0');
- act(()=>{fill(quantity,'7');});const form=button('Review receipt').closest('form');
+ act(()=>{fill(quantity,'7');});const form=button(operationsCopy.en.reviewReceipt).closest('form');
  await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(host.querySelector('[role="alert"]').textContent).toContain(feedbackCopy.ar.NETWORK_ERROR);expect(quantity.value).toBe('7');expect(done).not.toHaveBeenCalled();
  await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
@@ -111,4 +111,32 @@ test('receipt can be reviewed without a supplier and labels it optional',async()
  const review=button(operationsCopy.en.reviewReceipt);expect(review.disabled).toBe(false);expect(host.textContent).toContain('Supplier (optional)');
  await act(async()=>review.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api).toHaveBeenCalledTimes(1);expect(done).toHaveBeenCalled();
+});
+
+test('draft save blocks double submits without posting stock',async()=>{
+ let finish;api.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+ await render();const form=button(operationsCopy.en.reviewReceipt).closest('form');
+ await act(async()=>{form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
+ expect(api).toHaveBeenCalledTimes(1);
+ expect(api.mock.calls[0][1].method).toBe('PATCH');
+ expect(api.mock.calls[0][0]).not.toContain('/status');
+ await act(async()=>finish(doc));expect(done).toHaveBeenCalledTimes(1);
+});
+test.each(['ar','en'])('receipt summary explains draft behavior and keeps exact costs (%s)',async lang=>{
+ await render(lang,{}, {document:{...doc,lines:[{...product,baseQuantity:'3',unitCost:'1.2345'}]}});
+ const summary=host.querySelector(`[aria-label="${operationsCopy[lang].receiptSummary}"]`);
+ expect(summary.textContent).toContain('3.7035 USD');
+ expect(host.textContent).toContain(operationsCopy[lang].receiptDraftHint);
+ const save=button(operationsCopy[lang].reviewReceipt);
+ expect(document.getElementById(save.getAttribute('aria-describedby')).textContent).toBe(operationsCopy[lang].receiptDraftHint);
+ act(()=>fill(host.querySelector('#line-cost-0'),''));
+ expect(summary.textContent).not.toContain('3.7035');
+ expect(summary.textContent).toContain(operationsCopy[lang].receiptIncomplete);
+});
+test('receipt summary does not expose costs without permission',async()=>{
+ await render('en',{'catalogue.cost':false});
+ const summary=host.querySelector('[aria-label="Receipt summary"]');
+ expect(summary.textContent).toContain('Product lines');
+ expect(summary.textContent).not.toContain('USD');
+ expect(summary.textContent).not.toContain(operationsCopy.en.totalValue);
 });

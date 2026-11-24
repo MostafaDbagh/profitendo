@@ -24,7 +24,7 @@ import './receipt-line.css';
 const scaled=v=>{const [w,f='']=v.split('.');return BigInt(w)*10000n+BigInt(f.padEnd(4,'0'));};
 const fixed=n=>`${n/10000n}.${String(n%10000n).padStart(4,'0')}`;
 export default function DocumentEditor({context,api,c,lang,kind,document:doc,seed,close,done,embedded=false,onBusyChange}){
- const formId=useId(),productSearchRef=useRef(null);
+ const formId=useId(),productSearchRef=useRef(null),saveLock=useRef(false);
  const cost=context.permissions['catalogue.cost'],root=`/businesses/${context.business.id}`,source=doc||seed;
  const [clientKey,setClientKey]=useState(()=>crypto.randomUUID()),[location,setLocation]=useState(source?.locationId?{id:source.locationId,name:source.locationName}:null),[supplier,setSupplier]=useState(source?.supplierId?{id:source.supplierId,name:source.supplierName}:null);
  const [date,setDate]=useState(doc?.documentDate||new Date().toLocaleDateString('en-CA')),[reference,setReference]=useState(doc?.supplierReference||''),[notes,setNotes]=useState(doc?.notes||'');
@@ -73,11 +73,11 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
   }}finally{scanLock.current=false;setScanning(false);}
  }
  function edit(index,key,value){setLines(old=>old.map((l,i)=>i===index?{...l,[key]:value}:l));}
- async function save(e){e.preventDefault();if(busy||scanning||importing)return;if(!lines.length){setError('noLines');return;}setBusy(true);setError('');
+ async function save(e){e.preventDefault();if(saveLock.current||busy||scanning||importing)return;if(!lines.length){setError('noLines');return;}saveLock.current=true;setBusy(true);setError('');
   try{const common={...(terms.method?{paymentTerms:terms}:{}),documentDate:date,supplierReference:reference,notes,lines:lines.map(l=>({productId:l.productId,quantity:l.quantity,...(l.plannedItemId?{plannedItemId:l.plannedItemId}:{}),...(cost?{unitCost:l.unitCost}:{} )}))};
    const result=await api(doc?`${root}/operations/purchases/${doc.id}`:`${root}/operations/purchases`,{method:doc?'PATCH':'POST',body:doc?{...common,revision:doc.revision}:{...common,clientKey,kind,locationId:location?.id,supplierId:supplier?.id,...(seed?{orderId:seed.id}:{})}});
    draft.clear();done(result);
-  }catch(e){setError(e.message);}finally{setBusy(false);}
+  }catch(e){setError(e.message);}finally{saveLock.current=false;setBusy(false);}
  }
  const amountPattern=/^(0|[1-9]\d{0,13})(\.\d{1,4})?$/;
  const lineTotal=line=>{
@@ -95,7 +95,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
    {embedded?(lang==='ar'?'عرض سجل المشتريات':'Show purchase history'):c('back')}
   </button>
  </header>
- {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
+ {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines,context,c}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
  <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing} documentLocation={source?.locationId?{id:source.locationId,name:source.locationName}:null} required/>
@@ -170,11 +170,17 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {!lines.length&&<p className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-sm text-slate-500">{c('noLines')}</p>}
  {!seed&&!plannedReceipt&&<button type="button" className={`${buttonClass} border-dashed`} disabled={busy||importing}
   onClick={()=>productSearchRef.current?.focus()}><Plus aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>}
+ {kind==='RECEIPT'&&lines.length>0&&<section aria-label={c('receiptSummary')} className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+  <Totals prominent {...{lines,c,cost}} currency={context.business.baseCurrency}/>
+ </section>}
  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-4">
-  <button type="submit" className={primaryClass} disabled={busy||scanning||importing||!location||(kind==='ORDER'&&!supplier)||!lines.length}>
+  <div className="w-full space-y-2 sm:w-auto">
+  {kind==='RECEIPT'&&<p id={`${formId}-draft-hint`} className="text-sm text-slate-600">{c('receiptDraftHint')}</p>}
+  <button type="submit" aria-describedby={kind==='RECEIPT'?`${formId}-draft-hint`:undefined} className={primaryClass} disabled={busy||scanning||importing||!location||(kind==='ORDER'&&!supplier)||!lines.length}>
    {c(busy?'saving':kind==='RECEIPT'?'reviewReceipt':'saveDraft')}
   </button>
-  {lines.length>0&&<Totals {...{lines,c,cost}} currency={context.business.baseCurrency}/>}
+  </div>
+  {kind!=='RECEIPT'&&lines.length>0&&<Totals {...{lines,c,cost}} currency={context.business.baseCurrency}/>}
  </div></form>
  </section>
  {addingSupplier&&<SupplierForm path={`${root}/operations/suppliers`} {...{api,c,lang}}

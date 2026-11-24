@@ -29,7 +29,7 @@ for(const lang of ['en','ar'])test(`authorized receiving requires explicit revie
  expect(host.querySelector('input[type="search"]')).toBeNull();
  await act(async()=>button(c.receiveNow).click());
  expect(writes()).toHaveLength(0);
- const dialog=host.querySelector('[role="dialog"]');expect(dialog.textContent).toContain('Supplier');expect(dialog.textContent).toContain('Shop');expect(dialog.textContent).toContain('Milk: 2');
+ const dialog=host.querySelector('[role="dialog"]');expect(dialog.textContent).toContain('Supplier');expect(dialog.textContent).toContain('Shop');expect(dialog.textContent).toContain('Milk: 2');expect(dialog.textContent).toContain('2026-11-23');expect(dialog.textContent).toContain('6.00 USD');
  await act(async()=>button(c.receiveNow,dialog).click());
  expect(writes()).toHaveLength(1);expect(writes()[0][1].body).toEqual({revision:0,action:'receive',confirm:true});
  expect(host.textContent).toContain(c.receiptCompletedHint);expect(button(c.receiveNow)).toBeUndefined();
@@ -68,4 +68,14 @@ test('blocks repeated confirmations while a request is pending',async()=>{
  await act(async()=>{confirm.click();confirm.click();});
  expect(writes()).toHaveLength(1);expect(confirm.disabled).toBe(true);
  await act(async()=>release());expect(host.textContent).toContain(operationsCopy.en.receiptCompletedHint);
+});
+
+test('confirmation summary hides financial values for receivers without cost permission',async()=>{
+ await render({'catalogue.cost':false});
+ expect(host.textContent).not.toContain('6.00 USD');
+ await act(async()=>button(operationsCopy.en.receiveNow).click());
+ const dialog=host.querySelector('[role="dialog"]');
+ expect(dialog.textContent).toContain('Milk: 2');
+ expect(dialog.textContent).toContain('2026-11-23');
+ expect(dialog.textContent).not.toContain('6.00 USD');
 });

@@ -42,9 +42,10 @@ export const operationsCopy={
 };
 
 Object.assign(operationsCopy.en,{
+ receiptDraftHint:'Saves a draft only. Stock changes after confirmation on the next screen.',receiptSummary:'Receipt summary',receiptLineCount:'Product lines',receiptQuantityIncomplete:'Complete the quantities to see the totals.',receiptIncomplete:'Complete the quantities and costs to see the total.',
  receiptItems:'Enter items',receiptReview:'Review',receiptStock:'Add stock',receiptApproval:'Approval',
  receiptEntryHint:'Choose the goods received and enter their quantities. Review before adding stock.',
- reviewReceipt:'Review receipt',scanOptional:'Use a barcode scanner (optional)',
+ reviewReceipt:'Save draft & review',scanOptional:'Use a barcode scanner (optional)',
  receiveNow:'Confirm & add stock',sendForApproval:'Send for approval',
  receiptReviewHint:'Review the supplier, location and quantities. Stock has not changed yet.',
  receiptPendingHint:'Sent for approval. Stock will change only after an authorized user confirms.',
@@ -52,9 +53,10 @@ Object.assign(operationsCopy.en,{
  receiptConfirmTitle:'Add these items to stock?',receiptSent:'Sent for approval. Stock has not changed.',
 });
 Object.assign(operationsCopy.ar,{
+ receiptDraftHint:'يحفظ مسودة فقط. يتغير المخزون بعد التأكيد في الشاشة التالية.',receiptSummary:'ملخص الاستلام',receiptLineCount:'عدد الأصناف',receiptQuantityIncomplete:'أكمل الكميات لعرض الإجمالي.',receiptIncomplete:'أكمل الكميات والتكاليف لعرض الإجمالي.',
  receiptItems:'إدخال الأصناف',receiptReview:'مراجعة',receiptStock:'إضافة المخزون',receiptApproval:'الموافقة',
  receiptEntryHint:'اختر البضاعة المستلمة وأدخل كمياتها، ثم راجع الاستلام قبل إضافة المخزون.',
- reviewReceipt:'مراجعة الاستلام',scanOptional:'استخدام قارئ الباركود (اختياري)',
+ reviewReceipt:'حفظ المسودة ومراجعتها',scanOptional:'استخدام قارئ الباركود (اختياري)',
  receiveNow:'تأكيد وإضافة المخزون',sendForApproval:'إرسال للموافقة',
  receiptReviewHint:'راجع المورد والموقع والكميات. لم يتغير المخزون بعد.',
  receiptPendingHint:'أُرسل للموافقة. يتغير المخزون فقط بعد تأكيد مستخدم مخوّل.',
