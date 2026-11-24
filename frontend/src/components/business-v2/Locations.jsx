@@ -1,6 +1,6 @@
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
-import {Pencil,Plus,Store,Users,Warehouse} from 'lucide-react';
+import {MapPin,Pencil,Plus,Store,Users,Warehouse} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useResource } from './useBusinessApi';
 import { Feedback, Modal, Pager, buttonClass, primaryClass } from './UI';
@@ -36,15 +36,14 @@ export default function Locations({ context, api, c, lang, initialAction }) {
         <ul className="divide-y divide-slate-100">
           {data.items.map(location=>{
             const Icon=location.kind==='WAREHOUSE'?Warehouse:Store;
-            return <li key={location.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
-              <div className="flex min-w-0 items-start gap-3">
+            return <li key={location.id} className="relative flex flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-10 sm:px-5">
+              <span className="absolute end-0 top-0 rounded-es-lg bg-emerald-700 px-4 py-1 text-xs font-semibold text-white">{c(location.kind)}</span>
+              <div className="flex min-w-0 max-w-full items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><Icon className="h-5 w-5" aria-hidden="true"/></span>
                 <div className="min-w-0">
                   <p className="break-words font-semibold text-slate-900">{location.name}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                    {c(location.kind)}{location.archivedAt&&<span className="rounded-full bg-slate-100 px-2 py-0.5">{c('archived')}</span>}
-                  </p>
-                  {location.address&&<p className="mt-1 break-words text-xs text-slate-500">{location.address}</p>}
+                  {location.archivedAt&&<span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{c('archived')}</span>}
+                  {location.address&&<p className="mt-1 flex items-start gap-1.5 text-xs text-slate-500"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true"/><span className="min-w-0 break-words">{location.address}</span></p>}
                 </div>
               </div>
               {manage&&<div className="flex flex-wrap gap-2">
