@@ -10,3 +10,6 @@ export const primaryTone = '!border-[hsl(var(--page-action))] !bg-[hsl(var(--pag
 export const primaryClass = `${buttonClass} ${primaryTone}`;
 export const panelClass = `${surface} p-[var(--page-panel-padding)] shadow-sm`;
 export const fieldSurface = `${surface} ${controlHeight} text-sm`;
+
+// Compact list actions retain a 36px target without the full form-button height.
+export const rowButtonClass = `inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 ${focusRing} disabled:opacity-50 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0`;

@@ -1,3 +1,5 @@
+import {rowButtonClass} from '../page-layout/tokens';
+import TableStatus from '../page-layout/TableStatus';
 import CopyableCode from '../CopyableCode';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
@@ -9,7 +11,7 @@ import { useLiveSearch, useResource } from '../business-v2/useBusinessApi';
 import { Feedback, Pager, Select, Table, TableSearchForm, buttonClass, primaryClass } from '../business-v2/UI';
 import Purchases from './Purchases';
 
-const rowActionClass = `${buttonClass} !border-transparent !bg-transparent !px-2.5 whitespace-nowrap hover:!bg-slate-100`;
+const rowActionClass = rowButtonClass;
 
 export default function Suppliers({context,api,c,lang,initialAction}){
  const path=`/businesses/${context.business.id}/operations/suppliers`,manage=context.permissions['suppliers.edit'],create=context.permissions['suppliers.create'];
@@ -22,7 +24,7 @@ export default function Suppliers({context,api,c,lang,initialAction}){
  return <PageLayout>
   <PageHeader title={lang==='ar'?'الموردون (مندوبو الشركات)':c('suppliers')} accessory={create&&<button className={primaryClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row:null});}}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addSupplier')}</button>}/>
   <Feedback {...{error,notice,c}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
-  <Table showRows={!!data}
+  <Table compact showRows={!!data}
       tableClassName={`min-w-[900px] [&_td]:align-middle [&_thead_th]:px-4 sm:[&_thead_th]:px-5 ${showActions?'[&_thead_th:last-child]:text-end':''}`}
       searchContent={<TableSearchForm id="supplier-search" label={c('search')} submitLabel={c('search')}
       placeholder={c('supplierSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)}
@@ -46,9 +48,7 @@ export default function Suppliers({context,api,c,lang,initialAction}){
       {row.email?<CopyableCode kind="email">{row.email}</CopyableCode>:'—'}
      </td>
      <td className="w-px px-4 py-3 sm:px-5">
-      <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${row.active?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-slate-100 text-slate-600'}`}>
-       {c(row.active?'active':'inactive')}
-      </span>
+      <TableStatus status={row.active?'active':'inactive'}>{c(row.active?'active':'inactive')}</TableStatus>
      </td>
      {showActions&&<td className="w-px px-4 py-2 sm:px-5">
       <div className="flex justify-end gap-1">

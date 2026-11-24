@@ -24,15 +24,15 @@ export function TableSearchForm({ onSearch, submitLabel, inputRef, insideForm=fa
     </Wrapper>
   );
 }
-export function Table({ headers, children, empty, c, tableClassName = '', tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction, showRows = true }) {
-  if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent,primaryFilters,importAction}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
-  return showRows?<PlainTable {...{headers,children,empty,c,tableClassName}}/>:null;
+export function Table({ headers, children, empty, c, tableClassName = '', compact = false, numericHeaders = [], tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction, showRows = true }) {
+  if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent,primaryFilters,importAction}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName,compact,numericHeaders}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
+  return showRows?<PlainTable {...{headers,children,empty,c,tableClassName,compact,numericHeaders}}/>:null;
 }
-function PlainTable({headers,children,empty,c,tableClassName}){
+function PlainTable({headers,children,empty,c,tableClassName,compact,numericHeaders}){
   return <TableRegion>
-    <table className={`w-full text-sm text-start tabular-nums [&_td]:align-middle ${tableClassName}`}>
+    <table className={`w-full text-sm text-start tabular-nums [&_td]:align-middle ${compact?'[&_thead_th]:!px-4 [&_thead_th]:!py-2.5 [&_tbody_td]:!px-4 [&_tbody_td]:!py-2.5 [&_tbody_th]:!px-4 [&_tbody_th]:!py-2.5':''} ${tableClassName}`}>
       <thead className="bg-muted/60"><tr className="border-b border-border">
-        {headers.map(h => <th key={h} scope="col" className="whitespace-nowrap px-5 py-3 text-start font-semibold text-slate-600">{c(h)}</th>)}
+        {headers.map(h => <th key={h} scope="col" className={`whitespace-nowrap px-5 py-3 font-semibold text-slate-600 ${numericHeaders.includes(h)?'text-end':'text-start'}`}>{c(h)}</th>)}
       </tr></thead>
       <tbody className="divide-y divide-slate-100 [&>tr]:transition-colors motion-reduce:[&>tr]:transition-none [&>tr:hover]:bg-slate-50/70 [&>tr:focus-within]:bg-emerald-50/40">
         {empty ? <tr><td colSpan={headers.length} className="p-6"><EmptyState>{c('empty')}</EmptyState></td></tr> : children}

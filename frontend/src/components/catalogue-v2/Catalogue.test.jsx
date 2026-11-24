@@ -17,7 +17,7 @@ jest.mock('../ui/dialog', () => ({
 }));
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
-const milk = { id: 'milk', name: 'Milk', sku: '001-MILK', unit: 'PIECE', active: true };
+const milk = { id: 'milk', name: 'Milk', sku: '001-MILK', unit: 'PIECE', active: true, sellingPrice: '75.0000', purchasePrice: '50.0000', barcodes: ['00123','00456','00789'] };
 const tea = { id: 'tea', name: 'Tea', sku: '002-TEA', unit: 'PIECE', active: false };
 let host, root, paths, refreshContext;
 
@@ -115,4 +115,21 @@ test('a product hidden by the active filter is still suggested instead of asking
   await act(async () => suggestion.click());
   expect(paths.at(-1).searchParams.get('state')).toBe('all');
   expect(host.querySelector('tbody').textContent).toContain('Tea');
+});
+
+test.each(['ar','en'])('compact catalogue keeps prices, additional barcodes and cost permissions intact (%s)',async lang=>{
+ await render(lang);
+ const body=host.querySelector('tbody');
+ expect(body.textContent).toContain('75.00');
+ expect(body.textContent).not.toContain('75.0000');
+ expect(body.textContent).toContain('50.00');
+ const disclosure=body.querySelector('details');
+ expect(disclosure.open).toBe(false);
+ act(()=>disclosure.querySelector('summary').click());
+ expect(disclosure.open).toBe(true);
+ expect(disclosure.textContent).toContain('00456');
+ expect(disclosure.textContent).toContain('00789');
+ await render(lang,false);
+ expect(host.querySelector('thead').textContent).not.toContain(businessCopy[lang].purchasePrice);
+ expect(host.querySelector('tbody').textContent).not.toContain('50.00');
 });
