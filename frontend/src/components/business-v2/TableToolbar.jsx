@@ -24,7 +24,7 @@ export default function TableToolbar({ search, filters, filtersActive, exportAct
   const { lang } = useLanguage();
   const ar = lang === 'ar';
   const dir = ar ? 'rtl' : 'ltr';
-  const optionsLabel = ar ? 'خيارات إضافية' : 'More options';
+  const optionsLabel = ar ? 'خيارات بحث إضافية' : 'More options';
   const activeLabel = ar ? 'تصفية مفعّلة' : 'Filtered';
   const columns = search && exportAction
     ? 'grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]'
@@ -37,7 +37,7 @@ export default function TableToolbar({ search, filters, filtersActive, exportAct
         <PopoverTrigger asChild>
           <button type="button" className={`${controlClass} group relative ${filtersActive ? '!border-emerald-200 !bg-emerald-50 !text-emerald-800' : ''}`}
             aria-label={filtersActive ? `${optionsLabel} (${activeLabel})` : optionsLabel}>
-            <span className="sm:hidden" aria-hidden="true">{ar ? 'خيارات' : 'Options'}</span>
+            <span className="sm:hidden" aria-hidden="true">{ar ? 'خيارات بحث' : 'Options'}</span>
             <span className="hidden sm:inline" aria-hidden="true">{optionsLabel}</span>
             <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180 sm:h-4 sm:w-4" />
             {filtersActive && <span aria-hidden="true" className="absolute end-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-600" />}
