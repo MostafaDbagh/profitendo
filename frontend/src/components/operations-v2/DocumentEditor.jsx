@@ -92,7 +92,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
    {embedded?(lang==='ar'?'عرض سجل المشتريات':'Show purchase history'):c('back')}
   </button>
  </header>
- {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
+ {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines,context,c}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
  <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing} documentLocation={source?.locationId?{id:source.locationId,name:source.locationName}:null} required/>

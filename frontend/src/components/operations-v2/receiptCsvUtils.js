@@ -1,5 +1,5 @@
 // Strict CSV parsing keeps identifiers as text and rejects incomplete files atomically.
-export function parseReceiptCsv(text, cost) {
+export function parseReceiptCsv(text, cost, includeDetails=false) {
  const rows=[];let row=[],cell='',quoted=false,closed=false;
  const source=text.replace(/^\uFEFF/,'');
  for(let i=0;i<source.length;i++){
@@ -23,7 +23,7 @@ export function parseReceiptCsv(text, cost) {
   const record=Object.fromEntries(keys.map((key,i)=>[key,values[i]?.trim()]));
   const {sku,quantity,unit_cost:unitCost}=record;
   if(values.length!==headers.length||!sku||sku.length>128||seen.has(sku.toUpperCase())||! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(quantity)||Number(quantity)<=0||(unitCost&&! /^(0|[1-9]\d{0,13})(\.\d{1,4})?$/.test(unitCost)))throw new Error(`ROW:${index+2}`);
-  seen.add(sku.toUpperCase());return {sku,quantity,...(unitCost!==undefined?{unitCost}:{})};
+  seen.add(sku.toUpperCase());return {sku,quantity,...(includeDetails?{name:record.name??'',unit:record.unit??''}:{}),...(unitCost!==undefined?{unitCost}:{})};
  });
 }
 export function csvCell(value){const text=String(value??'');return '"'+(/^[\s]*[=+\-@]/.test(text)?"'":'')+text.replaceAll('"','""')+'"';}
