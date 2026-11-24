@@ -127,10 +127,10 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  <h3 className="font-bold text-slate-900">{lang==='ar'?'الأصناف':'Items'}</h3>
  {!seed&&!plannedReceipt&&<div className="space-y-3">
  <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2" dir={lang==='ar'?'rtl':'ltr'}>
+ <ProductSearch {...{api,root,c,lang,context}} disabled={busy||importing} onSelect={add} inputRef={productSearchRef}/>
  <form onSubmit={lookup} className="min-w-0">
  <div className="min-w-0"><label className="text-sm font-medium block mb-1.5" htmlFor="receipt-scan">{c('receivingBarcode')}<RequiredMark/></label><div className="flex gap-2"><input ref={scanRef} id="receipt-scan" className={`${inputClass} h-11 flex-1 min-w-0`} dir="ltr" placeholder={lang==='ar'?'امسح الباركود أو أدخل رمز الصنف':'Scan barcode or enter SKU'} required maxLength={128} value={scan} disabled={busy||importing} onChange={e=>setScan(e.target.value)}/><button className={`${buttonClass} h-11 shrink-0`} disabled={busy||importing}>{lang==='ar'?(scanning?'جارٍ البحث…':'إضافة'):(scanning?'Searching…':'Add')}</button></div></div>
  </form>
- <ProductSearch {...{api,root,c,lang,context}} disabled={busy||importing} onSelect={add} inputRef={productSearchRef}/>
  </div>
  <ProductEntryHelp compact lang={lang} canCreate={context.permissions['catalogue.create']&&cost}/>
  <Disclosure title={c('scanMode')} hasValue={mode==='repeat'}>
