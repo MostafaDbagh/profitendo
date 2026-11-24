@@ -23,25 +23,27 @@ export default function Suppliers({context,api,c,lang,initialAction}){
   <PageHeader title={lang==='ar'?'الموردون (مندوبو الشركات)':c('suppliers')} accessory={create&&<button className={primaryClass} onClick={e=>{trigger.current=e.currentTarget;setEdit({row:null});}}><Plus aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('addSupplier')}</button>}/>
   <Feedback {...{error,notice,c}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
   <Table showRows={!!data}
-      tableClassName={`[&_thead_th]:px-4 sm:[&_thead_th]:px-5 ${showActions?'[&_thead_th:last-child]:text-end':''}`}
+      tableClassName={`min-w-[900px] [&_td]:align-middle [&_thead_th]:px-4 sm:[&_thead_th]:px-5 ${showActions?'[&_thead_th:last-child]:text-end':''}`}
       searchContent={<TableSearchForm id="supplier-search" label={c('search')} submitLabel={c('search')}
       placeholder={c('supplierSearchPlaceholder')} value={search} onChange={e=>setSearch(e.target.value)}
       onSearch={()=>{setQuery(search.trim());setPage(1);}} />}
       filters={<Select id="supplier-state" label={c('status')} value={state} onChange={e=>{setState(e.target.value);setPage(1);}}>
         {['active','inactive','all'].map(k=><option key={k} value={k}>{c(k)}</option>)}
       </Select>}
-      filtersActive={state!=='active'} headers={['supplierName','contact','status',...(showActions?['actions']:[])]} empty={!data?.items.length} c={c}>
+      filtersActive={state!=='active'} headers={['supplierName','contact','phone','email','status',...(showActions?['actions']:[])]} empty={!data?.items.length} c={c}>
    {data?.items.map(row=>(
     <tr key={row.id}>
-     <th scope="row" className="min-w-32 px-4 py-3 text-start font-semibold text-slate-900 [overflow-wrap:anywhere] sm:px-5">
+     <th scope="row" className="min-w-32 whitespace-nowrap px-4 py-3 text-start font-semibold text-slate-900 sm:px-5">
       <bdi>{row.name}</bdi>
      </th>
-     <td className="w-1/3 px-4 py-3 sm:px-5">
-      <div className="space-y-0.5 [overflow-wrap:anywhere]">
-       {row.contact&&<div className="font-medium text-slate-800"><bdi>{row.contact}</bdi></div>}
-       {row.phone&&<div className="text-xs text-slate-600"><bdi dir="ltr" className="inline-block"><CopyableCode kind="phone">{row.phone}</CopyableCode></bdi></div>}
-       {row.email&&<div className="text-xs text-slate-600"><CopyableCode kind="email">{row.email}</CopyableCode></div>}
-      </div>
+     <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800 sm:px-5">
+      <bdi>{row.contact || '—'}</bdi>
+     </td>
+     <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600 sm:px-5">
+      {row.phone?<CopyableCode kind="phone">{row.phone}</CopyableCode>:'—'}
+     </td>
+     <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600 sm:px-5">
+      {row.email?<CopyableCode kind="email">{row.email}</CopyableCode>:'—'}
      </td>
      <td className="w-px px-4 py-3 sm:px-5">
       <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${row.active?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-slate-100 text-slate-600'}`}>
