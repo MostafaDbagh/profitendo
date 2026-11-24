@@ -43,8 +43,8 @@ export default function TransferEditor({context,api,c,lang,document:doc,close,do
  }
  return <PageLayout><button className={buttonClass} disabled={busy||scanning} onClick={close}><ArrowRight aria-hidden="true" className={`h-4 w-4 shrink-0 ${lang==='ar'?'':'rotate-180'}`} />{c('back')}</button><PageHeader title={c(doc?'editTransfer':'newTransfer')}/>
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2`}>
-  <LocationChips {...{context,api,c,lang}} value={source} label={c('chooseTransferSource')} onChange={setSource} disabled={!!doc||busy||scanning} excludeId={destination?.id} required/>
-  <LocationChips {...{context,api,c,lang}} value={destination} label={c('chooseDestination')} onChange={setDestination} disabled={!!doc||busy||scanning} excludeId={source?.id} required/>
+  <LocationChips {...{context,api,c,lang}} value={source} label={c('chooseTransferSource')} onChange={setSource} disabled={busy||scanning} documentLocation={doc?{id:doc.sourceId,name:doc.sourceName}:null} excludeId={destination?.id} required/>
+  <LocationChips {...{context,api,c,lang}} value={destination} label={c('chooseDestination')} onChange={setDestination} disabled={busy||scanning} documentLocation={doc?{id:doc.destinationId,name:doc.destinationName}:null} excludeId={source?.id} required/>
  </div>
  <div className={`${panelClass} space-y-3`}><form onSubmit={lookup} className="space-y-2"><label htmlFor="transfer-scan" className="block text-sm font-medium">{c('scanBarcode')}<RequiredMark/></label><div className="grid sm:flex gap-2"><input id="transfer-scan" className={`${inputClass} flex-1 min-w-0`} dir="ltr" value={scan} placeholder="001234567890" required maxLength={128} disabled={busy||scanning} onChange={e=>setScan(e.target.value)}/><button className={buttonClass} disabled={busy||scanning}>{c(scanning?'loading':'findProduct')}</button></div></form><p className="text-xs text-slate-500">{c('transferScanHint')}</p><ProductSearch {...{api,root,c,lang,context}} disabled={busy||scanning} onSelect={add}/></div>
  <LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error||(stock?.path===stockPath?stock?.error:undefined)} c={c}/>

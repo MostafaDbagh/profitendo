@@ -78,7 +78,7 @@ export default function Inventory({context,api,c,lang}){
     <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} all/>
    </div>
    {location&&context.permissions['migration.manage']&&(
-    <button type="button" className={`${buttonClass} mt-7 shrink-0 whitespace-nowrap`} aria-label={importLabel} onClick={()=>setImporting(true)}>
+    <button type="button" className={`${buttonClass} shrink-0 whitespace-nowrap`} aria-label={importLabel} onClick={()=>setImporting(true)}>
      <span className="sm:hidden">{lang==='ar'?'استيراد CSV':'Import CSV'}</span>
      <span className="hidden sm:inline">{importLabel}</span>
     </button>

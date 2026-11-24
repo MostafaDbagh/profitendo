@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, buttonClass, primaryClass, panelClass } from '../business-v2/UI';
 import SupplierSearch from './SupplierSearch';
+import './receipt-line.css';
 const scaled=v=>{const [w,f='']=v.split('.');return BigInt(w)*10000n+BigInt(f.padEnd(4,'0'));};
 const fixed=n=>`${n/10000n}.${String(n%10000n).padStart(4,'0')}`;
 export default function DocumentEditor({context,api,c,lang,kind,document:doc,seed,close,done,embedded=false,onBusyChange}){
@@ -94,7 +95,7 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {kind==='RECEIPT'&&!seed&&!plannedReceipt&&<ReceiptCsv {...{api,root,lang,cost,lines}} disabled={busy||scanning} onBusy={setImporting} onImport={rows=>{setLines(old=>[...old,...rows]);setError('');}}/>}
  {kind==='RECEIPT'&&<ReceiptSteps stage={0} canConfirm={context.permissions['receiving.confirm']} c={c}/>}
  <div className={`${panelClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
- <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing||!!doc||Boolean(seed?.locationId)} required/>
+ <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} disabled={busy||importing} documentLocation={source?.locationId?{id:source.locationId,name:source.locationName}:null} required/>
  <div className="min-w-0 space-y-2">
   <SupplierSearch {...{api,c,lang}} path={`${root}/operations/suppliers`} value={supplier} onSelect={setSupplier}
    disabled={busy||importing||!canChooseSupplier} required={kind==='ORDER'}/>
@@ -136,28 +137,28 @@ export default function DocumentEditor({context,api,c,lang,kind,document:doc,see
  {notice&&<p role="status" className="text-sm text-emerald-700">{c(notice)}</p>}<LocalDraftNotice {...{draft,lang}} busy={busy||importing}/><Feedback {...{error,c}}/>
  <form id={formId} onSubmit={save} className="space-y-5">
  {lines.length>0&&<p className="text-xs text-slate-500">{c('quantitiesBase')} · {context.business.baseCurrency}</p>}
- <ul className="space-y-3">
-  {lines.map((line,index)=><li key={line.productId} className="grid items-end gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
-   <div className="min-w-0 self-center">
+ <ul className="receipt-items space-y-3">
+  {lines.map((line,index)=><li key={line.productId} data-cost={cost?'visible':'hidden'} className="receipt-line grid items-start gap-x-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+   <div className="receipt-line-product min-w-0">
     <h4 className="break-words font-semibold">{line.name}</h4>
     <p className="mt-1 text-xs text-slate-500"><CopyableCode>{line.sku}</CopyableCode> · {unitLabel(line.unit,c)}</p>
    </div>
-   <div>
-    <label htmlFor={`line-quantity-${index}`} className="mb-1.5 block text-sm font-medium">{c('quantity')}<RequiredMark/></label>
+   <div className="receipt-line-field [grid-area:quantity]">
+    <label htmlFor={`line-quantity-${index}`} className="mb-1.5 block text-sm font-medium text-slate-700">{c('quantity')}<RequiredMark/></label>
     <input ref={el=>quantityRefs.current[line.productId]=el} id={`line-quantity-${index}`} {...selectInputOnFocus}
      className={inputClass} dir="ltr" inputMode="decimal" pattern={validNumber} placeholder={c('lineQuantityPlaceholder')}
      required value={line.quantity} disabled={busy||importing} onChange={e=>edit(index,'quantity',e.target.value)}
      onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(scanRef.current?.closest('details')?.open)scanRef.current.focus();else if(cost)document.getElementById(`line-cost-${index}`)?.focus();}}}/>
    </div>
    {cost&&<>
-    <Field id={`line-cost-${index}`} label={c('unitCost')} placeholder={c('costPlaceholder')} dir="ltr" inputMode="decimal"
+    <Field wrapperClassName="receipt-line-field [grid-area:cost]" id={`line-cost-${index}`} label={c('unitCost')} placeholder={c('costPlaceholder')} dir="ltr" inputMode="decimal"
      pattern={validNumber} required value={line.unitCost} disabled={busy||importing} onChange={e=>edit(index,'unitCost',e.target.value)}/>
-    <div className="text-sm">
+    <div className="receipt-line-total min-w-0 text-sm">
      <p className="text-slate-500">{c('total')}</p>
-     <p className="py-2.5 font-bold tabular-nums"><bdi>{lineTotal(line)} {context.business.baseCurrency}</bdi></p>
+     <p className="flex min-h-[var(--page-control-height)] items-center break-all font-bold tabular-nums"><bdi dir="ltr">{lineTotal(line)} {context.business.baseCurrency}</bdi></p>
     </div>
    </>}
-   <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
+   <button type="button" className="[grid-area:remove] inline-flex size-[var(--page-control-height)] items-center justify-center justify-self-end self-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
     disabled={busy||importing} aria-label={`${c('remove')} ${line.name}`} onClick={()=>setLines(old=>old.filter((_,j)=>index!==j))}>
     <Trash2 className="h-4 w-4" aria-hidden="true"/>
    </button>

@@ -1,11 +1,11 @@
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
-import RequiredMark from '../RequiredMark';
+import {LocationChipGroup} from '../business-v2/LocationChips';
 import SaleSteps from './SaleSteps';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Check, Store, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
-import { useResource } from '../business-v2/useBusinessApi';
+import { Check, Store, Warehouse, Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import useLocationOptions from '../business-v2/useLocationOptions';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
 import { percentageRow, discountPayload } from './discount';
@@ -19,17 +19,20 @@ const scale=v=>{const [a,b='']=v.split('.');return BigInt(a||0)*10000n+BigInt(b.
 const plusOne=v=>{const n=scale(v)+10000n;return `${n/10000n}.${String(n%10000n).padStart(4,'0')}`;};
 export default function Editor({context,api,c,lang,doc,done,close}){
  const root=`/businesses/${context.business.id}`;
- const path=`${root}/sales`,[shop,setShop]=useState(doc?{id:doc.locationId,name:doc.locationName}:null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
+ const path=`${root}/sales`,[requestedShop,setShop]=useState(null),[rows,setRows]=useState(doc?.lines.map(l=>percentageRow({...l,quantity:formatQuantity(l.quantity),key:crypto.randomUUID(),packs:[...(l.availablePacks??[]),...(l.packId&&!l.availablePacks?.some(p=>p.id===l.packId)?[{id:l.packId,name:l.packName,baseQuantity:l.factor}]:[])]}))||[]),[customer,setCustomer]=useState(doc?.customerName||''),[notes,setNotes]=useState(doc?.notes||''),[barcode,setBarcode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(0);
  const [shopPage,setShopPage]=useState(1);
- const shops=useResource(api,`/businesses/${context.business.id}/locations?state=active&page=${shopPage}`);
- const onlyShop=shops.data?.total===1?shops.data.items[0]:null;
+ const shops=useLocationOptions(api,doc?null:`${root}/locations?state=active`);
+ const shop=doc?{id:doc.locationId,name:doc.locationName}:shops.items.find(item=>item.id===requestedShop?.id);
+ const onlyShop=shops.items.length===1?shops.items[0]:null;
+ const shopUnavailable=!doc&&requestedShop&&!shop&&!shops.loading&&!shops.error;
  useEffect(()=>{
-  if(onlyShop&&!doc&&!rows.length&&!pending)setShop(current=>current??onlyShop);
- },[onlyShop,doc,rows.length,pending]);
+  if(!doc&&!rows.length&&!pending&&!shop&&(onlyShop||shopUnavailable))setShop(onlyShop);
+ },[doc,rows.length,pending,shop,onlyShop,shopUnavailable]);
  const shopLocked=!!doc||rows.length>0||pending>0||busy;
- const shopOptions=shopLocked&&shop?[shop]:shops.data?.items??[];
+ const pageSize=shops.pageSize??25;
+ const shopOptions=shopLocked&&shop?[shop]:shops.items.slice((shopPage-1)*pageSize,shopPage*pageSize);
  const productInput=useRef(null),scanner=useRef(null),queue=useRef(Promise.resolve()),key=useRef(crypto.randomUUID()),request=useRef(null);
- const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(row=>percentageRow({...row,quantity:formatQuantity(row.quantity)})));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
+ const draft=useLocalDraft(`sale:${doc?.id||'new'}:${doc?.revision||0}`,{shop:requestedShop,rows,customer,notes,barcode,clientKey:key.current,fingerprint:request.current},saved=>{setShop(saved.shop);setRows(saved.rows.map(row=>percentageRow({...row,quantity:formatQuantity(row.quantity)})));setCustomer(saved.customer);setNotes(saved.notes);setBarcode(saved.barcode);key.current=saved.clientKey;request.current=saved.fingerprint;});
  const change=(id,patch)=>setRows(old=>old.map(r=>r.key===id?{...r,...patch,...(['discountPercent','quantity','packId'].some(k=>k in patch)?{legacyDiscount:undefined}:{})}:r));
  function add(p){setRows(old=>{const same=old.find(r=>r.productId===p.id&&!r.packId);if(same){if(!/^(0|[1-9]\d{0,12})(\.\d{1,4})?$/.test(same.quantity)){setError('VALIDATION_ERROR');return old;}return old.map(r=>r.key===same.key?{...r,quantity:formatQuantity(plusOne(r.quantity)),legacyDiscount:undefined}:r);}return [...old,{key:crypto.randomUUID(),productId:p.id,name:p.name,sku:p.sku,unit:p.unit,quantity:'1',packId:null,packs:p.packs,unitPrice:p.sellingPrice,available:p.available,discountPercent:'0',discountReason:''}];});}
  function scan(e){e.preventDefault();const value=barcode.trim();if(!value||!shop)return;setBarcode('');setPending(n=>n+1);queue.current=queue.current.then(async()=>{try{const data=await api(`${path}/products?locationId=${shop.id}&barcode=${encodeURIComponent(value)}`);if(!data.items.length)throw new Error('PRODUCT_NOT_FOUND');add(data.items[0]);setError('');}catch(e){setError(e.message);}finally{setPending(n=>n-1);scanner.current?.querySelector("input")?.focus();}});}
@@ -44,30 +47,28 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  }
  const exceedsStock=productId=>available.has(productId)&&(requested.get(productId)??0n)>scale(String(available.get(productId)))*10000n;
  const insufficientStock=rows.some(row=>exceedsStock(row.productId));
- async function save(e){e.preventDefault();if(insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
+ async function save(e){e.preventDefault();if(!shop||insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
  return <PageLayout as="div" className="mx-auto w-full max-w-5xl"><PageHeader title={c(doc?'saleEdit':'newSale')} accessory={<button className={buttonClass} disabled={busy||pending>0} onClick={close}>{c('close')}</button>}/><SaleSteps step={0} lang={lang}/><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
- <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5"><fieldset className="min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2">
-  <legend className="mb-2 text-sm font-medium text-slate-700">
-   {c('chooseLocation')}<RequiredMark/>
-  </legend>
-  {!shopLocked&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
-  {!shopLocked&&!shops.data&&!shops.error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
-  {!shopLocked&&shops.data?.total===0&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
-  <div className="flex flex-wrap gap-2">
+ <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="min-w-0 space-y-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
+  <LocationChipGroup label={c('chooseLocation')} required>
+   {!doc&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
+   {!doc&&shops.loading&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
+   {!doc&&!shops.loading&&!shops.error&&!shops.items.length&&<p className="text-sm text-slate-500">{lang==='ar'?'لا توجد مواقع متاحة للبيع.':'No locations are available for sales.'}</p>}
+   {shopUnavailable&&rows.length>0&&<p role="status" className="text-sm text-slate-600">{lang==='ar'?'لم يعد موقع المسودة متاحًا. أزل أصنافها لاختيار موقع آخر.':'The draft location is no longer available. Remove its items to choose another location.'}</p>}
    {shopOptions.map(option=>{
-    const selected=option.id===shop?.id;
+    const selected=option.id===shop?.id, Icon=option.kind==='WAREHOUSE'?Warehouse:Store;
     return <button key={option.id} type="button" aria-pressed={selected} disabled={shopLocked}
      className={`inline-flex max-w-full min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
      onClick={()=>setShop(option)}>
-     <Store aria-hidden="true" className="h-4 w-4 shrink-0"/>
+     <Icon aria-hidden="true" className="h-4 w-4 shrink-0"/>
      <bdi className="min-w-0 break-words">{option.name}</bdi>{selected&&<Check aria-hidden="true" className="h-4 w-4 shrink-0"/>}
 
     </button>;
    })}
-  </div>
-  {!shopLocked&&shops.data?.total>shops.data?.pageSize&&<Pager data={shops.data} setPage={setShopPage} c={c}/>}
- </fieldset></div>
+  </LocationChipGroup>
+  {!shopLocked&&shops.items.length>pageSize&&<Pager data={{page:shopPage,pageSize,total:shops.items.length}} setPage={setShopPage} c={c}/>}
+ </div>
  <div className="space-y-3 p-4 sm:p-5">
   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShoppingBasket className="h-4 w-4 text-emerald-600" aria-hidden="true"/>{lang==='ar'?'إضافة منتجات للبيع':'Add sale items'}</div>
   <div className="grid gap-3 lg:grid-cols-2 lg:items-start">

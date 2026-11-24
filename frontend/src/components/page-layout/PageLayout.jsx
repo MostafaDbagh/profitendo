@@ -34,18 +34,22 @@ export function PageActions({items=[],children}) {
   </div>;
 }
 
-/** @param {{title: Slot, actions?: Action[], accessory?: Slot, heading?: 'h1'|'h2', titleId?: string, titleTestId?: string}} props */
-export function PageHeader({title,actions,accessory,heading:Heading='h2',titleId,titleTestId}) {
+/** @param {{title: Slot, titleMeta?: Slot, actions?: Action[], accessory?: Slot, heading?: 'h1'|'h2', titleId?: string, titleTestId?: string}} props */
+export function PageHeader({title,titleMeta,actions,accessory,heading:Heading='h2',titleId,titleTestId}) {
+  const heading=<Heading id={titleId} data-testid={titleTestId} className="min-w-0 max-w-full break-words text-xl font-bold leading-tight text-foreground sm:text-2xl">{title}</Heading>;
   return <header className={`flex min-w-0 flex-wrap items-center justify-between ${rowGap}`}>
-    <Heading id={titleId} data-testid={titleTestId} className="min-w-0 max-w-full break-words text-xl font-bold leading-tight text-foreground sm:text-2xl">{title}</Heading>
+    {titleMeta ? <div className={`flex min-w-0 max-w-full flex-wrap items-center ${rowGap}`}>
+      {heading}
+      <span className="border-s border-border ps-[var(--page-control-gap)] text-xs text-muted-foreground">{titleMeta}</span>
+    </div> : heading}
     <PageActions items={actions}>{accessory}</PageActions>
   </header>;
 }
 
-/** @param {{title?: Slot, actions?: Action[], accessory?: Slot, heading?: 'h1'|'h2', toolbar?: Slot, status?: Slot, pagination?: Slot, titleId?: string, titleTestId?: string, children?: Slot, as?: import('react').ElementType, className?: string} & Omit<import('react').HTMLAttributes<HTMLElement>, 'title'>} props */
-export function PageLayout({title,actions,accessory,heading,toolbar,status,pagination,titleId,titleTestId,children,as:Component='section',className='',...props}) {
+/** @param {{title?: Slot, titleMeta?: Slot, actions?: Action[], accessory?: Slot, heading?: 'h1'|'h2', toolbar?: Slot, status?: Slot, pagination?: Slot, titleId?: string, titleTestId?: string, children?: Slot, as?: import('react').ElementType, className?: string} & Omit<import('react').HTMLAttributes<HTMLElement>, 'title'>} props */
+export function PageLayout({title,titleMeta,actions,accessory,heading,toolbar,status,pagination,titleId,titleTestId,children,as:Component='section',className='',...props}) {
   return <Component className={`${stack} ${className}`} {...props}>
-    {title!=null&&<PageHeader {...{title,heading,actions,accessory,titleId,titleTestId}}/>}
+    {title!=null&&<PageHeader {...{title,titleMeta,heading,actions,accessory,titleId,titleTestId}}/>}
     {toolbar}
     {status}
     {children}

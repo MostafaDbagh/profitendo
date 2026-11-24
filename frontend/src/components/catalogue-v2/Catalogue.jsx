@@ -64,7 +64,10 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     {id:'references',label:lang==='ar'?'الفئات والوحدات':'Categories & units',
      visible:!!context.permissions['catalogue.manage'],onClick:event=>{trigger.current=event.currentTarget;setReferences(true);}},
   ];
-  return <PageLayout title={c('catalogue')} actions={actions} pagination={data&&<Pager {...{data,setPage,c}}/>}
+  const currency=data?.currency ?? context.business.baseCurrency;
+  return <PageLayout title={c('catalogue')}
+    titleMeta={currency && <>{c('pricesCurrency')}: <bdi dir="ltr" className="font-semibold">{currency}</bdi></>}
+    actions={actions} pagination={data&&<Pager {...{data,setPage,c}}/>}
     toolbar={<>
     <details className={`${panelClass} group !p-0`}>
       <summary className={`${buttonClass} flex w-full cursor-pointer list-none justify-between group-open:bg-muted [&::-webkit-details-marker]:hidden`}>
@@ -98,7 +101,8 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     />
     </>}>
     <Feedback error={error||exportError} notice={notice} c={c} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
-    {data&&<><p className="text-xs text-slate-500">{c('pricesCurrency')}: {data.currency}</p><Table tools={false} tableClassName="min-w-[1500px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-[260px]">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
+    {data&&<div className="pt-[var(--page-control-gap)] sm:pt-[var(--page-gap)]">
+      <Table tools={false} tableClassName="min-w-[1500px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-[260px]">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <span>{c('productAvailable')}: <bdi className="font-semibold">{quantity(p.available)}</bdi></span>
         <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -107,7 +111,8 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
           <Info aria-hidden="true" className="h-4 w-4"/>
         </button>
       </div>
-    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?p.barcodes.map(barcode=><span key={barcode} className="block font-mono text-sm leading-6"><CopyableCode kind="barcode">{barcode}</CopyableCode></span>):<span className="text-xs text-slate-400">{lang==='ar'?'لم يُضف باركود':'No barcode added'}</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular"><span dir="ltr">{p[k]}</span></td>)}{sales&&<td className="px-5 py-3">{p.saleCount}</td>}<td className="px-5 py-3">{c(p.active?'active':'inactive')}</td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button className={buttonClass} onClick={e=>open(e,p)}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('editProduct')}</button><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{lang==='ar'?'العبوات والصورة':'Packs & image'}</button></div></td>}</tr>)}</Table></>}
+    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?p.barcodes.map(barcode=><span key={barcode} className="block font-mono text-sm leading-6"><CopyableCode kind="barcode">{barcode}</CopyableCode></span>):<span className="text-xs text-slate-400">{lang==='ar'?'لم يُضف باركود':'No barcode added'}</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular"><span dir="ltr">{p[k]}</span></td>)}{sales&&<td className="px-5 py-3">{p.saleCount}</td>}<td className="px-5 py-3">{c(p.active?'active':'inactive')}</td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button className={buttonClass} onClick={e=>open(e,p)}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('editProduct')}</button><button className={buttonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{lang==='ar'?'العبوات والصورة':'Packs & image'}</button></div></td>}</tr>)}</Table>
+    </div>}
     {stock&&stockProduct&&<Modal title={stockProduct.name} description={lang==='ar'?'المخزون المتاح حسب الموقع':'Available stock by location'}
       {...{c,lang}} returnFocus={trigger.current} close={()=>setStockProduct(null)}>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">

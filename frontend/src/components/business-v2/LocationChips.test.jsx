@@ -17,19 +17,29 @@ test.each(['en','ar'])('shows all paginated shops inline and selects a chip (%s)
  const group=host.querySelector('[role=group]');
  const label=document.getElementById(group.getAttribute('aria-labelledby'));
  expect(label).toBe(group.previousElementSibling);
- expect(label.textContent).toBe(lang==='ar'?'اختر المتجر':'Choose store');
+ expect(label.textContent).toBe(lang==='ar'?'اختر المتجر:':'Choose store:');
  const buttons=host.querySelectorAll('button');expect(buttons).toHaveLength(2);expect(buttons[0].getAttribute('aria-pressed')).toBe('true');expect(host.querySelector('[role=dialog]')).toBeNull();
  act(()=>buttons[1].click());expect(onChange).toHaveBeenCalledWith(second);expect(host.firstChild.dir).toBe(lang==='ar'?'rtl':'ltr');
 });
 test('locked document retains selected shop without fetching or changing it',async()=>{
- const api=jest.fn(),onChange=jest.fn();await render({api,onChange,disabled:true,value:{id:'a',name:'Saved shop'}});
+ const api=jest.fn(),onChange=jest.fn();await render({api,onChange,documentLocation:{id:'a',name:'Saved shop'}});
  const button=host.querySelector('button');expect(button.disabled).toBe(true);act(()=>button.click());expect(onChange).not.toHaveBeenCalled();expect(api).not.toHaveBeenCalled();
 });
 test('errors are retryable and empty results are explicit',async()=>{
  const api=jest.fn().mockRejectedValueOnce(new Error('NETWORK_ERROR')).mockResolvedValueOnce({items:[],total:0});
- await render({api,onChange:()=>{}});expect(host.textContent).toContain('NETWORK_ERROR');await act(async()=>host.querySelector('button').click());expect(host.textContent).toContain('No stores available');
+ await render({api,onChange:()=>{}});expect(host.textContent).toContain('NETWORK_ERROR');await act(async()=>host.querySelector('button').click());expect(host.textContent).toContain('No shops or warehouses available');
 });
 test('changing business drops previously fetched choices',async()=>{
  const api=jest.fn().mockResolvedValueOnce({items:[{id:'a',name:'Old shop'}],total:1}).mockResolvedValueOnce({items:[{id:'b',name:'New shop'}],total:1});
  await render({api,onChange:()=>{}});await render({api,context:{business:{id:'other'}},onChange:()=>{}});expect(host.textContent).not.toContain('Old shop');expect(host.textContent).toContain('New shop');
+});
+test('a saved selection cannot add an option missing from the current business',async()=>{
+ const warehouse={id:'w',name:'Assigned warehouse',kind:'WAREHOUSE'};
+ const stale={id:'old',name:'Old shop',kind:'SHOP'};
+ const api=jest.fn().mockResolvedValue({items:[warehouse],total:1}),onChange=jest.fn();
+ await render({api,value:stale,onChange});
+ expect([...host.querySelectorAll('[aria-pressed]')].map(el=>el.textContent)).toEqual([warehouse.name]);
+ expect(onChange).toHaveBeenCalledWith(null);
+ await render({api,value:warehouse,onChange,excludeId:warehouse.id});
+ expect(host.querySelector('[aria-pressed]')).toBeNull();
 });

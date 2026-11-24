@@ -1,0 +1,60 @@
+.receipt-items {
+  container: receipt-items / inline-size;
+}
+
+.receipt-line {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas:
+    "product  product  product product"
+    "quantity quantity cost    cost"
+    "quantity quantity cost    cost"
+    ".        .        cost    cost"
+    "total    total    total   remove";
+}
+
+.receipt-line[data-cost="hidden"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "product product" "quantity ." "quantity remove";
+}
+
+.receipt-line-product {
+  grid-area: product;
+  margin-block-end: var(--page-control-gap);
+}
+
+/* Labels and inputs share tracks. A wrapped label or a hint can grow its own row. */
+.receipt-line-field {
+  display: grid;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  align-items: start;
+}
+
+.receipt-line-field > label { align-self: end; }
+
+.receipt-line-total {
+  grid-area: total;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--page-control-gap);
+}
+
+@container receipt-items (min-width: 42rem) {
+  .receipt-line {
+    grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(0, 1fr)) minmax(0, 0.8fr) auto;
+    grid-template-areas:
+      "product quantity cost total ."
+      "product quantity cost total remove"
+      ".       .        cost .     .";
+  }
+
+  .receipt-line[data-cost="hidden"] {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+    grid-template-areas: "product quantity ." "product quantity remove";
+  }
+
+  .receipt-line-product { align-self: center; margin-block-end: 0; }
+  .receipt-line-total { display: grid; grid-template-rows: subgrid; gap: 0; }
+  .receipt-line-total > :first-child { align-self: end; margin-block-end: 0.375rem; }
+}
