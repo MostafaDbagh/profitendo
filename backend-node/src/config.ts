@@ -25,6 +25,10 @@ export function readConfig(env: NodeJS.ProcessEnv) {
   if (result.data.NODE_ENV === 'production' && result.data.CORS_ORIGINS.some(v => !v.startsWith('https://'))) {
     throw new Error('Production CORS_ORIGINS must use HTTPS');
   }
+  // Debug output is disabled even if inherited deployment settings request it.
+  if (result.data.NODE_ENV === 'production' && ['debug', 'trace'].includes(result.data.LOG_LEVEL)) {
+    result.data.LOG_LEVEL = 'info';
+  }
   return result.data;
 }
 export type Config = ReturnType<typeof readConfig>;

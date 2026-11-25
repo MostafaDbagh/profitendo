@@ -80,6 +80,11 @@ describe('configuration', () => {
     expect(() => readConfig({ ...env, CORS_ORIGINS: '*' })).toThrow();
     expect(() => readConfig({ ...env, NODE_ENV: 'production' })).toThrow('HTTPS');
   });
+  it('disables verbose logging in production', () => {
+    for (const LOG_LEVEL of ['debug', 'trace']) {
+      expect(readConfig({ ...env, NODE_ENV: 'production', CORS_ORIGINS: 'https://app.example.com', LOG_LEVEL }).LOG_LEVEL).toBe('info');
+    }
+  });
   it('never puts invalid credential values in configuration errors', () => {
     expect(() => readConfig({ ...env, DATABASE_URL: 'secret-value' })).toThrow('Invalid configuration: DATABASE_URL');
   });

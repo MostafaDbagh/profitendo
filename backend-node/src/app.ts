@@ -61,6 +61,9 @@ export function createApp(config: Pick<Config, 'CORS_ORIGINS'> & Partial<Pick<Co
   // The larger upload allowance is authenticated and scoped to product imports.
   if(auth)app.use('/api/businesses/:businessId/product-imports',productImportRouter(auth));
   if(auth)app.use('/api/businesses/:businessId/products/:productId/image',imageRouter(auth));
+  // Bound public contact attempts before JSON parsing or database work.
+  // The support router also enforces shared per-IP and per-email quotas.
+  app.post('/api/support/public', requestBudget(10, 60000));
   app.use(express.json({ limit: '100kb' }));
   app.get('/api/health/live', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/health/ready', async (_req, res) => {
