@@ -10,31 +10,28 @@ export default function BillingSummary({ data, context, c, lang }) {
     { key:'maxWarehouses', icon:Warehouse, used:data.locationUsage?.maxWarehouses ?? 0, limit:plan.maxWarehouses },
     { key:'maxShops', icon:Store, used:data.locationUsage?.maxShops ?? 0, limit:plan.maxShops },
   ] : [];
-  return <section aria-label={t('Current subscription','الاشتراك الحالي')} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-    <div className="h-1 bg-emerald-500" />
-    <div className="p-5 md:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-5">
-      <div className="space-y-3 min-w-0">
-        <p className="text-xs font-semibold text-slate-500">{t('YOUR CURRENT PLAN','خطتك الحالية')}</p>
-        <h3 className="text-2xl font-bold text-slate-900 break-words">{plan ? planName(plan,lang) : t('Choose your first plan','اختر خطتك الأولى')}</h3>
-        <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${data.active?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-amber-200 bg-amber-50 text-amber-800'}`}><ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />{status}</span>
-        {data.status==='AWAITING_ACTIVATION'&&<p className="text-sm text-slate-500">{t('Your payment was received. Super Admin will confirm it and activate your subscription.','تم استلام دفعتك. ستؤكدها إدارة المنصة وتفعّل اشتراكك.')}</p>}
-        {data.status==='EXPIRED' && <p className="text-sm text-slate-500 max-w-xl">{c('expiredHint')}</p>}
-        {!plan && <p className="text-sm text-slate-500">{t('Start with a free trial, or explore a paid plan below.','ابدأ بتجربة مجانية، أو استعرض الخطط المدفوعة أدناه.')}</p>}
+  const endsAt = data.paidUntil || data.subscription?.trialEndsAt;
+  const labels = {teamPlaces:t('Team seats','أعضاء الفريق'), maxWarehouses:t('Warehouses','المستودعات'), maxShops:t('Stores','المتاجر')};
+  return <section aria-label={t('Current subscription','الاشتراك الحالي')} className={plan ? 'grid gap-3 md:grid-cols-2' : ''}>
+    <div className="relative flex min-h-48 flex-col justify-center overflow-hidden rounded-2xl bg-[#045756] py-6 ps-5 pe-[32%] text-white sm:ps-7">
+      <img src="/billing-storefront.png" alt="" className="pointer-events-none absolute bottom-0 end-0 h-[90%] w-[30%] object-contain object-bottom opacity-80 ltr:-scale-x-100" />
+      <div className="relative space-y-3">
+        <p className="text-sm font-bold text-amber-200">{t('Your current plan','خطتك الحالية')}</p>
+        <h3 className="break-words text-2xl font-bold leading-snug sm:text-3xl">{plan ? planName(plan,lang) : t('Choose your first plan','اختر خطتك الأولى')}</h3>
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold ${data.active?'bg-emerald-50 text-emerald-800':'bg-amber-50 text-amber-900'}`}><ShieldCheck size={17} aria-hidden="true" />{status}</span>
+        {plan && endsAt && <p className="flex items-center gap-2 text-sm font-semibold leading-relaxed"><CalendarDays className="shrink-0 text-amber-200" size={19} aria-hidden="true" /><span>{data.paidUntil?t('Paid period ends','نهاية الفترة المدفوعة'):c('trialEnds')} · <time dateTime={endsAt}>{new Date(endsAt).toLocaleDateString(lang==='ar'?'ar':'en',{day:'numeric',month:'long',year:'numeric',timeZone:context.business.timezone})}</time> <bdi>({context.business.timezone})</bdi></span></p>}
+        {data.status==='AWAITING_ACTIVATION'&&<p className="text-sm text-white/90">{t('Your payment was received. Super Admin will confirm it and activate your subscription.','تم استلام دفعتك. ستؤكدها إدارة المنصة وتفعّل اشتراكك.')}</p>}
+        {data.status==='EXPIRED' && <p className="text-sm text-white/90 max-w-xl">{c('expiredHint')}</p>}
+        {!plan && <p className="text-sm text-white/90">{t('Start with a free trial, or explore a paid plan below.','ابدأ بتجربة مجانية، أو استعرض الخطط المدفوعة أدناه.')}</p>}
       </div>
-      {plan && <div className="rounded-lg bg-slate-50 border border-slate-100 p-4 sm:min-w-56 space-y-2">
-        <p className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="w-4 h-4" aria-hidden="true" />{data.paidUntil?t('Paid period ends','نهاية الفترة المدفوعة'):c('trialEnds')}</p>
-        <p className="text-sm font-semibold text-slate-800">{new Date(data.paidUntil || data.subscription.trialEndsAt).toLocaleDateString(lang==='ar'?'ar':'en',{day:'numeric',month:'long',year:'numeric',timeZone:context.business.timezone})}</p>
-        <p className="text-xs text-slate-500">{context.business.timezone}</p>
-      </div>}
     </div>
-    {plan && <div className="border-t border-slate-100 p-5 md:p-6 space-y-4">
-      <dl className="grid sm:grid-cols-3 gap-5 sm:gap-6">{usage.map(({key,icon:Icon,used,limit}) => <div key={key} className="min-w-0">
-        <dt className="flex items-center gap-2 text-sm text-slate-500"><Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{c(key)}</dt>
-        <dd className="mt-2"><span className="text-2xl font-semibold tabular text-slate-900" dir="ltr">{used} <span className="text-sm font-normal text-slate-400">/ {limit}</span></span>
-          <div aria-hidden="true" className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${used>=limit&&used>0?'bg-amber-500':'bg-emerald-500'}`} style={{width:`${limit>0?Math.min(100,used/limit*100):used>0?100:0}%`}} /></div>
-        </dd>
+    {plan && <div className="flex flex-col justify-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-5 sm:px-7">
+      <dl className="space-y-4">{usage.map(({key,icon:Icon,used,limit}) => <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-y-2">
+        <dt className="flex items-center gap-2 font-bold"><Icon className="h-5 w-5 shrink-0 text-teal-800" aria-hidden="true" />{labels[key]}</dt>
+        <dd className="tabular-nums"><strong>{used}</strong> {t('of','من')} {limit}</dd>
+        <div aria-hidden="true" className="col-span-2 h-2 overflow-hidden rounded-full bg-gray-200"><div className={`h-full rounded-full ${used>=limit&&used>0?'bg-amber-500':'bg-emerald-600'}`} style={{width:`${limit>0?Math.min(100,used/limit*100):used>0?100:0}%`}} /></div>
       </div>)}</dl>
-      <p className="text-xs text-slate-500">{c('reservedHint')}</p>
+      <p className="text-xs leading-relaxed text-slate-500">{c('reservedHint')}</p>
     </div>}
   </section>;
 }

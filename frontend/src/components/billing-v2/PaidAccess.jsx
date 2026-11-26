@@ -1,25 +1,25 @@
 import {LoadingState} from '../page-layout/PageResults';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import { useState } from 'react';
-import { Check, RefreshCw, ArrowUpRight } from 'lucide-react';
+import { Layers, Check, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { useResource } from '../business-v2/useBusinessApi';
 import { Feedback, buttonClass, primaryClass } from '../business-v2/UI';
 import { translator } from '../support-v2/copy';
-export default function PaidAccess({businessId,api,lang}) {
+export default function PaidAccess({businessId,api,lang,compact=false}) {
   const c=translator(lang),t=(en,ar)=>lang==='ar'?ar:en,path=`/billing/businesses/${businessId}`;
   const [busy,setBusy]=useState(false),[failure,setFailure]=useState('');
   const state=useResource(api,path),approvals=useResource(api,path+'/approvals');
   async function act(plan,approved){setBusy(true);setFailure('');try{const result=await api(path+(approved?'/checkout':'/approvals'),{method:'POST',body:approved?{planId:plan.id,confirm:true}:{planId:plan.id}});if(approved&&result.approvalUrl)window.location.assign(result.approvalUrl);else{approvals.reload();state.reload();}}catch(e){setFailure(e.message);}finally{setBusy(false);}}
   const plans=[...new Map([...(state.data?.plans||[]),...(approvals.data||[]).map(a=>a.plan)].filter(Boolean).map(p=>[p.id,p])).values()].filter(p=>p.priceMinor!==null);
-  return <section className="space-y-4">
+  return <section className={compact ? "space-y-3 py-6" : "space-y-4"}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="space-y-1"><h3 className="text-lg font-bold text-slate-900">{c('approvals')}</h3><p className="text-sm text-slate-500">{c('approvalHint')}</p></div>
+      <div className="space-y-1"><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">{compact && <Layers className="text-orange-600" size={22} aria-hidden="true"/>}{c('approvals')}</h3><p className="text-sm text-slate-500">{c('approvalHint')}</p></div>
       <button className={buttonClass} disabled={busy} onClick={()=>{approvals.reload();state.reload();}}><RefreshCw className="w-4 h-4" aria-hidden="true" />{c('reload')}</button>
     </div>
     <Feedback error={failure||state.error||approvals.error} c={c} retry={()=>{state.reload();approvals.reload();}} />
     {(!state.data||!approvals.data)&&!state.error&&!approvals.error&&<LoadingState className="text-sm text-slate-500">{c('loading')}</LoadingState>}
     {state.data&&approvals.data&&<>
-      {!plans.length&&<div className="rounded-xl border border-dashed border-slate-300 bg-white p-6"><p className="font-semibold text-slate-700">{t('No paid plans available yet','لا توجد خطط مدفوعة متاحة حاليًا')}</p><p className="text-sm text-slate-500 mt-1">{c('paymentUnavailable')}</p></div>}
+      {!plans.length&&<div className={compact ? "sm:ps-8" : "rounded-xl border border-dashed border-slate-300 bg-white p-6"}><p className="font-semibold text-slate-700">{t('No paid plans available yet','لا توجد خطط مدفوعة متاحة حاليًا')}</p><p className="text-sm text-slate-500 mt-1">{c('paymentUnavailable')}</p></div>}
       <div className="grid lg:grid-cols-2 gap-4">{plans.map(p=>{
         const request=approvals.data.find(r=>r.planId===p.id),approved=request?.status==='APPROVED',pending=request?.status==='PENDING';
         return <article key={p.id} className={`flex flex-col rounded-xl border bg-white shadow-sm overflow-hidden ${approved?'border-emerald-300':'border-slate-200'}`}>

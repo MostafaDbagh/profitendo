@@ -104,22 +104,27 @@ export function CashDay({context,api,c:parentCopy,lang,location,onDetails}) {
   [text.expenses,expenseValue(breakdown?.expenses)],[text.withdrawals,expenseValue(breakdown?.withdrawals)],
   [text.current,data.closed?.counted??expected],
  ] : [];
- return <div className="space-y-4">
-  <div className="max-w-xs"><Field id="cash-day" type="date" label={c('cashDay')} disabled={busy} value={day} max={today} required onChange={event=>{
+ return <>
+  <div className="min-w-0 sm:w-64"><Field id="cash-day" type="date" label={c('cashDay')} disabled={busy} value={day} max={today} required onChange={event=>{
    if(event.target.value){setDay(event.target.value);setOpening('0');setCounted('');setReason('');setError('');}
   }}/></div>
+  <div className="col-span-full min-w-0 space-y-4">
   <Feedback c={c} error={error||loadError} retry={reload} />
   {!data && !loadError && <LoadingState>{c('loading')}</LoadingState>}
-  {data && <Disclosure title={words.breakdown}>
-   <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
+  <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  {data && <aside className={`${panelClass} min-w-0 space-y-4 lg:col-start-2 lg:row-start-1`}>
+   <p className="text-sm font-medium text-slate-600">{c('expected')}</p>
+   <p className="break-words text-3xl font-bold tabular-nums"><bdi>{data.closed ? money(data.closed.expected,data.closed.currency) : expected===null?'—':money(expected,data.currency)}</bdi></p>
+   <Disclosure title={words.breakdown} className="!rounded-none !border-x-0 !border-b-0 [&>summary]:px-0">
+   <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
     {cards.map(([label,value],index)=><div key={label} className={`min-w-0 rounded-xl border p-3 shadow-sm sm:p-4 ${index===5?'border-emerald-700 bg-emerald-700 text-white':'border-slate-200 bg-white text-slate-900'}`}>
      <dt className={`text-sm ${index===5?'text-emerald-50':'text-slate-600'}`}>{label}</dt>
      <dd className="mt-2 break-words text-base font-bold sm:text-lg"><bdi>{value==null?'—':money(value,data.currency)}</bdi></dd>
     </div>)}
    </dl>
    {breakdown?.other && scale(breakdown.other)!==0n && <p className="text-sm text-slate-600">{text.other} <bdi>{money(breakdown.other,data.currency)}</bdi></p>}
-  </Disclosure>}
-  <div className="max-w-2xl mx-auto">
+  </Disclosure></aside>}
+  <div className="min-w-0 lg:col-start-1 lg:row-start-1">
    <section className={`${panelClass} min-w-0 space-y-4`}>
     <h3 className="text-lg font-bold">{c('closeCashDay')}</h3><p className="text-sm text-slate-600">{words.intro}</p>
     <LocalDraftNotice draft={cashDraft} {...{lang,busy}} />
@@ -128,13 +133,11 @@ export function CashDay({context,api,c:parentCopy,lang,location,onDetails}) {
      {['expected','counted','variance'].map(key=><p key={key}>{c(key)} <bdi>{money(data.closed[key],data.closed.currency)}</bdi></p>)}
      {data.closed.reason && <p>{data.closed.reason}</p>}
     </div> : data && <form className="space-y-4" onSubmit={event=>{event.preventDefault();if(!busy&&openingValue!==null&&openingValue>=0n&&countedValue!==null&&countedValue>=0n&&(!needsReason||reason.trim().length>=5))setReview(event.nativeEvent.submitter||event.currentTarget.querySelector('button[type=submit]'));}}>
-     <p className="flex justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
-      <span className="text-slate-600">{c('expected')}</span><bdi className="font-bold">{expected===null?'—':money(expected,data.currency)}</bdi>
-     </p>
-     <fieldset disabled={busy} className="space-y-3">
-      <Field id="cash-opening" label={c('opening')} value={opening} onChange={event=>setOpening(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
-      <p className="text-xs text-slate-500">{words.openingHint}</p>
-      <Field id="cash-counted" placeholder="0.00" label={c('counted')} value={counted} onChange={event=>setCounted(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
+     <fieldset disabled={busy} className="min-w-0 space-y-4">
+      <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2">
+       <Field id="cash-opening" label={c('opening')} value={opening} onChange={event=>setOpening(event.target.value)} pattern={decimalPattern} inputMode="decimal" hint={words.openingHint} required />
+       <Field id="cash-counted" placeholder="0.00" label={c('counted')} value={counted} onChange={event=>setCounted(event.target.value)} pattern={decimalPattern} inputMode="decimal" required />
+      </div>
       {needsReason?<Field id="cash-reason" label={c('varianceReason')} placeholder={c('varianceExample')} value={reason} onChange={event=>setReason(event.target.value)} required minLength={5} maxLength={2000} />:<OptionalFields><Field id="cash-reason" label={words.note} value={reason} onChange={event=>setReason(event.target.value)} maxLength={2000}/></OptionalFields>}
      </fieldset>
      {variance!==null && <p role="status" className={variance===0n?'text-sm text-emerald-800':'text-sm text-amber-800'}>{variance===0n?words.match:<>{variance<0n?words.short:words.extra} <bdi>{money(format(variance<0n?-variance:variance),data.currency)}</bdi></>}</p>}
@@ -142,18 +145,19 @@ export function CashDay({context,api,c:parentCopy,lang,location,onDetails}) {
     </form>}
    </section>
   </div>
+  </div>
   <Disclosure title={words.history}><CashHistory key={historyVersion} {...{api,c,text,location,root,money}} /><WithdrawalHistory {...{api,c,text,location,root,money,timezone,lang,onDetails}} /></Disclosure>
   {review && <Modal {...{c,lang,busy}} title={c('closeCashDay')} description={c('cashCloseConfirm')} returnFocus={review} close={()=>setReview(null)}>
    <p><bdi>{day}</bdi> · {location.name}</p>
    <dl className="my-4 space-y-3">{[['expected',expected],['counted',counted],['variance',variance===null?null:format(variance)]].map(([label,value])=><div key={label} className="flex flex-wrap justify-between gap-2"><dt>{c(label)}</dt><dd className="font-semibold"><bdi>{value===null?'—':money(value,data.currency)}</bdi></dd></div>)}</dl>{reason&&<p className="mb-4 text-sm text-slate-600">{reason}</p>}
    <button type="button" className={primaryClass} disabled={busy} onClick={save}>{c('confirm')}</button>
   </Modal>}
- </div>;
+ </div></>;
 }
 export default function Payments({context,api,c,lang,mode,initialAction}){const expensesOnly=mode==='expenses';const [selected,setSelected]=useState(null),[success,setSuccess]=useState(''),[editing,setEditing]=useState(context.permissions['payments.manage']&&['new','refund'].includes(initialAction)?initialAction:false),[view,setView]=useState(!expensesOnly&&context.permissions['cash.close']?'cash':'entries'),[location,setLocation]=useState(null),[cashVersion,setCashVersion]=useState(0),[page,setPage]=useState(1),{data,error,reload}=useResource(api,`/businesses/${context.business.id}/workflows/payments?page=${page}${expensesOnly?'&kind=EXPENSE':''}`),shared={context,api,c,lang,expensesOnly};
  const text=treasuryCopy[lang==='ar'?'ar':'en'];
  const locations=useResource(api,view==='cash'?`/businesses/${context.business.id}/locations?state=active`:null);
  const selectedLocation=location??(locations.data?.total===1?locations.data.items[0]:null);
  if(editing)return <PaymentForm {...shared} initialKind={editing==='refund'?'CUSTOMER_REFUND':undefined} withdrawalLocation={editing==='withdrawal'?selectedLocation:undefined} close={()=>setEditing(false)} done={()=>{setEditing(false);setCashVersion(version=>version+1);reload();}}/>;
- return <PageLayout as="div"><PageHeader title={c(expensesOnly?'expenses':'payments')} accessory={context.permissions['payments.manage']&&(view==='cash'?<button type="button" className={primaryClass} disabled={!selectedLocation} onClick={()=>setEditing('withdrawal')}><Plus className="h-4 w-4" aria-hidden="true"/>{text.withdraw}</button>:<button className={primaryClass} onClick={()=>setEditing(true)}>{c('recordPayment')}</button>)}/>{!expensesOnly&&context.permissions['cash.close']&&<div className="flex gap-2"><button className={view==='entries'?primaryClass:buttonClass} onClick={()=>setView('entries')}>{c('paymentHistory')}</button><button className={view==='cash'?primaryClass:buttonClass} onClick={()=>setView('cash')}>{c('dailyCash')}</button></div>}{view==='cash'?<><LocationChoice {...shared} value={selectedLocation} onChange={setLocation} all/>{selectedLocation ? <CashDay key={`${selectedLocation.id}:${cashVersion}`} {...shared} location={selectedLocation} onDetails={setSelected}/> : <p className="text-sm text-slate-600">{text.locationHint}</p>}</>:<><Feedback notice={success} {...{c,error}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}{data&&<><Table c={c} headers={['recordType','selectedLocation','amount','salePayment','paymentReference','recordReason','status','actions']} empty={!data.items.length}>{data.items.map(r=><tr key={r.id}><td className="p-4">{c(r.kind)}</td><td className="p-4">{r.location.name}</td><td className="p-4 whitespace-nowrap"><bdi>{r.amount} {r.currency}</bdi></td><td className="p-4">{c(r.method)}</td><td className="p-4">{r.reference||'—'}</td><td className="p-4">{r.reason}</td><td className="p-4">{c(r.reversalOfId?'reversalEntry':r.reversedBy?'paymentReversed':'paymentPosted')}</td><td className="p-4"><button className={buttonClass} onClick={e=>setSelected({entry:r,returnFocus:e.currentTarget})}>{c(!r.reversalOfId&&!r.reversedBy&&context.permissions['payments.reverse']&&context.permissions['payments.manage']&&(!r.kind.startsWith('SUPPLIER')||(context.permissions['catalogue.cost']&&context.permissions['purchasing.manage']))?'reversePayment':'paymentDetails')}</button></td></tr>)}</Table><Pager {...{data,setPage,c}}/></>}</>}{selected&&<PaymentReversal {...shared} {...selected} close={()=>setSelected(null)} done={()=>{setSelected(null);setSuccess('reversalSaved');setCashVersion(version=>version+1);reload();}}/>}</PageLayout>;
+ return <PageLayout as="div"><PageHeader title={c(expensesOnly?'expenses':'payments')} accessory={context.permissions['payments.manage']&&(view==='cash'?<button type="button" className={`${buttonClass} !border-emerald-700 !text-emerald-800 hover:!bg-emerald-50`} disabled={!selectedLocation} onClick={()=>setEditing('withdrawal')}><Plus className="h-4 w-4" aria-hidden="true"/>{text.withdraw}</button>:<button className={primaryClass} onClick={()=>setEditing(true)}>{c('recordPayment')}</button>)}/>{!expensesOnly&&context.permissions['cash.close']&&<div className="flex border-b border-slate-200">{[['entries','paymentHistory'],['cash','dailyCash']].map(([key,label])=><button key={key} type="button" aria-pressed={view===key} className={`min-h-11 border-b-2 px-3 text-sm font-semibold focus-visible:outline-emerald-600 ${view===key?'border-emerald-600 text-emerald-700':'border-transparent text-slate-700'}`} onClick={()=>setView(key)}>{c(label)}</button>)}</div>}{view==='cash'?<div className="grid min-w-0 items-end gap-4 sm:grid-cols-[fit-content(60%)_minmax(0,1fr)]"><LocationChoice {...shared} value={selectedLocation} onChange={setLocation} all/>{selectedLocation ? <CashDay key={`${selectedLocation.id}:${cashVersion}`} {...shared} location={selectedLocation} onDetails={setSelected}/> : <p className="text-sm text-slate-600">{text.locationHint}</p>}</div>:<><Feedback notice={success} {...{c,error}} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}{data&&<><Table c={c} headers={['recordType','selectedLocation','amount','salePayment','paymentReference','recordReason','status','actions']} empty={!data.items.length}>{data.items.map(r=><tr key={r.id}><td className="p-4">{c(r.kind)}</td><td className="p-4">{r.location.name}</td><td className="p-4 whitespace-nowrap"><bdi>{r.amount} {r.currency}</bdi></td><td className="p-4">{c(r.method)}</td><td className="p-4">{r.reference||'—'}</td><td className="p-4">{r.reason}</td><td className="p-4">{c(r.reversalOfId?'reversalEntry':r.reversedBy?'paymentReversed':'paymentPosted')}</td><td className="p-4"><button className={buttonClass} onClick={e=>setSelected({entry:r,returnFocus:e.currentTarget})}>{c(!r.reversalOfId&&!r.reversedBy&&context.permissions['payments.reverse']&&context.permissions['payments.manage']&&(!r.kind.startsWith('SUPPLIER')||(context.permissions['catalogue.cost']&&context.permissions['purchasing.manage']))?'reversePayment':'paymentDetails')}</button></td></tr>)}</Table><Pager {...{data,setPage,c}}/></>}</>}{selected&&<PaymentReversal {...shared} {...selected} close={()=>setSelected(null)} done={()=>{setSelected(null);setSuccess('reversalSaved');setCashVersion(version=>version+1);reload();}}/>}</PageLayout>;
 }

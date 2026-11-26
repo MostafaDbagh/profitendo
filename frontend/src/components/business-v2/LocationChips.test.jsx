@@ -43,3 +43,11 @@ test('a saved selection cannot add an option missing from the current business',
  await render({api,value:warehouse,onChange,excludeId:warehouse.id});
  expect(host.querySelector('[aria-pressed]')).toBeNull();
 });
+
+test('inventory selects its only location and labels the selected chip',async()=>{
+ const shop={id:'only',name:'متجري'},api=jest.fn().mockResolvedValue({items:[shop],total:1}),onChange=jest.fn();
+ await render({api,onChange,lang:'ar',defaultSingle:true});
+ expect(onChange).toHaveBeenCalledWith(shop);
+ await render({api,onChange,lang:'ar',defaultSingle:true,value:shop});
+ expect(host.querySelector('[aria-pressed="true"]').textContent).toContain('افتراضيا');
+});

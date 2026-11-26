@@ -29,7 +29,7 @@ const fieldClass = `mt-1 block w-full px-3 py-2 ${fieldSurface} ${focusRing}`;
 
 export default function TableTools({
   headers, children, c, render, searchable = true, exportVisible = true,
-  searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction,
+  toolbarLayout, searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction,
 }) {
   const { lang } = useLanguage();
   const ar = lang === 'ar';
@@ -89,7 +89,7 @@ export default function TableTools({
 
   return (
     <div className="space-y-[var(--page-control-gap)]">
-      <PageToolbar search={searchControl} primaryFilters={primaryFilters} importAction={importAction} filtersActive={filtersActive || Boolean(value)}
+      <PageToolbar layout={toolbarLayout} search={searchControl} primaryFilters={primaryFilters} importAction={importAction} filtersActive={filtersActive || Boolean(value)}
         exportAction={searchActions || (exportVisible && <TableCsvButton
           label={ar ? 'تصدير الصفحة CSV' : 'Export page CSV'} disabled={!matching.length} onClick={download} />)}
         filters={filters === null || filters === false || (filters === undefined && !indexes.length) ? null : <>

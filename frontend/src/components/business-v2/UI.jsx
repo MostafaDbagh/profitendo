@@ -24,8 +24,8 @@ export function TableSearchForm({ onSearch, submitLabel, inputRef, insideForm=fa
     </Wrapper>
   );
 }
-export function Table({ headers, children, empty, c, tableClassName = '', compact = false, numericHeaders = [], tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction, showRows = true }) {
-  if(tools)return <TableTools {...{headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent,primaryFilters,importAction}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName,compact,numericHeaders}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
+export function Table({ headers, children, empty, c, tableClassName = '', toolbarLayout, compact = false, numericHeaders = [], tools = true, searchable = true, exportVisible = true, searchActions, searchContent, filters, filtersActive = false, primaryFilters, importAction, showRows = true }) {
+  if(tools)return <TableTools {...{toolbarLayout,headers,children,c,searchable,filters,filtersActive,exportVisible,searchActions,searchContent,primaryFilters,importAction}} render={(rows,isEmpty)=>showRows&&<PlainTable {...{headers,c,tableClassName,compact,numericHeaders}} empty={empty||isEmpty}>{rows}</PlainTable>}/>;
   return showRows?<PlainTable {...{headers,children,empty,c,tableClassName,compact,numericHeaders}}/>:null;
 }
 function PlainTable({headers,children,empty,c,tableClassName,compact,numericHeaders}){

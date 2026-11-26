@@ -171,7 +171,7 @@ export default function BusinessV2() {
         {businesses?.length > 0 && <select id={surface === 'desktop' ? 'active-business' : 'active-business-mobile'} aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-h-11 min-w-0 max-w-full truncate sm:max-w-64 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>}
         {businesses?.length===0&&<Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}
   </>;
-  return <div className={`min-h-screen bg-slate-50 text-slate-900 ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
+  return <div className={`min-h-screen text-slate-900 ${params.get('tab')==='billing'?'bg-white':'bg-slate-50'} ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
     <Seo title={`${c('title')} | ProfitLens`} path="/business-v2" noindex />
     <header dir="ltr" className={`items-center justify-between gap-3 shrink-0 border-b border-slate-200 bg-white px-4 py-3 lg:px-8 ${hasBusiness ? 'hidden lg:flex' : 'flex'}`}>
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3" dir={lang === 'ar' ? 'rtl' : 'ltr'}>

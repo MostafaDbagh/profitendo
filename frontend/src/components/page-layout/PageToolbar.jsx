@@ -34,7 +34,7 @@ export function TableCsvButton({ label, disabled, onClick }) {
 
 /** @typedef {import('react').ReactNode} Slot */
 /** @param {{search?: Slot, primaryFilters?: Slot, filters?: Slot, filtersActive?: boolean, importAction?: Slot, exportAction?: Slot}} props */
-export default function PageToolbar({ search, primaryFilters, filters, filtersActive, importAction, exportAction }) {
+export default function PageToolbar({ layout, search, primaryFilters, filters, filtersActive, importAction, exportAction }) {
   const { lang } = useLanguage();
   const ar = lang === 'ar';
   const dir = ar ? 'rtl' : 'ltr';
@@ -48,7 +48,9 @@ export default function PageToolbar({ search, primaryFilters, filters, filtersAc
     : search && (filters || exportAction)
       ? 'grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'
       : filters && exportAction ? 'grid-cols-2' : 'grid-cols-1';
-  const alignment = extraControls ? 'flex flex-wrap' : `grid ${columns}`;
+  const alignment = layout==='report'
+    ? 'grid grid-cols-2 sm:grid-cols-[minmax(12rem,2fr)_minmax(9rem,1fr)_minmax(7rem,auto)] [&>div:first-child]:col-span-2 sm:[&>div:first-child]:col-span-1'
+    : extraControls ? 'flex flex-wrap' : `grid ${columns}`;
 
   return (
     <Popover>

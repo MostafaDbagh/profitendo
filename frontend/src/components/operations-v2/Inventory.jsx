@@ -75,7 +75,7 @@ export default function Inventory({context,api,c,lang}){
   <PageHeader title={c('inventory')}/>
   <div className="flex flex-nowrap items-start gap-2 sm:gap-3">
    <div className="min-w-0">
-    <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} all/>
+    <LocationChips {...{context,api,c,lang}} value={location} onChange={setLocation} all defaultSingle/>
    </div>
    {location&&context.permissions['migration.manage']&&(
     <button type="button" className={`${buttonClass} shrink-0 whitespace-nowrap`} aria-label={importLabel} onClick={()=>setImporting(true)}>
