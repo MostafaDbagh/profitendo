@@ -17,9 +17,9 @@ try{for(const lang of ['en','ar']){
  });
  await page.addInitScript(l=>localStorage.setItem('profitlens_lang',l),lang);
  await page.goto('http://localhost:3100/auth-v2');
- const retry=page.getByRole('button',{name:lang==='ar'?'إعادة محاولة الاتصال':'Try connecting again',exact:true});await retry.waitFor();assert.equal(await page.locator('#v2-email').count(),0);
+ const retry=page.getByRole('button',{name:lang==='ar'?'إعادة تحميل الصفحة':'Reload page',exact:true});await retry.waitFor();assert.equal(await page.locator('#v2-email').count(),0);
  for(const width of [390,1440]){await page.setViewportSize({width,height:1000});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`${folder}/${lang}-${width}-offline.png`,fullPage:true});}
- config='invalid';await retry.click();await page.getByRole('alert').filter({hasText:lang==='ar'?'استجابة غير متوقعة':'unexpected response'}).waitFor();
+ config='invalid';await retry.click();await page.getByRole('heading',{name:lang==='ar'?'تعذّر التحقق من الجلسة':'Couldn’t verify your session'}).waitFor();
  config='okay';await retry.click();await page.locator('#v2-email').waitFor();
  await page.locator('#v2-email').fill('test@example.test');await page.locator('#v2-password').fill('Browser example password');
  await page.getByRole('button',{name:lang==='ar'?'إظهار كلمة المرور':'Show password',exact:true}).click();assert.equal(await page.locator('#v2-password').getAttribute('type'),'text');

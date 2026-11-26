@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from core import db, require_perm, log_audit, now_iso, compute_cash_balance, pin_guard
+from core import atomic_posting, db, require_perm, log_audit, now_iso, cash_components, compute_cash_balance, pin_guard
 
 router = APIRouter(prefix="/api", tags=["cash"])
 
@@ -26,32 +26,17 @@ class WithdrawalInput(BaseModel):
 @router.get("/cash/summary")
 async def cash_summary(user: dict = Depends(require_perm("cash.view")), _pin: dict = Depends(pin_guard)):
     bid = user["business_id"]
-    biz = await db.businesses.find_one({"business_id": bid}, {"_id": 0, "cash_opening": 1})
-    opening = (biz or {}).get("cash_opening", 0) or 0
-    sales = await db.sales.find({"business_id": bid, "status": "confirmed", "payment_method": "cash"}, {"_id": 0, "total": 1}).to_list(100000)
-    returns = await db.returns.find({"business_id": bid, "refund_method": "cash"}, {"_id": 0, "refund_total": 1}).to_list(100000)
-    expenses = await db.expenses.find({"business_id": bid, "payment_method": "cash"}, {"_id": 0, "amount": 1}).to_list(100000)
-    withdrawals = await db.withdrawals.find({"business_id": bid, "source": "cash"}, {"_id": 0}).to_list(100000)
-    cash_sales = round(sum(s.get("total", 0) for s in sales), 2)
-    cash_refunds = round(sum(r.get("refund_total", 0) for r in returns), 2)
-    cash_expenses = round(sum(e.get("amount", 0) for e in expenses), 2)
-    cash_withdrawals = round(sum(w.get("amount", 0) for w in withdrawals), 2)
-    balance = round(opening + cash_sales - cash_refunds - cash_expenses - cash_withdrawals, 2)
-    return {
-        "opening": opening,
-        "cash_sales": cash_sales,
-        "cash_refunds": cash_refunds,
-        "cash_expenses": cash_expenses,
-        "cash_withdrawals": cash_withdrawals,
-        "balance": balance,
-        "withdrawals": [
-            {k: v for k, v in w.items() if k not in ("_id", "business_id")}
-            for w in sorted(withdrawals, key=lambda x: x.get("created_at", ""), reverse=True)
-        ] if user["permissions"].get("withdrawals.view") else [],
-    }
+    summary = await cash_components(bid)
+    summary["withdrawals"] = []
+    if user["permissions"].get("withdrawals.view"):
+        summary["withdrawals"] = await db.withdrawals.find(
+            {"business_id": bid, "source": "cash"}, {"_id": 0, "business_id": 0}
+        ).sort("created_at", -1).to_list(100000)
+    return summary
 
 
 @router.post("/cash/closing", status_code=201)
+@atomic_posting
 async def cash_closing(data: ClosingInput, user: dict = Depends(require_perm("cash.close"))):
     bid = user["business_id"]
     expected = await compute_cash_balance(bid)

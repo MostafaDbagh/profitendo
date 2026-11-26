@@ -1,4 +1,5 @@
 import {PageHeader} from '../components/page-layout/PageLayout';
+import { Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import OwnerPinField from '../components/auth-v2/OwnerPinField';
 import PhoneInput from '../components/auth-v2/PhoneInput';
@@ -12,6 +13,8 @@ import { authCopy } from '../components/auth-v2/copy';
 import { Field, Submit, inputClass, linkClass } from '../components/auth-v2/Fields';
 import { Seo } from '../components/Seo';
 
+const SESSION_CHECK_SECONDS = 60;
+
 export default function AuthV2() {
   const { lang, setLang, t } = useLanguage();
   const navigate=useNavigate();
@@ -24,6 +27,7 @@ export default function AuthV2() {
   const linkToken = useRef(initial.get('token') || '');
   const csrf = useRef('');
   const [session, setSession] = useState(null), [checking, setChecking] = useState(true);
+  const [secondsLeft, setSecondsLeft] = useState(SESSION_CHECK_SECONDS);
   const [emailRequired,setEmailRequired]=useState(false),[phoneRequired,setPhoneRequired]=useState(false);
   const [initialFailed, setInitialFailed] = useState(false), [checkAttempt, setCheckAttempt] = useState(0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -31,14 +35,13 @@ export default function AuthV2() {
   const [qrCode,setQrCode]=useState('');
   const [secret, setSecret] = useState(''), [recovery, setRecovery] = useState([]);
   const statusRef = useRef(null);
-  const call = useCallback(async (path, body) => {
-    const timeout = AbortSignal.timeout(30000);
+  const call = useCallback(async (path, body, signal = AbortSignal.timeout(30000)) => {
     let response;
     try { response = await fetch(`${process.env.REACT_APP_AUTH_API_URL}/api/auth${path}`, {
-      method: body === undefined ? 'GET' : 'POST', credentials: 'include', signal: timeout,
+      method: body === undefined ? 'GET' : 'POST', credentials: 'include', signal,
       headers: body === undefined ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.current },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }); } catch { throw new Error(timeout.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR'); }
+    }); } catch { throw new Error(signal.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR'); }
     const data = await response.json().catch(() => { throw new Error('INVALID_SERVER_RESPONSE'); });
     if (!response.ok) { const failure = new Error(data.error?.code || 'failed'); failure.status = response.status; throw failure; }
     if (data.csrfToken) csrf.current = data.csrfToken;
@@ -59,8 +62,37 @@ export default function AuthV2() {
     window.addEventListener('hashchange', receiveLink);
     let active = true;
     setChecking(true); setInitialFailed(false); setError('');
-    Promise.all([call('/config'),call('/me').catch(err=>{if(err.status===401)return null;throw err;})]).then(([config,data])=>{if(active){setMockOtp(config.mockOtp);setEmailOtp(config.emailOtp);setEmailRequired(config.emailRequired);setPhoneRequired(config.ownerPhoneRequired);setSession(data);}}).catch(err=>{if(active){setError(err.message);setInitialFailed(true);}}).finally(()=>{if(active)setChecking(false);});
-    return () => { active = false; window.removeEventListener('hashchange', receiveLink); };
+    const controller = new AbortController();
+    const duration = SESSION_CHECK_SECONDS * 1000;
+    const endsAt = Date.now() + duration;
+    setSecondsLeft(SESSION_CHECK_SECONDS);
+    const countdown = setInterval(() => {
+      setSecondsLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    }, 1000);
+    const deadline = setTimeout(() => controller.abort(), duration);
+    const config = call('/config', undefined, controller.signal).then(data => {
+      if (active) {
+        setMockOtp(data.mockOtp); setEmailOtp(data.emailOtp);
+        setEmailRequired(data.emailRequired); setPhoneRequired(data.ownerPhoneRequired);
+      }
+    });
+    const currentSession = call('/me', undefined, controller.signal).catch(err => {
+      if (err.status === 401) return null;
+      throw err;
+    });
+    Promise.all([config, currentSession]).then(([, data]) => {
+      if (active) setSession(data);
+    }).catch(() => {
+      if (active) setInitialFailed(true);
+    }).finally(() => {
+      clearInterval(countdown); clearTimeout(deadline);
+      controller.abort();
+      if (active) setChecking(false);
+    });
+    return () => {
+      active = false; clearInterval(countdown); clearTimeout(deadline); controller.abort();
+      window.removeEventListener('hashchange', receiveLink);
+    };
   }, [call, checkAttempt]);
   useEffect(() => { if (error || notice) statusRef.current?.focus(); }, [error, notice]);
   useEffect(()=>{if(!emailChallenge)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[emailChallenge]);
@@ -121,10 +153,29 @@ export default function AuthV2() {
     <main className="flex-1 flex items-center justify-center p-6 pt-20 lg:pt-6 min-w-0">
       <div className="w-full max-w-md fade-up"><MobileLogo t={t} /><Link to="/contact" className={`${linkClass} block mb-4`}>{lang==='ar'?'تواصل معنا':'Contact Us'}</Link>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-          <PageHeader title={c(title)} heading="h1"/>
-          {!phone&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? (emailRequired?'registerHint':'registerHintDirect') : mode === 'pinLogin' ? 'pinLoginHint' : 'loginHint')}</p>}
+          <PageHeader title={c(initialFailed ? 'sessionUnavailable' : title)} heading="h1"/>
+          {!phone&&!initialFailed&&<p className="text-slate-500 text-sm mt-1 mb-6">{c(recovery.length ? 'recoveryHint' : authenticated ? 'accountHint' : setup ? 'mfaSetupHint' : challenge ? 'mfaHint' : mode === 'register' ? (emailRequired?'registerHint':'registerHintDirect') : mode === 'pinLogin' ? 'pinLoginHint' : 'loginHint')}</p>}
           {(error || notice) && <div ref={statusRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`text-sm p-3 rounded-lg border mb-5 ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{c(error || notice)}</div>}
-          {checking ? <p role="status" className="text-sm text-slate-500">{c('checking')}</p> : initialFailed ? <button type="button" className={linkClass} onClick={() => setCheckAttempt(value => value + 1)}>{c('retryConnection')}</button> : recovery.length ? <div className="space-y-5">
+          {checking ? <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <p role="status" className="flex items-center gap-2 text-slate-600">
+            <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin text-emerald-600"/>{c('checking')}
+              </p>
+              <span role="timer" aria-live="off" aria-label={c('sessionTimeLeft')} className="shrink-0 text-slate-600">
+                {c('sessionTimeLeft')} <bdi dir="ltr" className="font-semibold tabular-nums">{Math.floor(secondsLeft / 60).toLocaleString(lang)}:{(secondsLeft % 60).toLocaleString(lang, {minimumIntegerDigits: 2})}</bdi>
+              </span>
+            </div>
+            {secondsLeft <= SESSION_CHECK_SECONDS - 15 && <p role="status" className="text-slate-500">{c('sessionWaiting')}</p>}
+          </div> : initialFailed ? <div className="mt-2 space-y-4">
+            <p role="status" className="text-sm text-slate-600">{c('sessionRecoveryHint')}</p>
+            <Button type="button" className="w-full h-11 rounded-lg" onClick={() => {
+              if (linkToken.current) setCheckAttempt(value => value + 1);
+              else window.location.reload();
+            }}>{c(linkToken.current ? 'retryConnection' : 'reloadPage')}</Button>
+            <Button type="button" variant="outline" className="w-full h-11 rounded-lg" onClick={() => {
+              linkToken.current = ''; setLinkAction(null); clear(); setInitialFailed(false);
+            }}>{c('signInAgain')}</Button>
+          </div> : recovery.length ? <div className="space-y-5">
             <div dir="ltr" className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs tabular p-3 bg-slate-50 border border-slate-200 rounded-lg">{recovery.map(code => <code key={code} className="break-all select-all">{code}</code>)}</div>
             <button type="button" className={linkClass} onClick={() => setRecovery([])}>{c('savedCodes')}</button>
           </div> : authenticated ? <p role="status">{c('checking')}</p> : phone ? <PhoneVerification initialPhone={session.pendingPhone || form.phone} {...{call,c,mockOtp}} done={setSession} logout={()=>signOut()}/> : <>

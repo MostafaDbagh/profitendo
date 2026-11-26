@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { useResource } from '../business-v2/useBusinessApi';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Field, inputClass } from '../auth-v2/Fields';
 import { Feedback, Modal, Select, buttonClass, primaryClass } from '../business-v2/UI';
 
@@ -16,16 +16,28 @@ export default function ProductForm({canDelete, product, cost, path, api, c, lan
   const categories=references.data?.items.filter(r=>r.kind==='CATEGORY'&&r.active)||[];
   const [form,setForm]=useState(product ? {...product,minimumStock:formatQuantity(product.minimumStock).replace(/^0$/, ''),barcodes:product.barcodes.join('\n')} : {name:initialName,sku:initialSku,unit:initialUnit,category:'',brand:'',description:'',purchasePrice:initialPurchasePrice,sellingPrice:initialSellingPrice,minimumStock:'',active:true,barcodes:initialBarcodes});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
- const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}${draftScope?`:${draftScope}`:''}`,{form},saved=>{setForm({...saved.form,minimumStock:formatQuantity(saved.form.minimumStock).replace(/^0$/, '')});});
+  const pendingCreate=useRef(null);
+  const submitting=useRef(false);
+ const draft=useLocalDraft(`product:${product?.id||'new'}:${product?.revision||0}${draftScope?`:${draftScope}`:''}`,{form},saved=>{pendingCreate.current=saved.form.pendingCreate||null;setForm({...saved.form,minimumStock:formatQuantity(saved.form.minimumStock).replace(/^0$/, '')});});
   const set=key=>e=>setForm(f=>({...f,[key]:e.target.value}));
   async function save(e){
-    e.preventDefault();e.stopPropagation();setBusy(true);setError('');
+    e.preventDefault();e.stopPropagation();if(submitting.current)return;submitting.current=true;setBusy(true);setError('');
     const body=Object.fromEntries(['name','category','brand','description','sellingPrice','minimumStock','active',...(cost?['purchasePrice']:[])].map(k=>[k,form[k]]));
     body.minimumStock ||= '0';
     body.sellingPrice ||= '0';
     body.barcodes=form.barcodes.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);
     if(product)body.revision=product.revision;else{if(form.sku.trim())body.sku=form.sku;body.unit=form.unit;}
-    try{const saved=await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});draft.clear();done(true,saved);}catch(e){setError(e.message);}finally{setBusy(false);}
+    if (!product) {
+      const fingerprint = JSON.stringify(body);
+      if (pendingCreate.current?.fingerprint !== fingerprint) {
+        pendingCreate.current = {fingerprint,clientKey:crypto.randomUUID()};
+      }
+      body.clientKey = pendingCreate.current.clientKey;
+      const savedForm = {...form,pendingCreate:pendingCreate.current};
+      setForm(savedForm);
+      draft.checkpoint({form:savedForm});
+    }
+    try{const saved=await api(product?`${path}/${product.id}`:path,{method:product?'PATCH':'POST',body});draft.clear();done(true,saved);}catch(e){setError(e.message);}finally{submitting.current=false;setBusy(false);}
   }
   return <Modal title={c(product?'editProduct':'addProduct')} description={lang==='ar'?'بيانات المنتج فقط. أضف الكميات من استلام المخزون.':'Product details only. Add quantities through Receive stock.'} {...{close,returnFocus,c,lang,busy}}>
     <form onSubmit={save} className="space-y-4"><LocalDraftNotice {...{draft,lang,busy}}/><Feedback error={error} c={c} retry={error==='REVISION_CONFLICT'?()=>done(false):undefined}/>

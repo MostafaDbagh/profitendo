@@ -2,7 +2,7 @@ import {panelClass} from '../components/page-layout/tokens';
 import {EmptyState, LoadingState} from '../components/page-layout/PageResults';
 import {PageHeader, PageLayout, TableRegion} from '../components/page-layout/PageLayout';
 import RequiredMark from '../components/RequiredMark';
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Receipt, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ export default function Expenses() {
   const [dialogOpen, setDialogOpen] = useState(params.get("new") === "1");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const submissionRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [toDelete, setToDelete] = useState(null);
   const canCreate = can("expenses.create");
@@ -52,6 +53,7 @@ export default function Expenses() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => {
+    submissionRef.current = null;
     setEditing(null);
     setForm(EMPTY);
     setDialogOpen(true);
@@ -77,7 +79,8 @@ export default function Expenses() {
         await api.put(`/expenses/${editing.expense_id}`, payload);
         toast.success(t("expenseUpdated"));
       } else {
-        await api.post("/expenses", payload);
+        submissionRef.current ??= crypto.randomUUID();
+        await api.post("/expenses", { ...payload, client_ref: submissionRef.current });
         toast.success(t("expenseCreated"));
       }
       const backToWizard = params.get("onboarding") === "1";

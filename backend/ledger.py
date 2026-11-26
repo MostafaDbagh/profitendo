@@ -15,6 +15,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 
+from posting import in_posting_transaction
 from accounts import seed_accounts
 from core import db, require_perm, log_audit, now_iso, next_number
 
@@ -113,6 +114,9 @@ async def post_source(bid, user, *, source_type, source_id, source_number, lines
             await reverse_source(bid, source_type, source_id, user, f"قيد عكسي للتعديل · {narration}")
     total_debit = round(sum(l["debit"] for l in lines), 2)
     total_credit = round(sum(l["credit"] for l in lines), 2)
+    if not total_debit and not total_credit and not any(l["debit"] or l["credit"] for l in lines):
+        # Free, zero-cost stock can move without a monetary journal entry.
+        return None
     if total_debit <= 0 or total_debit != total_credit:
         raise HTTPException(status_code=400, detail=f"Unbalanced journal entry: {total_debit} != {total_credit}")
     now = now_iso()
@@ -166,7 +170,9 @@ async def reverse_source(bid, source_type, source_id, user, narration):
 
 
 async def try_post(coro):
-    """Operational writes must never fail because of GL posting; gaps are healed by ensure_backfilled."""
+    """A transactional source and its journal must commit together."""
+    if in_posting_transaction():
+        return await coro
     try:
         return await coro
     except Exception:

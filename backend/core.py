@@ -11,13 +11,15 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Request, Depends, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
+from posting import PostingDatabase, transactional
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ["DB_NAME"]]
+db = PostingDatabase(client[os.environ["DB_NAME"]])
+atomic_posting = transactional(client)
 
 logger = logging.getLogger(__name__)
 
@@ -334,21 +336,36 @@ async def next_number(business_id: str, kind: str) -> str:
     return f"{NUMBER_PREFIX[kind]}-{doc['seq']:04d}"
 
 
-async def compute_cash_balance(business_id: str) -> float:
-    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "cash_opening": 1})
-    opening = (biz or {}).get("cash_opening", 0) or 0
-    sales = await db.sales.find({"business_id": business_id, "status": "confirmed", "payment_method": "cash"}, {"_id": 0, "total": 1}).to_list(100000)
-    returns = await db.returns.find({"business_id": business_id, "refund_method": "cash"}, {"_id": 0, "refund_total": 1}).to_list(100000)
-    expenses = await db.expenses.find({"business_id": business_id, "payment_method": "cash"}, {"_id": 0, "amount": 1}).to_list(100000)
-    withdrawals = await db.withdrawals.find({"business_id": business_id, "source": "cash"}, {"_id": 0, "amount": 1}).to_list(100000)
-    balance = (
-        opening
-        + sum(s.get("total", 0) for s in sales)
-        - sum(r.get("refund_total", 0) for r in returns)
-        - sum(e.get("amount", 0) for e in expenses)
-        - sum(w.get("amount", 0) for w in withdrawals)
+async def cash_components(business_id: str) -> dict:
+    business = await db.businesses.find_one({"business_id": business_id}, {"cash_opening": 1})
+    values = {"opening": (business or {}).get("cash_opening", 0) or 0}
+    # Older invoices and returns can lack the stored default status or method.
+    posted = {"$in": ["confirmed", None]}
+    cash = {"$in": ["cash", None]}
+    sources = (
+        ("cash_sales", db.sales, {"status": posted, "payment_method": cash}, "total"),
+        ("cash_purchases", db.purchases, {"status": posted, "payment_method": cash}, "total"),
+        ("cash_refunds", db.returns, {"status": posted, "refund_method": cash}, "refund_total"),
+        ("cash_supplier_refunds", db.purchase_returns, {"status": posted, "refund_method": cash}, "total_value"),
+        ("cash_expenses", db.expenses, {"payment_method": cash}, "amount"),
+        ("cash_withdrawals", db.withdrawals, {"source": cash}, "amount"),
     )
-    return round(balance, 2)
+    for name, collection, criteria, amount in sources:
+        groups = await collection.aggregate([
+            {"$match": {"business_id": business_id, **criteria}},
+            {"$group": {"_id": None, "total": {"$sum": "$" + amount}}},
+        ]).to_list(1)
+        values[name] = round(groups[0]["total"], 2) if groups else 0
+    values["balance"] = round(
+        values["opening"] + values["cash_sales"] + values["cash_supplier_refunds"]
+        - values["cash_purchases"] - values["cash_refunds"] - values["cash_expenses"]
+        - values["cash_withdrawals"], 2
+    )
+    return values
+
+
+async def compute_cash_balance(business_id: str) -> float:
+    return (await cash_components(business_id))["balance"]
 
 
 # ---------- Product metrics ----------

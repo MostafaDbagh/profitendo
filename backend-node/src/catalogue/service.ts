@@ -1,5 +1,6 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { validateReferences } from './references.js';
-import type { AuthService, AuthContext } from '../auth/service.js';
+import type { AuthService, AuthContext, Tx } from '../auth/service.js';
 import { requireBusiness } from '../businesses/access.js';
 import { billingState } from '../billing/entitlements.js';
 import { ApiError } from '../errors.js';
@@ -39,21 +40,46 @@ export class CatalogueService {
       return {currency:access.business.baseCurrency,product:present(row,access.permissions['catalogue.cost'])};
     });
   }
-  async create(ctx:AuthContext,businessId:string,input:ProductInput){
-    try{return await this.auth.transaction(async tx=>{
+  async create(ctx:AuthContext,businessId:string,input:Omit<ProductInput,'sku'> & {sku?:string;clientKey?:string}){
+    const {clientKey, ...product} = input;
+    const requestHash = createHash('sha256').update(JSON.stringify(product)).digest('hex');
+    async function replay(tx:Tx) {
+      if (!clientKey) return null;
+      const prior = await tx.productCreateRequest.findUnique({
+        where:{businessId_clientKey:{businessId,clientKey}},include:{product:{include:{barcodes:true}}},
+      });
+      if (!prior) return null;
+      if (prior.requestHash !== requestHash) throw new ApiError(409,'IDEMPOTENCY_CONFLICT','Product creation key was already used with different details');
+      return present(prior.product,true);
+    }
+    const authorize = async (tx:Tx) => {
       const access=await requireBusiness(this.auth,tx,ctx,businessId,'catalogue.create');
       if(!access.permissions['catalogue.cost'])throw new ApiError(403,'FORBIDDEN','Purchase-cost permission is required');
+      return access;
+    };
+    try{return await this.auth.transaction(async tx=>{
+      const access=await authorize(tx);
+      const prior=await replay(tx);
+      if(prior)return prior;
       if(!(await billingState(tx,businessId)).active)throw new ApiError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required to add products');
       await validateReferences(tx,businessId,input);
-      const {barcodes,...data}=input;
-      const created=await tx.product.create({data:{businessId,...data}});
+      const {barcodes,...data}=product;
+      const created=await tx.product.create({data:{businessId,...data,sku:product.sku ?? `PRD-${randomUUID().toUpperCase()}`}});
+      if(clientKey)await tx.productCreateRequest.create({data:{businessId,clientKey,requestHash,productId:created.id}});
       await tx.productBarcode.createMany({data:barcodes.map(value=>({businessId,productId:created.id,value}))});
       const row=await tx.product.findUniqueOrThrow({where:{id:created.id},include:{barcodes:true}});
       // A base-currency change would silently relabel saved price amounts.
       if(!access.business.currencyLockedAt)await tx.business.update({where:{id:businessId},data:{currencyLockedAt:new Date(),revision:{increment:1}}});
       await tx.authAudit.create({data:{userId:ctx.user.id,businessId,action:'product.created',targetId:row.id,changes:{sku:row.sku}}});
       return present(row,true);
-    });}catch(error){return unique(error);}
+    });}catch(error){
+      // A concurrent request may have committed after our serializable snapshot.
+      if(clientKey && (error as {code?:string}).code === 'P2002'){
+        const prior=await this.auth.transaction(async tx=>{await authorize(tx);return replay(tx);});
+        if(prior)return prior;
+      }
+      return unique(error);
+    }
   }
   async update(ctx:AuthContext,businessId:string,id:string,input:ProductPatch){
     try{return await this.auth.transaction(async tx=>{

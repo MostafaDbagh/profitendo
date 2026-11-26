@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from core import db, require_perm, log_audit, now_iso, next_number, require_edit_pin
+from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, require_edit_pin
 from ledger import post_purchase, reverse_purchase, try_post
 
 router = APIRouter(prefix="/api/purchases", tags=["purchases"])
@@ -139,7 +139,7 @@ async def _apply_item_edit(bid: str, purchase: dict, items: list, user: dict, al
     for pid, p in prods.items():
         final_qty, new_avg = _edited_avg_cost(p, old_qty.get(pid, 0), old_val.get(pid, 0.0), new_qty.get(pid, 0), new_val.get(pid, 0.0))
         await db.products.update_one(
-            {"product_id": pid},
+            {"business_id": bid, "product_id": pid},
             {"$set": {"stock_qty": final_qty, "product_cost": new_avg, "updated_at": now}},
         )
         delta = new_qty.get(pid, 0) - old_qty.get(pid, 0)
@@ -155,6 +155,7 @@ async def create_purchase_route(data: PurchaseInput, user: dict = Depends(requir
     return doc
 
 
+@atomic_posting
 async def create_purchase(data: PurchaseInput, user: dict) -> dict:
     """Core purchase creation — used by the API endpoint and the bulk importer."""
     bid = user["business_id"]
@@ -195,7 +196,7 @@ async def create_purchase(data: PurchaseInput, user: dict) -> dict:
         p = prods[it.product_id]
         _, new_avg = _receipt_avg(p.get("stock_qty", 0) or 0, p.get("product_cost", 0) or 0, it.quantity, it.unit_cost)
         await db.products.update_one(
-            {"product_id": p["product_id"]},
+            {"business_id": bid, "product_id": p["product_id"]},
             {"$inc": {"stock_qty": it.quantity}, "$set": {"product_cost": new_avg, "updated_at": now}},
         )
         p["stock_qty"] = (p.get("stock_qty", 0) or 0) + it.quantity
@@ -209,6 +210,7 @@ async def create_purchase(data: PurchaseInput, user: dict) -> dict:
 
 
 @router.put("/{purchase_id}")
+@atomic_posting
 async def update_purchase(purchase_id: str, data: PurchaseUpdate, user: dict = Depends(require_perm("purchases.edit"))):
     bid = user["business_id"]
     require_edit_pin(user, data.pin)
@@ -233,14 +235,15 @@ async def update_purchase(purchase_id: str, data: PurchaseUpdate, user: dict = D
     subtotal = updates.get("subtotal", purchase["subtotal"])
     additional = updates.get("additional_costs", purchase.get("additional_costs", 0))
     updates["total"] = round(subtotal + additional, 2)
-    await db.purchases.update_one({"purchase_id": purchase_id}, {"$set": updates})
+    await db.purchases.update_one({"business_id": bid, "purchase_id": purchase_id}, {"$set": updates})
     await log_audit(bid, user, "purchase.updated", "purchase", purchase_id, f"{purchase['purchase_number']} · {', '.join(updates.keys())}")
-    doc = await db.purchases.find_one({"purchase_id": purchase_id}, {"_id": 0})
+    doc = await db.purchases.find_one({"business_id": bid, "purchase_id": purchase_id}, {"_id": 0})
     await try_post(post_purchase(bid, user, doc, replace=True))
     return doc
 
 
 @router.post("/{purchase_id}/cancel")
+@atomic_posting
 async def cancel_purchase(purchase_id: str, user: dict = Depends(require_perm("purchases.cancel"))):
     bid = user["business_id"]
     purchase = await db.purchases.find_one({"purchase_id": purchase_id, "business_id": bid})
@@ -250,36 +253,36 @@ async def cancel_purchase(purchase_id: str, user: dict = Depends(require_perm("p
         raise HTTPException(status_code=400, detail="Purchase already cancelled")
     allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
     now = now_iso()
-    for line in purchase["items"]:
-        p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
-        if not p:
-            continue
-        new_stock = (p.get("stock_qty", 0) or 0) - line["quantity"]
-        if new_stock < 0 and not allow_negative:
-            raise HTTPException(status_code=400, detail=f"Cancelling would make stock negative for {p['name']}")
-    for line in purchase["items"]:
-        p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
-        if not p:
-            continue
+    if any(line.get("returned_qty", 0) for line in purchase["items"]) or await db.purchase_returns.find_one(
+        {"business_id": bid, "purchase_id": purchase_id, "status": "confirmed"}, {"_id": 1}
+    ):
+        raise HTTPException(status_code=409, detail="Reverse supplier returns before cancelling this purchase")
+    quantities, costs = _aggregate_lines(purchase["items"])
+    products = await _fetch_products(bid, quantities)
+    for pid, quantity in quantities.items():
+        product = products[pid]
+        stock = product.get("stock_qty", 0) or 0
+        average = product.get("product_cost", 0) or 0
+        remaining = stock - quantity
+        if remaining < 0 and not allow_negative:
+            raise HTTPException(status_code=400, detail=f"Cancelling would make stock negative for {product['name']}")
+        value = stock * average - costs[pid]
+        tolerance = abs(stock) * 0.00005 + 0.005
+        if remaining == 0 and abs(value) > tolerance:
+            raise HTTPException(status_code=409, detail="Cancellation would leave inventory value without stock")
+        if remaining > 0:
+            # The stored moving average has four decimal places. Within that
+            # rounding tolerance the remaining value can legitimately be zero.
+            if value < -tolerance:
+                raise HTTPException(status_code=409, detail="Cancellation would leave negative inventory value")
+            average = round(max(0.0, value) / remaining, 4)
         await db.products.update_one(
-            {"product_id": p["product_id"]},
-            {"$inc": {"stock_qty": -line["quantity"]}, "$set": {"updated_at": now}},
+            {"business_id": bid, "product_id": pid},
+            {"$inc": {"stock_qty": -quantity}, "$set": {"product_cost": average, "updated_at": now}},
         )
-        await db.inventory_movements.insert_one({
-            "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
-            "business_id": bid,
-            "product_id": p["product_id"],
-            "product_name": p["name"],
-            "quantity": -line["quantity"],
-            "movement_type": "ADJUSTMENT",
-            "reference_id": purchase_id,
-            "reference_number": purchase["purchase_number"],
-            "user_id": user["user_id"],
-            "user_name": user.get("name", ""),
-            "notes": f"Purchase {purchase['purchase_number']} cancelled",
-            "created_at": now,
-        })
-    await db.purchases.update_one({"purchase_id": purchase_id}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user["user_id"]}})
+        await _record_movement(bid, user, product, -quantity, "ADJUSTMENT", purchase_id,
+                               purchase["purchase_number"], f"Purchase {purchase['purchase_number']} cancelled", now)
+    await db.purchases.update_one({"business_id": bid, "purchase_id": purchase_id}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user["user_id"]}})
     await log_audit(bid, user, "purchase.cancelled", "purchase", purchase_id, purchase["purchase_number"])
     await try_post(reverse_purchase(bid, user, purchase))
     return {"ok": True}

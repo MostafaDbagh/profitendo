@@ -11,7 +11,7 @@ import { useInvoiceDraft } from "../lib/draft";
 import { DraftStatus } from "../components/DraftStatus";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import { fmtMoney, num } from "../lib/calculations";
+import { fmtMoney } from "../lib/calculations";
 
 const newRow = (fields) => ({ rowId: crypto.randomUUID(), ...fields });
 
@@ -92,25 +92,43 @@ export default function ReturnNew() {
 
   const setItem = (i, k, v) => setItems((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
 
-  const total = useMemo(() => {
-    let sum = 0;
-    for (const r of items) {
-      const q = parseInt(r.quantity, 10) || 0;
-      if (!q) continue;
-      let price = 0;
-      if (selectedSale) {
-        const line = selectedSale.items.find((l) => l.product_id === r.product_id);
-        price = line ? line.unit_price : 0;
-      }
-      sum += price * q;
+  const saleProducts = useMemo(() => {
+    const products = new Map();
+    for (const line of selectedSale?.items || []) {
+      const previous = products.get(line.product_id);
+      products.set(line.product_id, { ...line, quantity: (previous?.quantity || 0) + line.quantity });
     }
-    return sum;
-  }, [items, selectedSale]);
+    return [...products.values()];
+  }, [selectedSale]);
+
+  const previewRequest = useMemo(() => {
+    const lines = items.filter(row => row.product_id).map(row => ({
+      product_id: row.product_id, quantity: Number(row.quantity),
+    }));
+    if (!saleId || !lines.length || lines.some(row => !Number.isSafeInteger(row.quantity) || row.quantity <= 0)) return null;
+    return { sale_id: saleId, items: lines };
+  }, [items, saleId]);
+  const [quote, setQuote] = useState(null);
+  useEffect(() => {
+    if (!previewRequest) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const path = isEdit ? `/returns/${id}/preview` : "/returns/preview";
+        const { data } = await api.post(path, previewRequest, { signal: controller.signal });
+        if (!controller.signal.aborted) setQuote({ request: previewRequest, total: data.total });
+      } catch (err) {
+        if (!controller.signal.aborted) setQuote({ request: previewRequest, error: formatApiError(err, t("somethingWrong")) });
+      }
+    }, 120);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [id, isEdit, previewRequest, t]);
+  const currentQuote = quote?.request === previewRequest ? quote : null;
 
   const submit = async (e) => {
     e.preventDefault();
     const valid = items.filter((r) => r.product_id && (parseInt(r.quantity, 10) || 0) > 0);
-    if (!valid.length) return;
+    if (!valid.length || currentQuote?.total == null) return;
     setSaving(true);
     try {
       if (isEdit) {
@@ -221,7 +239,7 @@ export default function ReturnNew() {
                   <label htmlFor={`return-item-product-${i}`} className="text-xs text-slate-500 mb-1 block">{t("selectProduct")}<RequiredMark/></label>
                   <select id={`return-item-product-${i}`} data-testid={`return-item-product-${i}`} value={r.product_id} onChange={(e) => setItem(i, "product_id", e.target.value)} className={inputCls} required>
                     <option value="">{t("selectProduct")}</option>
-                    {(selectedSale ? selectedSale.items : []).map((l) => (
+                    {saleProducts.map((l) => (
                       <option key={l.product_id} value={l.product_id}>
                         {l.name} (×{formatQuantity(l.quantity)})
                       </option>
@@ -251,10 +269,11 @@ export default function ReturnNew() {
         <div className="bg-white rounded-xl border border-emerald-100 shadow-sm p-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs text-slate-500">{t("refundTotalLabel")}</p>
-            <p className="text-xl font-extrabold text-red-600 tabular" data-testid="return-total">{fmtMoney(total)}</p>
+            <p className="text-xl font-extrabold text-red-600 tabular" data-testid="return-total">{currentQuote?.total != null ? fmtMoney(currentQuote.total) : previewRequest ? "—" : fmtMoney(0)}</p>
+            {currentQuote?.error && <p role="alert" className="mt-1 text-sm text-red-600">{currentQuote.error}</p>}
           </div>
           <DraftStatus status={draftStatus} />
-          <button data-testid="return-submit-btn" type="submit" disabled={saving || !saleId || !items.some((r) => r.product_id)}
+          <button data-testid="return-submit-btn" type="submit" disabled={saving || currentQuote?.total == null}
             className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-60">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {isEdit ? t("saveChanges") : t("confirmReturn")}

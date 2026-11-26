@@ -12,9 +12,10 @@ from pydantic import BaseModel, Field, EmailStr, model_validator
 from core import (
     db, client, hash_password, verify_password, set_auth_cookie, public_user,
     get_current_user, require_perm, can_finance, caps_of, product_public, log_audit,
-    now_iso, compute_cash_balance, create_pin_token, pin_guard, CURRENCIES,
+    now_iso, compute_cash_balance, create_pin_token, pin_guard, CURRENCIES, atomic_posting,
 )
 
+from catalogue_query import catalogue_rows
 from cutover import allow_legacy_request
 
 app = FastAPI()
@@ -500,8 +501,9 @@ def product_doc(data: ProductInput, user: dict) -> dict:
 
 
 @api_router.get("/products")
-async def list_products(user: dict = Depends(require_perm("products.view"))):
-    docs = await db.products.find({"business_id": user["business_id"], "archived": {"$ne": True}}, {"_id": 0}).to_list(2000)
+async def list_products(user: dict = Depends(require_perm("products.view")), page: Optional[int] = None,
+                        page_size: int = 100, search: str = ""):
+    docs = await catalogue_rows(user["business_id"], page, page_size, search, include_archived=False)
     caps = caps_of(user)
     return [product_public(d, caps) for d in docs]
 
@@ -547,7 +549,20 @@ async def update_product(product_id: str, data: ProductInput, user: dict = Depen
 
 
 @api_router.delete("/products/{product_id}")
+@atomic_posting
 async def delete_product(product_id: str, user: dict = Depends(require_perm("products.delete"))):
+    key = {"product_id": product_id, "business_id": user["business_id"]}
+    product = await db.products.find_one(key)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if product.get("stock_qty") or product.get("quantity_sold"):
+        raise HTTPException(status_code=409, detail="Product has stock or sales history")
+    if await db.inventory_movements.find_one(key, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="Product has inventory history")
+    linked = {"business_id": key["business_id"], "items.product_id": product_id}
+    for collection in (db.sales, db.purchases, db.returns, db.purchase_returns):
+        if await collection.find_one(linked, {"_id": 1}):
+            raise HTTPException(status_code=409, detail="Product has transaction history")
     result = await db.products.delete_one({"product_id": product_id, "business_id": user["business_id"]})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -563,7 +578,7 @@ async def dashboard(user: dict = Depends(get_current_user)):
     perms = user.get("permissions") or {}
     caps = caps_of(user)
     fin = caps["costs"] and caps["profit"] and caps["margin"]
-    docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(2000)
+    docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
     products = [product_public(d, caps) for d in docs]
 
     total_sales = sum(p["revenue"] for p in products)
@@ -707,7 +722,7 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
     if metric == "additional_costs":
         if not fin:
             raise HTTPException(status_code=403, detail="Not authorized")
-        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
         products = [product_public(d, caps) for d in docs]
         rows = [{"name": p["name"], "quantity_sold": p.get("quantity_sold", 0) or 0,
                  "additional_per_unit": round(p["unit_cost"] - p["product_cost"], 2),
@@ -720,7 +735,7 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
         sales = await db.sales.find({"business_id": bid, "status": "confirmed"}, {"_id": 0}).to_list(10000)
         returns = await db.returns.find({"business_id": bid}, {"_id": 0}).to_list(10000)
         expenses = await db.expenses.find({"business_id": bid}, {"_id": 0}).to_list(10000)
-        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
         products = [product_public(d, caps) for d in docs]
         revenue = round(sum(s["total"] for s in sales), 2)
         refunds = round(sum(r["refund_total"] for r in returns), 2)
@@ -738,7 +753,7 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
     if metric == "inventory_value":
         if not caps["costs"]:
             raise HTTPException(status_code=403, detail="Not authorized")
-        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "product_cost": 1}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "product_cost": 1}).to_list(None)
         rows = [{"name": d["name"], "sku": d.get("sku", ""), "stock_qty": d.get("stock_qty", 0) or 0,
                  "product_cost": d.get("product_cost", 0) or 0,
                  "value": round((d.get("stock_qty", 0) or 0) * (d.get("product_cost", 0) or 0), 2)}
@@ -754,7 +769,7 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
         rows = await db.returns.find({"business_id": bid}, {"_id": 0, "return_number": 1, "return_date": 1, "refund_total": 1, "reason": 1, "status": 1}).sort("created_at", -1).to_list(500)
         return {"metric": metric, "rows": rows}
     if metric == "low_stock":
-        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "minimum_stock_level": 1}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "minimum_stock_level": 1}).to_list(None)
         rows = [{"name": d["name"], "sku": d.get("sku", ""), "stock_qty": d.get("stock_qty", 0) or 0,
                  "minimum_stock_level": d.get("minimum_stock_level", 0) or 0}
                 for d in docs if (d.get("minimum_stock_level", 0) or 0) > 0 and (d.get("stock_qty", 0) or 0) <= (d.get("minimum_stock_level", 0) or 0)]
@@ -762,7 +777,7 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
     if metric in ("top_profitable", "revenue_distribution"):
         if not fin:
             raise HTTPException(status_code=403, detail="Not authorized")
-        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
         products = [product_public(d, caps) for d in docs]
         total_rev = sum(p["revenue"] for p in products) or 1
         rows = [{"name": p["name"], "revenue": p["revenue"], "net_profit": p["net_profit"],

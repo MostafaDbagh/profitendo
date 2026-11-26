@@ -4,7 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from core import db, require_perm, log_audit, now_iso, can_finance
+from catalogue_query import catalogue_rows
+from pymongo import ReturnDocument
+from core import atomic_posting, db, require_perm, log_audit, now_iso, can_finance
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -17,9 +19,10 @@ class AdjustmentInput(BaseModel):
 
 
 @router.get("")
-async def inventory_list(user: dict = Depends(require_perm("inventory.view"))):
+async def inventory_list(user: dict = Depends(require_perm("inventory.view")), page: Optional[int] = None,
+                         page_size: int = 100, search: str = ""):
     fin = can_finance(user)
-    docs = await db.products.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(2000)
+    docs = await catalogue_rows(user["business_id"], page, page_size, search, include_archived=True)
     out = []
     for p in docs:
         stock = p.get("stock_qty", 0) or 0
@@ -52,6 +55,7 @@ async def list_movements(product_id: Optional[str] = None, limit: int = 50, user
 
 
 @router.post("/adjust", status_code=201)
+@atomic_posting
 async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm("inventory.adjust"))):
     if data.quantity == 0:
         raise HTTPException(status_code=400, detail="Quantity cannot be zero")
@@ -62,11 +66,18 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
     qty = data.quantity
     if data.movement_type == "DAMAGE":
         qty = -abs(qty)
-    new_stock = (p.get("stock_qty", 0) or 0) + qty
     allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
-    if new_stock < 0 and not allow_negative:
-        raise HTTPException(status_code=400, detail="Insufficient stock")
+    stock_filter = {"business_id": bid, "product_id": data.product_id}
+    if not allow_negative:
+        stock_filter["$expr"] = {"$gte": [{"$ifNull": ["$stock_qty", 0]}, -qty]}
     now = now_iso()
+    updated = await db.products.find_one_and_update(
+        stock_filter, {"$inc": {"stock_qty": qty}, "$set": {"updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated:
+        raise HTTPException(status_code=400, detail="Insufficient stock")
+    new_stock = updated["stock_qty"]
     mov = {
         "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
         "business_id": bid,
@@ -82,7 +93,6 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
         "created_at": now,
     }
     await db.inventory_movements.insert_one(mov)
-    await db.products.update_one({"product_id": p["product_id"]}, {"$inc": {"stock_qty": qty}, "$set": {"updated_at": now}})
     await log_audit(bid, user, "inventory.adjusted", "product", p["product_id"], f"{p['name']}: {qty:+d} ({data.movement_type})")
     mov.pop("_id", None)
     return {**mov, "new_stock": new_stock}

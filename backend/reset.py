@@ -11,7 +11,7 @@ CONFIRM_PHRASE = "DELETE ALL DATA"
 # All business operational collections. KEEP: users, businesses, subscriptions,
 # subscription_payments, webhook_events, audit_logs, login_attempts, reset_requests, user_sessions.
 WIPE_COLLECTIONS = [
-    "sales", "returns", "purchases", "purchase_returns", "expenses",
+    "sales", "returns", "purchases", "purchase_returns", "expenses", "expense_submission_receipts",
     "inventory_movements", "cash_closings", "withdrawals",
     "partners", "partner_transactions", "products",
     "journal_entries", "accounts", "assistant_messages",

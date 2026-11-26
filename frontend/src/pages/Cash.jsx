@@ -91,6 +91,8 @@ export default function Cash() {
   const cards = [
     { label: t("openingBalance"), value: summary.opening, icon: Wallet, testid: "cash-opening" },
     { label: t("cashSalesLabel"), value: summary.cash_sales, icon: Banknote, testid: "cash-sales" },
+    { label: t("cashPurchasesLabel"), value: -(summary.cash_purchases || 0), icon: Banknote, testid: "cash-purchases" },
+    { label: t("cashSupplierRefundsLabel"), value: summary.cash_supplier_refunds || 0, icon: Banknote, testid: "cash-supplier-refunds" },
     { label: t("cashRefundsLabel"), value: -summary.cash_refunds, icon: Banknote, testid: "cash-refunds" },
     { label: t("cashExpensesLabel"), value: -summary.cash_expenses, icon: Banknote, testid: "cash-expenses" },
     { label: t("cashWithdrawalsLabel"), value: -summary.cash_withdrawals, icon: ArrowDownToLine, testid: "cash-withdrawals" },
@@ -105,7 +107,7 @@ export default function Cash() {
           </button>
         )}/>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => (
           <div key={c.testid} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm" data-testid={c.testid}>
             <p className="text-xs text-slate-500 font-medium mb-1.5">{c.label}</p>

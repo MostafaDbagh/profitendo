@@ -37,11 +37,11 @@ try {
   const configUrl=apiOrigin+'/api/auth/config';
   await page.route(configUrl,route=>route.abort('connectionfailed'));
   await page.goto(`${base}/auth-v2`);
-  await page.getByRole('alert').filter({hasText:'Cannot connect to the server'}).waitFor();
+  await page.getByRole('heading',{name:'Couldn’t verify your session'}).waitFor();
   if(await page.locator('#v2-email').count())throw new Error('Login must wait for auth configuration');
   await page.screenshot({path:`${artifacts}/connection-error.png`,fullPage:true});
   await page.unroute(configUrl);
-  await page.getByRole('button',{name:'Try connecting again',exact:true}).click();
+  await page.getByRole('button',{name:'Reload page',exact:true}).click();
   await page.locator('#v2-email').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${artifacts}/new-en-1440-login.png`, fullPage: true, animations: 'disabled' });

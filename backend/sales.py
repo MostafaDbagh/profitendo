@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from core import db, require_perm, log_audit, now_iso, next_number, caps_of, CURRENCIES, require_edit_pin
+from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, caps_of, CURRENCIES, require_edit_pin
 from ledger import post_sale, reverse_sale, try_post
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -103,6 +103,7 @@ async def create_sale(data: SaleInput, user: dict = Depends(require_perm("sales.
     return sale_public(doc, caps_of(user))
 
 
+@atomic_posting
 async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_ref: Optional[str] = None,
                              sale_date: Optional[str] = None) -> dict:
     """Core sale creation — used by the API endpoint and the bulk importer.
@@ -112,12 +113,18 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
         raise HTTPException(status_code=400, detail="Invalid currency")
     currency = data.currency or (user.get("business") or {}).get("base_currency", "USD")
 
+    if data.client_ref:
+        existing = await db.sales.find_one({"business_id": bid, "client_ref": data.client_ref})
+        if existing:
+            return existing
+    requested = {}
     products = []
     for it in data.items:
         p = await db.products.find_one({"product_id": it.product_id, "business_id": bid})
         if not p:
             raise HTTPException(status_code=404, detail="Product not found")
-        if not allow_negative and (p.get("stock_qty", 0) or 0) < it.quantity:
+        requested[it.product_id] = requested.get(it.product_id, 0) + it.quantity
+        if not allow_negative and (p.get("stock_qty", 0) or 0) < requested[it.product_id]:
             raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
         products.append((p, it))
 
@@ -178,7 +185,7 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
 
     for p, it in products:
         await db.products.update_one(
-            {"product_id": p["product_id"]},
+            {"business_id": bid, "product_id": p["product_id"]},
             {"$inc": {"stock_qty": -it.quantity, "quantity_sold": it.quantity}, "$set": {"updated_at": now}},
         )
         await db.inventory_movements.insert_one({
@@ -203,6 +210,7 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
 
 
 @router.put("/{sale_id}")
+@atomic_posting
 async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(require_perm("sales.edit"))):
     bid = user["business_id"]
     require_edit_pin(user, data.pin)
@@ -226,6 +234,8 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
         updates["currency"] = data.currency
 
     if data.items is not None:
+        if await db.returns.find_one({"business_id": bid, "sale_id": sale_id, "status": {"$ne": "cancelled"}}):
+            raise HTTPException(409, "Reverse linked returns before changing sale lines")
         if len(data.items) < 1:
             raise HTTPException(status_code=400, detail="At least one item is required")
         old_map = {}
@@ -249,7 +259,7 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
             if delta == 0:
                 continue
             await db.products.update_one(
-                {"product_id": pid},
+                {"business_id": bid, "product_id": pid},
                 {"$inc": {"stock_qty": -delta, "quantity_sold": delta}, "$set": {"updated_at": now}},
             )
             await db.inventory_movements.insert_one({
@@ -305,19 +315,22 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
 
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    await db.sales.update_one({"sale_id": sale_id}, {"$set": updates})
+    await db.sales.update_one({"business_id": bid, "sale_id": sale_id}, {"$set": updates})
     await log_audit(bid, user, "sale.updated", "sale", sale_id, f"{sale['sale_number']} · {', '.join(updates.keys())}")
-    doc = await db.sales.find_one({"sale_id": sale_id}, {"_id": 0})
+    doc = await db.sales.find_one({"business_id": bid, "sale_id": sale_id}, {"_id": 0})
     await try_post(post_sale(bid, user, doc, replace=True))
     return sale_public(doc, caps_of(user))
 
 
 @router.post("/{sale_id}/cancel")
+@atomic_posting
 async def cancel_sale(sale_id: str, user: dict = Depends(require_perm("sales.cancel"))):
     bid = user["business_id"]
     sale = await db.sales.find_one({"sale_id": sale_id, "business_id": bid})
     if not sale:
         raise HTTPException(status_code=404, detail="Sale not found")
+    if await db.returns.find_one({"business_id": bid, "sale_id": sale_id, "status": {"$ne": "cancelled"}}):
+        raise HTTPException(409, "Reverse linked returns before cancelling the sale")
     if sale.get("status") == "cancelled":
         raise HTTPException(status_code=400, detail="Sale already cancelled")
     now = now_iso()
@@ -328,7 +341,7 @@ async def cancel_sale(sale_id: str, user: dict = Depends(require_perm("sales.can
             continue
         new_qty = max(0, (p.get("quantity_sold", 0) or 0) - line["quantity"])
         await db.products.update_one(
-            {"product_id": p["product_id"]},
+            {"business_id": bid, "product_id": p["product_id"]},
             {"$inc": {"stock_qty": line["quantity"]}, "$set": {"quantity_sold": new_qty, "updated_at": now}},
         )
         await db.inventory_movements.insert_one({
@@ -345,7 +358,7 @@ async def cancel_sale(sale_id: str, user: dict = Depends(require_perm("sales.can
             "notes": f"Sale {sale['sale_number']} cancelled",
             "created_at": now,
         })
-    await db.sales.update_one({"sale_id": sale_id}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user["user_id"]}})
+    await db.sales.update_one({"business_id": bid, "sale_id": sale_id}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user["user_id"]}})
     await log_audit(bid, user, "sale.cancelled", "sale", sale_id, sale["sale_number"])
     await try_post(reverse_sale(bid, user, sale))
     return {"ok": True}

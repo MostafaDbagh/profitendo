@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { LanguageProvider } from '../../context/LanguageContext';
 import { businessCopy } from '../business-v2/copy';
 import Catalogue from './Catalogue';
+import {DraftScope} from '../../lib/localDraft';
+import ProductForm from './ProductForm';
 
 jest.mock('react-router-dom', () => ({ useNavigate: () => () => {} }), { virtual: true });
 jest.mock('@/lib/quantity', () => ({ formatQuantity: value => String(value ?? '') }), { virtual: true });
@@ -23,6 +25,7 @@ let host, root, paths, refreshContext;
 
 beforeEach(() => {
   jest.useFakeTimers();
+  Object.defineProperty(window,'crypto',{configurable:true,value:{randomUUID:require('crypto').randomUUID}});
   localStorage.clear();
   host = document.createElement('div');
   document.body.append(host);
@@ -132,4 +135,32 @@ test.each(['ar','en'])('compact catalogue keeps prices, additional barcodes and 
  await render(lang,false);
  expect(host.querySelector('thead').textContent).not.toContain(businessCopy[lang].purchasePrice);
  expect(host.querySelector('tbody').textContent).not.toContain('50.00');
+});
+
+test('a restored product form reuses its submission key after an unknown response', async () => {
+  const context = {business:{id:'shop'},membershipId:'owner',permissions:{}};
+  const api = jest.fn(async (path,options) => {
+    if (options?.method) throw new Error('NETWORK_ERROR');
+    return {items:[]};
+  });
+  const form = () => (
+    <LanguageProvider><DraftScope.Provider value={context}>
+      <ProductForm cost path="/products" api={api} lang="en" c={key=>key} close={()=>{}} done={()=>{}}/>
+    </DraftScope.Provider></LanguageProvider>
+  );
+  await act(async()=>root.render(form()));
+  act(()=>{fill(host.querySelector('#product-name'),'Lemon');fill(host.querySelector('#product-purchasePrice'),'1');});
+  const submit = () => act(async()=>host.querySelector('#product-name').form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await submit();
+  await act(async()=>root.render(null));
+  await act(async()=>root.render(form()));
+  expect(host.querySelector('#product-name').value).toBe('Lemon');
+  await submit();
+  act(()=>fill(host.querySelector('#product-purchasePrice'),'2'));
+  await submit();
+  const keys=api.mock.calls.filter(([,options])=>options?.method==='POST').map(([,options])=>options.body.clientKey);
+  expect(keys).toHaveLength(3);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBe(keys[0]);
+  expect(keys[2]).not.toBe(keys[0]);
 });

@@ -26,6 +26,13 @@ For the frontend, install using `frontend/yarn.lock`, configure
 The new workspace is `/business-v2`; legacy screens continue to use their existing
 backend configuration. Follow `frontend/package.json` for available scripts.
 
+Legacy FastAPI financial and stock writes require a MongoDB replica set or
+sharded cluster with transaction support. Configure `MONGO_URL` accordingly.
+A single-node replica set works for local development. A standalone MongoDB
+server cannot commit these multi-document postings. Existing records stay in
+place. The Node catalogue requires the Prisma migration
+`202611260001_product_create_retry` before serving the updated product form.
+
 ## Verification and rollout
 
 - [Authentication](backend-node/AUTHENTICATION.md)

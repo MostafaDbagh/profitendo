@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from core import db, require_perm, log_audit, now_iso, next_number
+from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number
 from ledger import post_source, reverse_source, try_post, _accounts_map, _line
 
 router = APIRouter(prefix="/api/purchase-returns", tags=["purchase-returns"])
@@ -54,6 +54,7 @@ async def list_purchase_returns(user: dict = Depends(require_perm("purchases.vie
 
 
 @router.post("", status_code=201)
+@atomic_posting
 async def create_purchase_return(data: PRInput, user: dict = Depends(require_perm("purchases.create"))):
     bid = user["business_id"]
     if data.client_ref:
@@ -131,6 +132,7 @@ async def create_purchase_return(data: PRInput, user: dict = Depends(require_per
 
 
 @router.post("/{return_id}/cancel")
+@atomic_posting
 async def cancel_purchase_return(return_id: str, user: dict = Depends(require_perm("purchases.cancel"))):
     bid = user["business_id"]
     ret = await db.purchase_returns.find_one({"return_id": return_id, "business_id": bid})

@@ -407,6 +407,7 @@ model Product {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   business Business @relation(fields:[businessId],references:[id],onDelete:Restrict)
   barcodes ProductBarcode[]
+  createRequests ProductCreateRequest[]
   images ProductImage[]
   packs ProductPack[]
   balances StockBalance[]
@@ -420,6 +421,17 @@ model Product {
   @@index([businessId,active,name])
   @@map("products")
 }
+model ProductCreateRequest {
+  businessId String @map("business_id") @db.Uuid
+  clientKey String @map("client_key") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  requestHash String @map("request_hash")
+  product Product @relation(fields:[businessId,productId],references:[businessId,id],onDelete:Cascade)
+  @@id([businessId,clientKey])
+  @@index([businessId,productId])
+  @@map("product_create_requests")
+}
+
 model ProductBarcode {
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid

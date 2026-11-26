@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {productInsights} from './insights.js';
 import { ReferenceService, referenceSchema } from './references.js';
 import { PackService, packSchema, conversionSchema } from './packs.js';
@@ -11,7 +10,8 @@ import { CatalogueService } from './service.js';
 import { barcode, productSchema, patchSchema } from './contracts.js';
 const createProductSchema=productSchema.extend({
   unit:productSchema.shape.unit.default('PIECE'),
-  sku:productSchema.shape.sku.default(()=>`PRD-${randomUUID().toUpperCase()}`),
+  sku:productSchema.shape.sku.optional(),
+  clientKey:z.uuid().optional(),
 });
 export function catalogueRouter(auth:AuthService){
   const router=Router({mergeParams:true}),service=new CatalogueService(auth),{ctx,origin,attach,full,csrf}=authHttp(auth);

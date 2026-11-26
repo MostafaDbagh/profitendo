@@ -195,3 +195,19 @@ it('blocks existing cookies from files and records immediately after staff acces
  expect((await write(`/${p.id}`,{revision:0,name:'Revoked write'},employee,'patch')).status).toBe(401);
  expect((await db.product.findUniqueOrThrow({where:{id:p.id}})).revision).toBe(0);
 });
+
+it('creates one product for simultaneous and later retries, preserving distinct intents and tenant scope', async()=>{
+ const clientKey=randomUUID(), body={name:'Retry inventory item',purchasePrice:'0.0100',clientKey};
+ const replies=await Promise.all([write('',body),write('',body)]);
+ expect(replies.map(r=>r.status)).toEqual([201,201]);
+ const id=replies[0].body.id;
+ expect(replies[1].body.id).toBe(id);
+ expect((await write('',body)).body.id).toBe(id);
+ expect((await write('',{...body,purchasePrice:'2'})).body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+ expect(await db.product.count({where:{businessId:business,name:body.name}})).toBe(1);
+ expect(await db.authAudit.count({where:{businessId:business,targetId:id,action:'product.created'}})).toBe(1);
+ expect((await write('',{...body,clientKey:randomUUID()})).body.id).not.toBe(id);
+ const independent=await write('',body,foreign,'post',other);
+ expect(independent.status).toBe(201);
+ expect(independent.body.id).not.toBe(id);
+});
