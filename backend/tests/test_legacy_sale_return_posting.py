@@ -31,8 +31,9 @@ async def exercise(case):
                 if status < 300:
                     return response.json()
 
+            owner_password = secrets.token_urlsafe(20)
             owner = await post("auth/register", {"name": "QA return owner", "email": "return-qa@example.com",
-                                                 "password": secrets.token_urlsafe(20)}, 200)
+                                                 "password": owner_password}, 200)
             bid = owner["business_id"]
             product = await post("products", {"name": "QA rice", "selling_price": 10, "product_cost": 2}, 201)
             pid = product["product_id"]
@@ -56,6 +57,56 @@ async def exercise(case):
             if case == "aggregate":
                 await post("sales", {"items": [sale_item(2), sale_item(2)]}, 400)
                 assert await postings() == before and await stock() == 3
+            elif case == "cancel_duplicate":
+                sale = await post("sales", {"items": [sale_item(2)]}, 201)
+                body = refund(sale["sale_id"], 1)
+                body["items"] *= 2
+                ret = await post("returns", body, 201)
+                await post("sales", {"items": [sale_item(2)]}, 201)
+                previous = await postings()
+                await post("returns/" + ret["return_id"] + "/cancel", {}, 400)
+                assert await stock() == 1 and await postings() == previous
+                saved = await db.returns.find_one({"business_id": bid, "return_id": ret["return_id"]})
+                assert saved["status"] == ret["status"]
+            elif case == "negative_policy":
+                sale = await post("sales", {"items": [sale_item(3)]}, 201)
+                for path, payload in (
+                    ("sales", {"items": [sale_item(-1)]}),
+                    ("sales", {"items": [{**sale_item(1), "unit_price": -0.01}]}),
+                    ("sales", {"items": [{**sale_item(1), "discount": -0.01}]}),
+                    ("sales", {"items": [{**sale_item(1), "unit_price": "-1e-501"}]}),
+                    ("sales", {"items": [{**sale_item(1), "total": "Infinity"}]}),
+                    ("cash/closing", {"actual_cash": -1}),
+                    ("returns", refund(sale["sale_id"], -1)),
+                    ("returns", {**refund(sale["sale_id"], 1), "items": [{**sale_item(1), "unit_price": -0.01}]}),
+                    ("purchases", {"supplier": "QA", "items": [{"product_id": pid, "quantity": -1, "unit_cost": 1}]}),
+                    ("purchases", {"supplier": "QA", "items": [{"product_id": pid, "quantity": 1, "unit_cost": -0.01}]}),
+                ):
+                    await post(path, payload, 422)
+                ret = await post("returns", refund(sale["sale_id"], 1), 201)
+                await post("sales", {"items": [sale_item(1)]}, 201)
+                edit_path = "returns/" + ret["return_id"]
+                edit = {"restock": False, "pin": owner_password}
+                previous = await postings()
+                assert (await http.put(edit_path, json=edit)).status_code == 400
+                assert await postings() == previous and await stock() == 0
+                await db.businesses.update_one({"business_id": bid}, {"$set": {"allow_negative_stock": True}})
+                response = await http.put(edit_path, json=edit)
+                assert response.status_code == 200, response.text
+                assert await stock() == -1
+            elif case == "supplier_source":
+                receipt_line = {"product_id": pid, "quantity": 3, "unit_cost": 2}
+                receipt = await post("purchases", {"supplier": "QA", "items": [receipt_line]}, 201)
+                purchase_path = "purchases/" + receipt["purchase_id"]
+                before = await stock()
+                returned = await post("purchase-returns", {"purchase_id": receipt["purchase_id"],
+                                      "items": [{"product_id": pid, "quantity": 1}]}, 201)
+                edit = {"pin": owner_password, "items": [dict(receipt_line, quantity=2)]}
+                assert (await http.put(purchase_path, json=edit)).status_code == 409
+                assert await stock() == before - 1
+                await post("purchase-returns/" + returned["return_id"] + "/cancel", {}, 200)
+                assert (await http.put(purchase_path, json=edit)).status_code == 200
+                assert await stock() == before - 1
             elif case == "rollback":
                 sale = {"items": [sale_item(1)], "client_ref": uuid4().hex}
                 await db.command("collMod", "inventory_movements", validator={"movement_type": {"$ne": "SALE"}})
@@ -83,6 +134,30 @@ async def exercise(case):
                 await post("returns/preview", body, 409)
                 await post("returns", body, 409)
                 assert await postings() == after_cancel and await stock() == 3
+            elif case in ("holes", "legacy_holes"):
+                sale = await post("sales", {"items": [{**sale_item(1), "unit_price": 12},
+                                                        {**sale_item(1), "unit_price": 7}]}, 201)
+                sid = sale["sale_id"]
+                first = await post("returns", refund(sid, 1), 201)
+                second = await post("returns", refund(sid, 1), 201)
+                assert [first["refund_total"], second["refund_total"]] == [12, 7]
+                if case == "legacy_holes":
+                    await db.returns.update_many({"business_id": bid, "sale_id": sid},
+                                                 {"$unset": {"items.$[].sale_ranges": ""}})
+                await post("returns/"+first["return_id"]+"/cancel", {}, 200)
+                edit_path = "returns/"+second["return_id"]
+                request = refund(sid, 1)
+                assert (await post(edit_path+"/preview", request, 200))["total"] == 7
+                edited = await http.put(edit_path, json={"items": request["items"], "pin": owner_password})
+                assert edited.status_code == 200, edited.text
+                assert edited.json()["refund_total"] == 7
+                assert (await post("returns/preview", request, 200))["total"] == 12
+                last = await post("returns", request, 201)
+                assert last["refund_total"] == 12
+                assert await stock() == 3
+                entries = await db.journal_entries.find({"business_id": bid, "source_type": "return"}).to_list(None)
+                cash_out = sum(l["credit"] - l["debit"] for e in entries for l in e["lines"] if l["code"] == "1100")
+                assert cash_out == sale["total"] == 19
             elif case == "discount":
                 sale = await post("sales", {"items": [{**sale_item(3), "discount": 20}]}, 201)
                 assert sale["total"] == 10
@@ -115,6 +190,15 @@ class SaleReturnRegressionTests(unittest.TestCase):
             "ADMIN_PASSWORD": secrets.token_urlsafe(20), "JWT_SECRET": secrets.token_hex(32),
         })
 
+    def test_cancel_restocked_duplicate_rows_requires_combined_stock(self):
+        self.check_posting("cancel_duplicate")
+
+    def test_negative_inputs_and_return_edit_stock_policy(self):
+        self.check_posting("negative_policy")
+
+    def test_supplier_return_preserves_source_until_reversed(self):
+        self.check_posting("supplier_source")
+
     def test_duplicate_sku_oversell(self):
         self.check_posting("aggregate")
 
@@ -126,6 +210,12 @@ class SaleReturnRegressionTests(unittest.TestCase):
 
     def test_cancelled_sale_refund_and_preview(self):
         self.check_posting("cancelled")
+
+    def test_non_sequential_refund_cancellation_and_edit(self):
+        self.check_posting("holes")
+
+    def test_legacy_refund_allocations_survive_cancellation_and_edit(self):
+        self.check_posting("legacy_holes")
 
     def test_discounted_partial_refund_preview_matches_journal(self):
         self.check_posting("discount")

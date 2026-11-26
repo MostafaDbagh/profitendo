@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from core import db, require_perm, log_audit
-from imports import _parse_file, _clean_str, _clean_num, MAX_ROWS
+from imports import _suggest_mapping, _parse_file, _clean_str, _clean_num, MAX_ROWS
 from sales import SaleInput, SaleItem, create_sale_record, cancel_sale
 
 router = APIRouter(prefix="/api/sales/import", tags=["sales-import"])
@@ -45,14 +45,7 @@ TEMPLATE_HEADERS = ["رقم الفاتورة", "التاريخ", "العميل",
 
 
 def _suggest(headers):
-    mapping = {f: "" for f in SALE_FIELDS}
-    norm = {h: h.strip().lower() for h in headers if h}
-    for field, aliases in SALE_ALIASES.items():
-        for h, n in norm.items():
-            if n in [a.lower() for a in aliases] or any(a.lower() in n for a in aliases):
-                mapping[field] = h
-                break
-    return mapping
+    return _suggest_mapping(headers, SALE_ALIASES)
 
 
 def _map_pm(raw: str) -> Optional[str]:
@@ -71,7 +64,7 @@ async def _product_maps(bid: str):
     return by_sku, by_name
 
 
-def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name):
+def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name, *, allow_negative_stock=False):
     idx = {}
     for f, h in mapping.items():
         if h and h in headers:
@@ -86,7 +79,7 @@ def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name):
         date = _clean_str(cell("date"), 20)
         customer = _clean_str(cell("customer"), 120)
         prod_raw = _clean_str(cell("product"), 120)
-        qty, ok_q = _clean_num(cell("quantity"))
+        qty, ok_q = _clean_num(cell("quantity"), quantity=True, whole=True)
         price, ok_p = _clean_num(cell("unit_price"))
         pm = _map_pm(_clean_str(cell("payment_method"), 40))
         notes = _clean_str(cell("notes"), 200)
@@ -104,11 +97,11 @@ def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name):
         if not ok_p:
             out.append({"row": n, "values": values, "status": "invalid", "reason": "invalid_price"})
             continue
-        if (product.get("stock_qty", 0) or 0) < qty:
-            out.append({"row": n, "values": values, "status": "invalid", "reason": "insufficient_stock"})
-            continue
         if ref and ref.lower() in existing_refs:
             out.append({"row": n, "values": values, "status": "duplicate", "reason": "exists_ref"})
+            continue
+        if not allow_negative_stock and (product.get("stock_qty", 0) or 0) < qty:
+            out.append({"row": n, "values": values, "status": "invalid", "reason": "insufficient_stock"})
             continue
         values["product_id"] = product["product_id"]
         if price is None:
@@ -125,13 +118,15 @@ def _summary(rows):
             "invalid": sum(1 for r in rows if r["status"] == "invalid")}
 
 
-async def _parse_and_evaluate(file, mapping, bid):
+async def _parse_and_evaluate(file, mapping, user):
+    bid = user["business_id"]
     headers, data_rows = await _parse_file(file)
     if not mapping:
         mapping = _suggest(headers)
     existing_refs = {r.lower() for r in await db.sales.distinct("import_ref", {"business_id": bid, "import_ref": {"$ne": None}})}
     by_sku, by_name = await _product_maps(bid)
-    rows = _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name)
+    rows = _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name,
+                     allow_negative_stock=(user.get("business") or {}).get("allow_negative_stock", False))
     return headers, mapping, rows
 
 
@@ -157,7 +152,7 @@ async def sales_import_preview(file: UploadFile = File(...), mapping: str = Form
         mapping_obj = json.loads(mapping) if mapping else {}
     except ValueError:
         raise HTTPException(status_code=400, detail="IMPORT_BAD_MAPPING")
-    headers, mapping_obj, rows = await _parse_and_evaluate(file, mapping_obj, user["business_id"])
+    headers, mapping_obj, rows = await _parse_and_evaluate(file, mapping_obj, user)
     return {"headers": headers, "suggested_mapping": mapping_obj, "fields": SALE_FIELDS, "rows": rows, "summary": _summary(rows)}
 
 
@@ -168,7 +163,7 @@ async def sales_import_commit(file: UploadFile = File(...), mapping: str = Form(
         mapping_obj = json.loads(mapping) if mapping else {}
     except ValueError:
         raise HTTPException(status_code=400, detail="IMPORT_BAD_MAPPING")
-    _, _, rows = await _parse_and_evaluate(file, mapping_obj, user["business_id"])
+    _, _, rows = await _parse_and_evaluate(file, mapping_obj, user)
     valid = [r for r in rows if r["status"] == "new"]
 
     groups = {}

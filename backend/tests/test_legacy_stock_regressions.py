@@ -104,6 +104,47 @@ async def exercise():
             assert [r["product_id"] for r in all_rows] == [r["product_id"] for batch in pages for r in batch]
             assert [r["product_id"] for r in await listing(user, 1, 100, "scale-2000")] == ["scale-2000"]
             await rejects(422, listing, user, 0, 100)
+
+        for pid in ("current-basis", "historical-rounded"):
+            await product(pid)
+            first = await receive([(pid, 1, 1)])
+            second = await receive([(pid, 1_000_000, 2)])
+            if pid == "historical-rounded":
+                # Model the actual pre-fix database state, including precision loss.
+                await db.products.update_one({"product_id": pid},
+                    {"$set": {"product_cost": 2.0}, "$unset": {"purchase_valuation": ""}})
+            await cancel_purchase(second["purchase_id"], user)
+            result = await db.products.find_one({"product_id": pid})
+            assert (result["stock_qty"], result["product_cost"]) == (1, 1)
+            journals = await db.journal_entries.find({"source_id": {"$in": [
+                first["purchase_id"], second["purchase_id"]]}}).to_list(None)
+            money = sum(line["debit"] - line["credit"] for j in journals for line in j["lines"]
+                        if line["account_id"] == inventory["account_id"])
+            assert money == 1
+            rows = await list_products(user, search=pid)
+            assert len(rows) == 1 and "purchase_valuation" not in rows[0]
+
+        # Imported opening stock has no purchase records. A cosmetic edit
+        # must preserve the precise basis recorded by the subsequent receipt.
+        await product("imported-opening", stock=1, cost=1)
+        big = await receive([("imported-opening", 1_000_000, 2)])
+        await db.products.update_one({"product_id": "imported-opening"},
+                                     {"$set": {"name": "Renamed", "updated_at": "later"}})
+        await cancel_purchase(big["purchase_id"], user)
+        renamed = await db.products.find_one({"product_id": "imported-opening"})
+        assert (renamed["stock_qty"], renamed["product_cost"]) == (1, 1)
+
+        # Ten units sold from two equal-cost receipts. Reversing one receipt
+        # can legitimately bring both the quantity and carrying value to zero.
+        from sales import SaleInput, create_sale_record
+        await product("zero-after-sale")
+        await receive([("zero-after-sale", 10, 10)])
+        receipt = await receive([("zero-after-sale", 10, 10)])
+        await create_sale_record("test", user, SaleInput(items=[
+            {"product_id": "zero-after-sale", "quantity": 10, "unit_price": 20}]))
+        await cancel_purchase(receipt["purchase_id"], user)
+        ending = await db.products.find_one({"product_id": "zero-after-sale"})
+        assert ending["stock_qty"] == 0 and ending["purchase_valuation"]["value"] == "0"
     finally:
         try:
             await client.drop_database(os.environ["DB_NAME"])

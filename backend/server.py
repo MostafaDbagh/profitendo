@@ -15,6 +15,7 @@ from core import (
     now_iso, compute_cash_balance, create_pin_token, pin_guard, CURRENCIES, atomic_posting,
 )
 
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney
 from catalogue_query import catalogue_rows
 from cutover import allow_legacy_request
 
@@ -53,22 +54,22 @@ class LanguageInput(BaseModel):
 class ProductInput(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     sku: Optional[str] = ""
-    selling_price: Optional[float] = Field(default=None, ge=0)
-    product_cost: float = Field(ge=0)
+    selling_price: Optional[NonnegativeMoney] = Field(default=None, ge=0)
+    product_cost: NonnegativeMoney = Field(ge=0)
     currency: Optional[str] = None
-    shipping_cost: float = Field(ge=0, default=0)
+    shipping_cost: NonnegativeMoney = Field(ge=0, default=0)
     shipping_cost_mode: str = Field(default="unit", pattern="^(unit|total)$")
-    advertising_cost: float = Field(ge=0, default=0)
+    advertising_cost: NonnegativeMoney = Field(ge=0, default=0)
     advertising_cost_mode: str = Field(default="unit", pattern="^(unit|total)$")
-    payment_fee: float = Field(ge=0, default=0)
+    payment_fee: NonnegativeMoney = Field(ge=0, default=0)
     payment_fee_mode: str = Field(default="unit", pattern="^(unit|total)$")
-    discount: float = Field(ge=0, default=0)
+    discount: NonnegativeMoney = Field(ge=0, default=0)
     discount_mode: str = Field(default="unit", pattern="^(unit|percent)$")
-    other_costs: float = Field(ge=0, default=0)
+    other_costs: NonnegativeMoney = Field(ge=0, default=0)
     other_costs_mode: str = Field(default="unit", pattern="^(unit|total)$")
-    minimum_stock_level: int = Field(ge=0, default=0)
+    minimum_stock_level: NonnegativeStockQuantity = Field(ge=0, le=MAX_STOCK_QUANTITY, default=0)
     launch_date: Optional[str] = None
-    spec_quantity: Optional[float] = Field(default=None, ge=0)
+    spec_quantity: Optional[NonnegativeMoney] = Field(default=None, ge=0)
     spec_unit: Optional[str] = None
 
     @model_validator(mode="after")

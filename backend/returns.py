@@ -6,6 +6,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock
 from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, can_finance, require_edit_pin
 from ledger import post_return, reverse_return, try_post
 
@@ -16,8 +17,8 @@ REASONS = "^(changed_mind|damaged|wrong_product|defect|other)$"
 
 class ReturnItem(BaseModel):
     product_id: str
-    quantity: int = Field(ge=1)
-    unit_price: Optional[float] = Field(default=None, ge=0)
+    quantity: NonnegativeStockQuantity = Field(ge=1, le=MAX_STOCK_QUANTITY)
+    unit_price: Optional[NonnegativeMoney] = None
 
 
 class ReturnInput(BaseModel):
@@ -41,9 +42,10 @@ class ReturnUpdate(BaseModel):
 
 def return_public(doc: dict, include_financials: bool) -> dict:
     doc = {k: v for k, v in doc.items() if k not in ("_id", "business_id")}
+    doc["items"] = [{k: v for k, v in line.items() if k != "sale_ranges"} for line in doc.get("items", [])]
     if not include_financials:
         doc.pop("cogs_reversed", None)
-        for item in doc.get("items", []):
+        for item in doc["items"]:
             item.pop("unit_cost", None)
     return doc
 
@@ -59,14 +61,99 @@ def cents(value):
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-async def refund_lines(bid, items, sale_id, *, exclude_return=None, posting=False):
-    # A sale write serializes all linked refunds, including non-restocking ones.
-    sold = defaultdict(list)
-    used_qty = defaultdict(int)
+def _remaining_ranges(size, occupied):
+    """Half-open unit offsets within one SKU, in original sale-line order."""
+    position = 0
+    available = []
+    for start, end in sorted(occupied, key=lambda span: span[0]):
+        if not (position <= start < end <= size):
+            raise HTTPException(409, "Historical refund allocations conflict with the sale")
+        if position < start:
+            available.append((position, start))
+        position = end
+    if position < size:
+        available.append((position, size))
+    return available
+
+
+def _take_ranges(size, occupied, preferred, qty):
+    selected = []
+    # An edit keeps its existing units first, even if an earlier return was cancelled.
+    for start, end in preferred:
+        for lo, hi in _remaining_ranges(size, occupied + selected):
+            begin = max(lo, start)
+            take = min(min(hi, end) - begin, qty)
+            if take > 0:
+                selected.append((begin, begin + take))
+                qty -= take
+            if not qty:
+                return selected
+    for start, end in _remaining_ranges(size, occupied + selected):
+        take = min(qty, end - start)
+        selected.append((start, start + take))
+        qty -= take
+        if not qty:
+            return selected
+    raise HTTPException(400, "Return exceeds remaining sold quantity")
+
+
+async def _allocations(scope, exclude_return):
+    projection = {"items": 1, "return_id": 1, "created_at": 1}
+    active = await db.returns.find({**scope, "status": {"$ne": "cancelled"}}, projection).to_list(None)
+    if any("sale_ranges" not in line for ret in active for line in ret["items"]):
+        # Older postings consumed the number of units already returned at posting time.
+        # Include subsequent cancellations in the timeline so a surviving return keeps
+        # its original price and fractional-cent position.
+        events = []
+        for ret in active:
+            events.append((ret.get("created_at", ""), str(ret["_id"]), 1, ret))
+        async for ret in db.returns.find({**scope, "status": "cancelled"},
+                                         {**projection, "cancelled_at": 1}):
+            if ret.get("cancelled_at"):
+                events.append((ret.get("created_at", ""), str(ret["_id"]), 1, ret))
+                events.append((ret["cancelled_at"], str(ret["_id"]), -1, ret))
+        counts = defaultdict(int)
+        for _, _, change, ret in sorted(events, key=lambda e: e[:3]):
+            for line in ret["items"]:
+                pid, qty = line["product_id"], line["quantity"]
+                if change == 1 and "sale_ranges" not in line:
+                    line["sale_ranges"] = [(counts[pid], counts[pid] + qty)]
+                counts[pid] += change * qty
+
+    occupied, preferred = defaultdict(list), defaultdict(list)
     used_value = defaultdict(Decimal)
-    refunded = Decimal(0)
+    for ret in active:
+        for line in ret["items"]:
+            pid = line["product_id"]
+            if ret["return_id"] == exclude_return:
+                preferred[pid].extend(line["sale_ranges"])
+            else:
+                occupied[pid].extend(line["sale_ranges"])
+                used_value[pid] += cents(line["total"])
+    return occupied, preferred, used_value
+
+
+def _range_value(source, selected):
+    amount, cost = Decimal(0), Decimal(0)
+    offset = 0
+    for line in source:
+        size = line["quantity"]
+        net = cents(line["total"] if "total" in line else line["unit_price"] * size - line.get("discount", 0))
+        for start, end in selected:
+            lo, hi = max(0, start - offset), min(size, end - offset)
+            if lo < hi:
+                amount += cents(net * hi / size) - cents(net * lo / size)
+                cost += Decimal(str(line.get("unit_cost", 0))) * (hi - lo)
+        offset += size
+    return amount, cost
+
+
+async def refund_lines(bid, items, sale_id, *, exclude_return=None, posting=False):
+    sold = defaultdict(list)
+    sale = None
     if sale_id:
         scope = {"business_id": bid, "sale_id": sale_id}
+        # Serialize posted refunds even when neither operation restocks inventory.
         if posting:
             sale = await db.sales.find_one_and_update(scope, {"$inc": {"return_revision": 1}})
         else:
@@ -77,17 +164,8 @@ async def refund_lines(bid, items, sale_id, *, exclude_return=None, posting=Fals
             raise HTTPException(409, "Only confirmed sales can be returned")
         for line in sale["items"]:
             sold[line["product_id"]].append(line)
-        taken = {**scope, "status": {"$ne": "cancelled"}}
-        if exclude_return:
-            taken["return_id"] = {"$ne": exclude_return}
-        async for prior in db.returns.find(taken, {"items": 1}):
-            for line in prior["items"]:
-                pid = line["product_id"]
-                used_qty[pid] += line["quantity"]
-                used_value[pid] += cents(line["total"])
-                refunded += cents(line["total"])
-    else:
-        sale = None
+        occupied, preferred, used_value = await _allocations(scope, exclude_return)
+        refunded = sum(used_value.values(), Decimal(0))
 
     lines = []
     for item in items:
@@ -95,26 +173,13 @@ async def refund_lines(bid, items, sale_id, *, exclude_return=None, posting=Fals
         product = await db.products.find_one({"business_id": bid, "product_id": pid})
         if not product:
             raise HTTPException(404, "Product not found")
+        line = {"product_id": pid, "name": product["name"], "quantity": qty}
         if sale:
             source = sold[pid]
-            quantity = sum(line["quantity"] for line in source)
-            consumed = used_qty[pid]
-            if consumed + qty > quantity:
-                raise HTTPException(400, "Return exceeds remaining sold quantity")
-            # Consume original lines in invoice order, keeping their actual net
-            # consideration and assigning any fractional cent cumulatively.
-            skipped, remaining = consumed, qty
-            amount, cost = Decimal(0), Decimal(0)
-            for line in source:
-                size = line["quantity"]
-                start = min(skipped, size)
-                take = min(size - start, remaining)
-                net = cents(line.get("total", line["unit_price"] * size - line.get("discount", 0)))
-                amount += cents(net * (start + take) / size) - cents(net * start / size)
-                cost += Decimal(str(line.get("unit_cost", 0))) * take
-                skipped -= start
-                remaining -= take
-            paid = sum(cents(line.get("total", line["unit_price"] * line["quantity"] - line.get("discount", 0))) for line in source)
+            size = sum(original["quantity"] for original in source)
+            selected = _take_ranges(size, occupied[pid], preferred[pid], qty)
+            amount, cost = _range_value(source, selected)
+            paid, _ = _range_value(source, [(0, size)])
             # Older invoices may round their document total separately from the lines.
             document_room = cents(sale["total"]) - refunded
             amount = max(Decimal(0), min(amount, paid - used_value[pid], document_room))
@@ -124,15 +189,16 @@ async def refund_lines(bid, items, sale_id, *, exclude_return=None, posting=Fals
                     raise HTTPException(400, "Refund exceeds original net price")
                 amount = requested
             unit_cost, price = float(cost / qty), float(amount / qty)
-            used_qty[pid] += qty
+            occupied[pid].extend(selected)
             used_value[pid] += amount
             refunded += amount
+            line["sale_ranges"] = selected
         else:
             price = item.unit_price if item.unit_price is not None else product.get("selling_price", 0) or 0
             amount = cents(Decimal(str(price)) * qty)
             unit_cost = product.get("product_cost", 0) or 0
-        lines.append({"product_id": pid, "name": product["name"], "quantity": qty,
-                      "unit_price": price, "total": float(amount), "unit_cost": unit_cost})
+        line.update(unit_price=price, total=float(amount), unit_cost=unit_cost)
+        lines.append(line)
     return sale, lines
 
 
@@ -201,12 +267,11 @@ async def create_return(data: ReturnInput, user: dict = Depends(require_perm("re
         p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
         if not p:
             continue
-        new_qty = max(0, (p.get("quantity_sold", 0) or 0) - line["quantity"])
+        new_qty = max(0, bounded_stock(p.get("quantity_sold") or 0, -line["quantity"]))
         updates = {"quantity_sold": new_qty, "updated_at": now}
-        inc = {}
         if data.restock:
-            inc["stock_qty"] = line["quantity"]
-        await db.products.update_one({"product_id": p["product_id"], "business_id": bid}, {"$inc": inc, "$set": updates})
+            updates["stock_qty"] = bounded_stock(p.get("stock_qty") or 0, line["quantity"])
+        await db.products.update_one({"product_id": p["product_id"], "business_id": bid}, {"$set": updates})
         if data.restock:
             await db.inventory_movements.insert_one({
                 "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
@@ -275,15 +340,15 @@ async def update_return(return_id: str, data: ReturnUpdate, user: dict = Depends
             oq = old_map.get(pid, 0)
             nq = new_map.get(pid, 0)
             cur_stock = p.get("stock_qty", 0) or 0
-            stock_after = cur_stock - (oq if restock_old else 0) + (nq if restock_new else 0)
-            if stock_after < 0:
+            stock_delta = bounded_stock(0, (nq if restock_new else 0) - (oq if restock_old else 0))
+            stock_after = bounded_stock(cur_stock, stock_delta)
+            if stock_after < 0 and not (user.get("business") or {}).get("allow_negative_stock", False):
                 raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
-            qs_after = max(0, (p.get("quantity_sold", 0) or 0) + oq - nq)
+            qs_after = max(0, bounded_stock(p.get("quantity_sold") or 0, oq - nq))
             await db.products.update_one(
                 {"product_id": pid, "business_id": bid},
                 {"$set": {"stock_qty": stock_after, "quantity_sold": qs_after, "updated_at": now}},
             )
-            stock_delta = (nq if restock_new else 0) - (oq if restock_old else 0)
             if stock_delta != 0:
                 await db.inventory_movements.insert_one({
                     "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
@@ -326,11 +391,15 @@ async def cancel_return(return_id: str, user: dict = Depends(require_perm("retur
     allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
     now = now_iso()
     if ret.get("restock"):
+        quantities = {}
         for line in ret["items"]:
-            p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
+            pid = line["product_id"]
+            quantities[pid] = quantities.get(pid, 0) + line["quantity"]
+        for pid, quantity in quantities.items():
+            p = await db.products.find_one({"product_id": pid, "business_id": bid})
             if not p:
                 continue
-            if (p.get("stock_qty", 0) or 0) - line["quantity"] < 0 and not allow_negative:
+            if bounded_stock(p.get("stock_qty") or 0, -quantity) < 0 and not allow_negative:
                 raise HTTPException(status_code=400, detail=f"Cancelling would make stock negative for {p['name']}")
         for line in ret["items"]:
             p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
@@ -338,7 +407,9 @@ async def cancel_return(return_id: str, user: dict = Depends(require_perm("retur
                 continue
             await db.products.update_one(
                 {"product_id": p["product_id"], "business_id": bid},
-                {"$inc": {"stock_qty": -line["quantity"], "quantity_sold": line["quantity"]}, "$set": {"updated_at": now}},
+                {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, -line["quantity"]),
+                          "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, line["quantity"]),
+                          "updated_at": now}},
             )
             await db.inventory_movements.insert_one({
                 "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
@@ -356,10 +427,13 @@ async def cancel_return(return_id: str, user: dict = Depends(require_perm("retur
             })
     else:
         for line in ret["items"]:
-            await db.products.update_one(
-                {"product_id": line["product_id"], "business_id": bid},
-                {"$inc": {"quantity_sold": line["quantity"]}, "$set": {"updated_at": now}},
-            )
+            key = {"product_id": line["product_id"], "business_id": bid}
+            p = await db.products.find_one(key)
+            if p:
+                await db.products.update_one(key, {"$set": {
+                    "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, line["quantity"]),
+                    "updated_at": now,
+                }})
     await db.returns.update_one({"return_id": return_id, "business_id": bid}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user["user_id"]}})
     await log_audit(bid, user, "return.cancelled", "return", return_id, ret["return_number"])
     await try_post(reverse_return(bid, user, ret))

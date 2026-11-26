@@ -4,19 +4,20 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from numeric_inputs import NonnegativeMoney
 from core import atomic_posting, db, require_perm, log_audit, now_iso, cash_components, compute_cash_balance, pin_guard
 
 router = APIRouter(prefix="/api", tags=["cash"])
 
 
 class ClosingInput(BaseModel):
-    actual_cash: float = Field(ge=0)
+    actual_cash: NonnegativeMoney
     notes: Optional[str] = ""
 
 
 class WithdrawalInput(BaseModel):
     person: str = Field(min_length=1, max_length=120)
-    amount: float = Field(gt=0)
+    amount: NonnegativeMoney = Field(gt=0)
     date: Optional[str] = None
     reason: Optional[str] = ""
     source: str = Field(default="cash", pattern="^(cash|bank)$")

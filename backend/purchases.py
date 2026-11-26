@@ -1,9 +1,12 @@
 import uuid
+from collections import defaultdict
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock
 from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, require_edit_pin
 from ledger import post_purchase, reverse_purchase, try_post
 
@@ -14,8 +17,8 @@ PAYMENT_METHODS = "^(cash|card|transfer|other|credit)$"
 
 class PurchaseItem(BaseModel):
     product_id: str
-    quantity: int = Field(ge=1)
-    unit_cost: float = Field(ge=0)
+    quantity: NonnegativeStockQuantity = Field(ge=1, le=MAX_STOCK_QUANTITY)
+    unit_cost: NonnegativeMoney
 
 
 class PurchaseInput(BaseModel):
@@ -23,7 +26,7 @@ class PurchaseInput(BaseModel):
     invoice_number: Optional[str] = ""
     purchase_date: Optional[str] = None
     notes: Optional[str] = ""
-    additional_costs: float = Field(ge=0, default=0)
+    additional_costs: NonnegativeMoney = 0
     payment_method: str = Field(default="cash", pattern=PAYMENT_METHODS)
     client_ref: Optional[str] = Field(default=None, max_length=64)
     items: List[PurchaseItem] = Field(min_length=1)
@@ -34,7 +37,7 @@ class PurchaseUpdate(BaseModel):
     invoice_number: Optional[str] = None
     purchase_date: Optional[str] = None
     notes: Optional[str] = None
-    additional_costs: Optional[float] = Field(default=None, ge=0)
+    additional_costs: Optional[NonnegativeMoney] = None
     payment_method: Optional[str] = Field(default=None, pattern=PAYMENT_METHODS)
     items: Optional[List[PurchaseItem]] = None
     pin: Optional[str] = None
@@ -80,7 +83,7 @@ async def _record_movement(bid: str, user: dict, p: dict, qty: float, mtype: str
         "business_id": bid,
         "product_id": p["product_id"],
         "product_name": p["name"],
-        "quantity": qty,
+        "quantity": bounded_stock(0, qty),
         "movement_type": mtype,
         "reference_id": ref_id,
         "reference_number": ref_number,
@@ -91,61 +94,135 @@ async def _record_movement(bid: str, user: dict, p: dict, qty: float, mtype: str
     })
 
 
-def _receipt_avg(old_qty: float, old_cost: float, qty: float, unit_cost: float) -> tuple:
-    new_qty = old_qty + qty
-    new_avg = round(((old_qty * old_cost) + (qty * unit_cost)) / new_qty, 4) if new_qty > 0 else unit_cost
-    return new_qty, new_avg
+def _amount(value):
+    return Decimal(str(value))
 
 
-def _aggregate_lines(lines: list):
-    qty, val = {}, {}
+def _line_value(line, field):
+    if field and field in line:
+        return _amount(line[field])
+    if "unit_cost" not in line:
+        raise HTTPException(409, "Historical transaction has no recorded cost")
+    extended = _amount(line["quantity"]) * _amount(line["unit_cost"])
+    return round(extended, 2) if field else extended
+
+
+def _aggregate_lines(lines):
+    quantities, values = defaultdict(int), defaultdict(Decimal)
     for line in lines:
-        qty[line["product_id"]] = qty.get(line["product_id"], 0) + line["quantity"]
-        val[line["product_id"]] = val.get(line["product_id"], 0.0) + line["quantity"] * line["unit_cost"]
-    return qty, val
+        pid = line["product_id"]
+        quantities[pid] = bounded_stock(quantities[pid], line["quantity"])
+        # The receipt's journal debits its rounded line amounts.
+        values[pid] += _line_value(line, "total")
+    return quantities, values
 
 
-def _aggregate_items(items: list):
-    qty, val = {}, {}
-    for it in items:
-        qty[it.product_id] = qty.get(it.product_id, 0) + it.quantity
-        val[it.product_id] = val.get(it.product_id, 0.0) + it.quantity * it.unit_cost
-    return qty, val
+async def _historical_value(bid, pid, stock):
+    """Reconcile pre-snapshot stock with priced source documents and their movements."""
+    key = {"business_id": bid, "product_id": pid}
+    movements = defaultdict(Decimal)
+    async for row in db.inventory_movements.find(key, {"reference_id": 1, "quantity": 1}):
+        if not row.get("reference_id"):
+            # Older manual adjustments did not save a unit cost.
+            return None
+        movements[row["reference_id"]] += _amount(row["quantity"])
+    if sum(movements.values()) != stock:
+        return None
+
+    total = Decimal(0)
+    sources = (
+        (db.purchases, "purchase_id", "total", 1),
+        (db.sales, "sale_id", "cogs", -1),
+        (db.purchase_returns, "return_id", "total", -1),
+        (db.returns, "return_id", None, 1),
+    )
+    for collection, identifier, price_field, sign in sources:
+        query = {"business_id": bid, "items.product_id": pid, "status": "confirmed"}
+        if not price_field:
+            query["restock"] = {"$ne": False}
+        async for doc in collection.find(query, {identifier: 1, "items": 1}):
+            quantity = Decimal(0)
+            for line in doc["items"]:
+                if line["product_id"] != pid:
+                    continue
+                units = _amount(line["quantity"])
+                total += sign * _line_value(line, price_field)
+                quantity += sign * units
+            if movements.pop(doc[identifier], 0) != quantity:
+                return None
+    return None if any(movements.values()) else total
 
 
-def _edited_avg_cost(p: dict, oq: float, oval: float, nq: float, nval: float) -> tuple:
-    cur_qty = p.get("stock_qty", 0) or 0
-    cur_avg = p.get("product_cost", 0) or 0
-    pre_qty = cur_qty - oq
-    pre_value = cur_qty * cur_avg - oval
-    final_qty = pre_qty + nq
-    if final_qty <= 0:
-        return final_qty, cur_avg
-    if pre_qty > 0:
-        return final_qty, round((max(pre_value, 0.0) + nval) / final_qty, 4)
-    return final_qty, (round(nval / nq, 4) if nq > 0 else cur_avg)
+async def _stock_value(bid, product, *, reversing=False):
+    stock = _amount(product.get("stock_qty") or 0)
+    cost = _amount(product.get("product_cost") or 0)
+    basis = product.get("purchase_valuation")
+    if basis and _amount(basis["quantity"]) == stock and _amount(basis["unit_cost"]) == cost:
+        if basis["at"] == product.get("updated_at"):
+            return _amount(basis["value"])
+        # A rename, SKU change or other catalogue edit updates the timestamp as
+        # well. Only a subsequent stock event can invalidate a matching basis.
+        later_movement = await db.inventory_movements.find_one({
+            "business_id": bid, "product_id": product["product_id"], "created_at": {"$gt": basis["at"]},
+        }, {"_id": 1})
+        if not later_movement:
+            return _amount(basis["value"])
+    if not stock:
+        return Decimal(0)
+    # Imported opening balances have no priced movements. Once purchases have
+    # posted, their four-place legacy average may no longer encode the balance.
+    if await db.purchases.find_one({"business_id": bid, "items.product_id": product["product_id"]}, {"_id": 1}):
+        value = await _historical_value(bid, product["product_id"], stock)
+        if value is not None:
+            return value
+        if reversing:
+            # Determine whether the pre-snapshot average identifies exactly
+            # one possible cent value. Never guess between plausible amounts.
+            estimate = stock * cost
+            error = abs(stock) * Decimal("0.00005")
+            lower = (estimate - error).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+            upper = (estimate + error).quantize(Decimal("0.01"), rounding=ROUND_FLOOR)
+            if lower == upper:
+                return lower
+            raise HTTPException(409, "Historical inventory value requires reconciliation before reversing this receipt")
+    return stock * cost
+
+
+def _valuation_fields(product, quantity, value, now):
+    if quantity == 0 and abs(value) >= Decimal("0.005"):
+        raise HTTPException(409, "Cancellation would leave inventory value without stock")
+    if quantity > 0 and value <= Decimal("-0.005"):
+        raise HTTPException(409, "Purchase would leave negative inventory value")
+    average = product.get("product_cost", 0) or 0
+    if quantity:
+        average = float(max(Decimal(0), value / _amount(quantity)))
+    else:
+        value = Decimal(0)
+    return {"product_cost": average, "updated_at": now, "purchase_valuation": {
+        "quantity": quantity, "value": str(value), "unit_cost": average, "at": now,
+    }}
 
 
 async def _apply_item_edit(bid: str, purchase: dict, items: list, user: dict, allow_negative: bool, now: str):
     if len(items) < 1:
         raise HTTPException(status_code=400, detail="At least one item is required")
     old_qty, old_val = _aggregate_lines(purchase["items"])
-    new_qty, new_val = _aggregate_items(items)
-    prods = await _fetch_products(bid, set(old_qty) | set(new_qty))
-    for pid, p in prods.items():
-        final_qty = (p.get("stock_qty", 0) or 0) - old_qty.get(pid, 0) + new_qty.get(pid, 0)
+    prods = await _fetch_products(bid, set(old_qty) | {it.product_id for it in items})
+    lines, subtotal = _build_lines(items, prods)
+    new_qty, new_val = _aggregate_lines(lines)
+    for pid, product in prods.items():
+        delta = new_qty[pid] - old_qty[pid]
+        final_qty = bounded_stock(product.get("stock_qty") or 0, delta)
         if not allow_negative and final_qty < 0:
-            raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
-    for pid, p in prods.items():
-        final_qty, new_avg = _edited_avg_cost(p, old_qty.get(pid, 0), old_val.get(pid, 0.0), new_qty.get(pid, 0), new_val.get(pid, 0.0))
-        await db.products.update_one(
-            {"business_id": bid, "product_id": pid},
-            {"$set": {"stock_qty": final_qty, "product_cost": new_avg, "updated_at": now}},
-        )
-        delta = new_qty.get(pid, 0) - old_qty.get(pid, 0)
-        if delta != 0:
-            await _record_movement(bid, user, p, delta, "ADJUSTMENT", purchase["purchase_id"], purchase["purchase_number"], f"purchase edit {purchase['purchase_number']}", now)
-    return _build_lines(items, prods)
+            raise HTTPException(status_code=400, detail=f"Insufficient stock: {product['name']}")
+        balance = await _stock_value(bid, product, reversing=bool(old_qty[pid]))
+        fields = _valuation_fields(product, final_qty, balance + new_val[pid] - old_val[pid], now)
+        await db.products.update_one({"business_id": bid, "product_id": pid},
+                                     {"$set": {**fields, "stock_qty": final_qty}})
+        if delta:
+            await _record_movement(bid, user, product, delta, "ADJUSTMENT", purchase["purchase_id"],
+                                   purchase["purchase_number"], f"purchase edit {purchase['purchase_number']}", now)
+    return lines, subtotal
 
 
 @router.post("", status_code=201)
@@ -190,18 +267,17 @@ async def create_purchase(data: PurchaseInput, user: dict) -> dict:
         "created_by_name": user.get("name", ""),
         "created_at": now,
     }
+    quantities, values = _aggregate_lines(lines)
+    for product_id, quantity in quantities.items():
+        product = prods[product_id]
+        stock = bounded_stock(product.get("stock_qty") or 0, quantity)
+        value = await _stock_value(bid, product)
+        fields = _valuation_fields(product, stock, value + values[product_id], now)
+        await db.products.update_one({"business_id": bid, "product_id": product_id},
+                                     {"$set": {**fields, "stock_qty": stock}})
     await db.purchases.insert_one(doc)
-
     for it in data.items:
-        p = prods[it.product_id]
-        _, new_avg = _receipt_avg(p.get("stock_qty", 0) or 0, p.get("product_cost", 0) or 0, it.quantity, it.unit_cost)
-        await db.products.update_one(
-            {"business_id": bid, "product_id": p["product_id"]},
-            {"$inc": {"stock_qty": it.quantity}, "$set": {"product_cost": new_avg, "updated_at": now}},
-        )
-        p["stock_qty"] = (p.get("stock_qty", 0) or 0) + it.quantity
-        p["product_cost"] = new_avg
-        await _record_movement(bid, user, p, it.quantity, "PURCHASE", pid, number, data.notes or "", now)
+        await _record_movement(bid, user, prods[it.product_id], it.quantity, "PURCHASE", pid, number, data.notes or "", now)
 
     await log_audit(bid, user, "purchase.created", "purchase", pid, f"{number} · {doc['supplier']} · {total}")
     await try_post(post_purchase(bid, user, doc))
@@ -226,6 +302,10 @@ async def update_purchase(purchase_id: str, data: PurchaseUpdate, user: dict = D
         updates["supplier"] = updates["supplier"].strip()
 
     if data.items is not None:
+        if await db.purchase_returns.find_one(
+            {"business_id": bid, "purchase_id": purchase_id, "status": "confirmed"}, {"_id": 1}
+        ):
+            raise HTTPException(409, "Reverse supplier returns before changing purchase lines")
         lines, subtotal = await _apply_item_edit(bid, purchase, data.items, user, allow_negative, now)
         updates["items"] = lines
         updates["subtotal"] = subtotal
@@ -262,23 +342,14 @@ async def cancel_purchase(purchase_id: str, user: dict = Depends(require_perm("p
     for pid, quantity in quantities.items():
         product = products[pid]
         stock = product.get("stock_qty", 0) or 0
-        average = product.get("product_cost", 0) or 0
-        remaining = stock - quantity
+        remaining = bounded_stock(stock, -quantity)
         if remaining < 0 and not allow_negative:
             raise HTTPException(status_code=400, detail=f"Cancelling would make stock negative for {product['name']}")
-        value = stock * average - costs[pid]
-        tolerance = abs(stock) * 0.00005 + 0.005
-        if remaining == 0 and abs(value) > tolerance:
-            raise HTTPException(status_code=409, detail="Cancellation would leave inventory value without stock")
-        if remaining > 0:
-            # The stored moving average has four decimal places. Within that
-            # rounding tolerance the remaining value can legitimately be zero.
-            if value < -tolerance:
-                raise HTTPException(status_code=409, detail="Cancellation would leave negative inventory value")
-            average = round(max(0.0, value) / remaining, 4)
+        value = await _stock_value(bid, product, reversing=True)
+        fields = _valuation_fields(product, remaining, value - costs[pid], now)
         await db.products.update_one(
             {"business_id": bid, "product_id": pid},
-            {"$inc": {"stock_qty": -quantity}, "$set": {"product_cost": average, "updated_at": now}},
+            {"$set": {**fields, "stock_qty": remaining}},
         )
         await _record_movement(bid, user, product, -quantity, "ADJUSTMENT", purchase_id,
                                purchase["purchase_number"], f"Purchase {purchase['purchase_number']} cancelled", now)

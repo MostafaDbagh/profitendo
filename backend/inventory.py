@@ -1,9 +1,11 @@
+import math
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from numeric_inputs import MIN_STOCK_QUANTITY, MAX_STOCK_QUANTITY, bounded_stock
 from catalogue_query import catalogue_rows
 from pymongo import ReturnDocument
 from core import atomic_posting, db, require_perm, log_audit, now_iso, can_finance
@@ -14,8 +16,17 @@ router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 class AdjustmentInput(BaseModel):
     product_id: str
     movement_type: str = Field(pattern="^(ADJUSTMENT|DAMAGE|MANUAL_CORRECTION)$")
-    quantity: int
+    quantity: int = Field(ge=MIN_STOCK_QUANTITY, le=MAX_STOCK_QUANTITY)
     notes: Optional[str] = ""
+
+    @field_validator("quantity", mode="before")
+    @classmethod
+    def validate_json_number(cls, value):
+        if isinstance(value, float) and not math.isfinite(value):
+            raise HTTPException(422, "Expected a finite stock adjustment")
+        if isinstance(value, bool):
+            raise ValueError("Expected a signed integer stock adjustment")
+        return value
 
 
 @router.get("")
@@ -67,12 +78,14 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
     if data.movement_type == "DAMAGE":
         qty = -abs(qty)
     allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
-    stock_filter = {"business_id": bid, "product_id": data.product_id}
-    if not allow_negative:
-        stock_filter["$expr"] = {"$gte": [{"$ifNull": ["$stock_qty", 0]}, -qty]}
+    # The transaction retries this read and both checks on a competing stock write.
+    resulting_stock = bounded_stock(p.get("stock_qty") or 0, qty)
+    if resulting_stock < 0 and not allow_negative:
+        raise HTTPException(status_code=400, detail="Insufficient stock")
     now = now_iso()
     updated = await db.products.find_one_and_update(
-        stock_filter, {"$inc": {"stock_qty": qty}, "$set": {"updated_at": now}},
+        {"business_id": bid, "product_id": data.product_id},
+        {"$set": {"stock_qty": resulting_stock, "updated_at": now}},
         return_document=ReturnDocument.AFTER,
     )
     if not updated:

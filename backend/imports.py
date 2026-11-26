@@ -14,6 +14,7 @@ Security & integrity:
 import csv
 import io
 import logging
+import math
 import re
 import uuid
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from numeric_inputs import MAX_STOCK_QUANTITY, nonnegative_decimal
 from core import db, require_perm, log_audit, now_iso
 
 router = APIRouter(prefix="/api/products/import", tags=["import"])
@@ -72,20 +74,27 @@ def _clean_str(v, max_len: int) -> str:
     return s[:max_len]
 
 
-def _clean_num(v):
-    """Returns (value, ok). Empty -> (None, True)."""
+def _clean_num(v, *, quantity=False, whole=False):
+    """Parse before rounding so negative or fractional quantities cannot become valid."""
     if v is None or (isinstance(v, str) and not v.strip()):
         return None, True
-    if isinstance(v, bool):
-        return None, False
-    if isinstance(v, (int, float)):
-        return (round(float(v), 4), True) if float(v) >= 0 else (None, False)
-    s = str(v).strip().replace("٬", "").replace(",", "").replace(" ", "")
+    if isinstance(v, str):
+        v = v.strip().replace("٬", "").replace(",", "").replace(" ", "")
     try:
-        f = float(s)
-    except ValueError:
+        number = nonnegative_decimal(v)
+        if quantity:
+            if number > MAX_STOCK_QUANTITY:
+                return None, False
+            if number == number.to_integral_value():
+                return int(number), True
+            if whole:
+                return None, False
+        value = float(number)
+        if not math.isfinite(value) or (quantity and value > MAX_STOCK_QUANTITY):
+            return None, False
+        return round(value, 4) or 0.0, True
+    except (ValueError, OverflowError):
         return None, False
-    return (round(f, 4), True) if f >= 0 else (None, False)
 
 
 async def _parse_file(file: UploadFile):
@@ -122,14 +131,21 @@ async def _parse_file(file: UploadFile):
     return headers, rows[1:]
 
 
-def _suggest_mapping(headers):
-    mapping = {f: "" for f in FIELDS}
-    normalized = {h: h.strip().lower() for h in headers if h}
-    for field, aliases in FIELD_ALIASES.items():
-        for h, norm in normalized.items():
-            if norm in [a.lower() for a in aliases] or any(a.lower() in norm for a in aliases):
-                mapping[field] = h
-                break
+def _suggest_mapping(headers, aliases=FIELD_ALIASES):
+    # Give each header to its most specific field. A purchase-price column must
+    # never substitute for a separate selling-price column merely because of "price".
+    mapping = {field: "" for field in aliases}
+    scores = {}
+    for header in headers:
+        text = header.strip().casefold()
+        matches = [(text == alias.casefold(), len(alias), field)
+                   for field, names in aliases.items() for alias in names if alias.casefold() in text]
+        if matches:
+            exact, length, field = max(matches)
+            score = (exact, length)
+            if field not in scores or score > scores[field]:
+                scores[field] = score
+                mapping[field] = header
     return mapping
 
 
@@ -170,7 +186,7 @@ def _evaluate(headers, data_rows, mapping, strategy, by_sku, by_name):
         description = _clean_str(cell("description"), 500)
         purchase_price, ok1 = _clean_num(cell("purchase_price"))
         selling_price, ok2 = _clean_num(cell("selling_price"))
-        qty, ok3 = _clean_num(cell("initial_quantity"))
+        qty, ok3 = _clean_num(cell("initial_quantity"), quantity=True)
 
         values = {"name": name, "sku": sku, "category": category, "spec_unit": unit,
                   "product_cost": purchase_price, "selling_price": selling_price,

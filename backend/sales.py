@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock
 from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, caps_of, CURRENCIES, require_edit_pin
 from ledger import post_sale, reverse_sale, try_post
 
@@ -16,11 +17,11 @@ PAYMENT_METHODS = "^(cash|card|transfer|other|credit)$"
 
 class SaleItem(BaseModel):
     product_id: str
-    quantity: int = Field(ge=1)
-    unit_price: Optional[float] = Field(default=None, ge=0)
-    discount: float = Field(ge=0, default=0)
+    quantity: NonnegativeStockQuantity = Field(ge=1, le=MAX_STOCK_QUANTITY)
+    unit_price: Optional[NonnegativeMoney] = None
+    discount: NonnegativeMoney = 0
     unit_type: Optional[str] = Field(default=None, pattern="^(gram|kilogram|milliliter|piece)$")
-    total: Optional[float] = Field(default=None, ge=0)
+    total: Optional[NonnegativeMoney] = None
 
 
 class SaleInput(BaseModel):
@@ -123,7 +124,7 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
         p = await db.products.find_one({"product_id": it.product_id, "business_id": bid})
         if not p:
             raise HTTPException(status_code=404, detail="Product not found")
-        requested[it.product_id] = requested.get(it.product_id, 0) + it.quantity
+        requested[it.product_id] = bounded_stock(requested.get(it.product_id, 0), it.quantity)
         if not allow_negative and (p.get("stock_qty", 0) or 0) < requested[it.product_id]:
             raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
         products.append((p, it))
@@ -184,10 +185,15 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
     await db.sales.insert_one(doc)
 
     for p, it in products:
-        await db.products.update_one(
-            {"business_id": bid, "product_id": p["product_id"]},
-            {"$inc": {"stock_qty": -it.quantity, "quantity_sold": it.quantity}, "$set": {"updated_at": now}},
-        )
+        pid = p["product_id"]
+        if pid in requested:
+            sold = requested.pop(pid)
+            await db.products.update_one(
+                {"business_id": bid, "product_id": pid},
+                {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, -sold),
+                          "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, sold),
+                          "updated_at": now}},
+            )
         await db.inventory_movements.insert_one({
             "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
             "business_id": bid,
@@ -243,7 +249,7 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
             old_map[line["product_id"]] = old_map.get(line["product_id"], 0) + line["quantity"]
         new_map = {}
         for it in data.items:
-            new_map[it.product_id] = new_map.get(it.product_id, 0) + it.quantity
+            new_map[it.product_id] = bounded_stock(new_map.get(it.product_id, 0), it.quantity)
         prods = {}
         for pid in set(old_map) | set(new_map):
             p = await db.products.find_one({"product_id": pid, "business_id": bid})
@@ -251,7 +257,7 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
                 raise HTTPException(status_code=404, detail="Product not found")
             prods[pid] = p
         for pid, p in prods.items():
-            new_stock = (p.get("stock_qty", 0) or 0) + old_map.get(pid, 0) - new_map.get(pid, 0)
+            new_stock = bounded_stock(p.get("stock_qty") or 0, old_map.get(pid, 0) - new_map.get(pid, 0))
             if not allow_negative and new_stock < 0:
                 raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
         for pid, p in prods.items():
@@ -260,14 +266,16 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
                 continue
             await db.products.update_one(
                 {"business_id": bid, "product_id": pid},
-                {"$inc": {"stock_qty": -delta, "quantity_sold": delta}, "$set": {"updated_at": now}},
+                {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, -delta),
+                          "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, delta),
+                          "updated_at": now}},
             )
             await db.inventory_movements.insert_one({
                 "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
                 "business_id": bid,
                 "product_id": pid,
                 "product_name": p["name"],
-                "quantity": -delta,
+                "quantity": bounded_stock(0, -delta),
                 "movement_type": "ADJUSTMENT",
                 "reference_id": sale_id,
                 "reference_number": sale["sale_number"],
@@ -339,10 +347,11 @@ async def cancel_sale(sale_id: str, user: dict = Depends(require_perm("sales.can
         p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
         if not p:
             continue
-        new_qty = max(0, (p.get("quantity_sold", 0) or 0) - line["quantity"])
+        new_qty = max(0, bounded_stock(p.get("quantity_sold") or 0, -line["quantity"]))
         await db.products.update_one(
             {"business_id": bid, "product_id": p["product_id"]},
-            {"$inc": {"stock_qty": line["quantity"]}, "$set": {"quantity_sold": new_qty, "updated_at": now}},
+            {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, line["quantity"]),
+                      "quantity_sold": new_qty, "updated_at": now}},
         )
         await db.inventory_movements.insert_one({
             "movement_id": f"mov_{uuid.uuid4().hex[:12]}",

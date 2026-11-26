@@ -438,6 +438,7 @@ def product_public(doc: dict, caps: Optional[dict] = None) -> dict:
     doc = {k: v for k, v in doc.items() if k != "_id"}
     doc.pop("user_id", None)
     doc.pop("business_id", None)
+    doc.pop("purchase_valuation", None)
     out = compute_metrics(doc)
     out["stock_qty"] = doc.get("stock_qty", 0) or 0
     out["minimum_stock_level"] = doc.get("minimum_stock_level", 0) or 0

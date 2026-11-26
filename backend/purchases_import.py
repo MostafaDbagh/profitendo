@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from core import db, require_perm, log_audit
-from imports import _parse_file, _clean_str, _clean_num
+from imports import _suggest_mapping, _parse_file, _clean_str, _clean_num
 from purchases import PurchaseInput, PurchaseItem, create_purchase, cancel_purchase
 from sales_import import _map_pm
 
@@ -40,14 +40,7 @@ TEMPLATE_HEADERS = ["رقم الفاتورة", "التاريخ", "المورد",
 
 
 def _suggest(headers):
-    mapping = {f: "" for f in PURCHASE_FIELDS}
-    norm = {h: h.strip().lower() for h in headers if h}
-    for field, aliases in PURCHASE_ALIASES.items():
-        for h, n in norm.items():
-            if n in [a.lower() for a in aliases] or any(a.lower() in n for a in aliases):
-                mapping[field] = h
-                break
-    return mapping
+    return _suggest_mapping(headers, PURCHASE_ALIASES)
 
 
 async def _product_maps(bid: str):
@@ -75,7 +68,7 @@ def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name):
         date = _clean_str(cell("date"), 20)
         supplier = _clean_str(cell("supplier"), 120)
         prod_raw = _clean_str(cell("product"), 120)
-        qty, ok_q = _clean_num(cell("quantity"))
+        qty, ok_q = _clean_num(cell("quantity"), quantity=True, whole=True)
         cost, ok_c = _clean_num(cell("unit_cost"))
         pm = _map_pm(_clean_str(cell("payment_method"), 40))
         add_costs, ok_a = _clean_num(cell("additional_costs"))
@@ -92,7 +85,7 @@ def _evaluate(headers, data_rows, mapping, existing_refs, by_sku, by_name):
         if not prod_raw or not product:
             out.append({"row": n, "values": values, "status": "invalid", "reason": "product_not_found"})
             continue
-        if qty is None or not ok_q or qty <= 0 or float(qty) != int(qty):
+        if qty is None or not ok_q or qty <= 0:
             out.append({"row": n, "values": values, "status": "invalid", "reason": "invalid_quantity"})
             continue
         if cost is None or not ok_c:
