@@ -307,7 +307,7 @@ Build a professional bilingual (Arabic-first RTL / English) SaaS MVP called Prof
 ## Implemented (2026-08-23, Phase 1 security & permissions)
 - Granular 39-key permission catalog ({module}.{action}); role defaults + per-user overrides; legacy keys auto-migrate (startup + at PUT /team permissions)
 - Identity: sidebar shows greeting "مرحباً {name} 👋" + business name; role never displayed as identity
-- Owner PIN (bcrypt, 4-8 digits): gates partners, cash summary/closings, profit & cash reports, salary edits (403 PIN_REQUIRED → 30-min pin_token via verify); PIN set/clear in Settings
+- Owner PIN (bcrypt, 6 digits): gates partners, cash summary/closings, profit & cash reports, salary edits (403 PIN_REQUIRED → 30-min pin_token via verify); PIN set/clear in Settings
 - Inactivity auto-lock (5/10/15/30 min, owner-configured): LockScreen overlay, unlock via password or PIN (/api/auth/unlock), session preserved
 - New endpoints: sale edit, purchase edit/cancel (stock reversal + guard), return edit/cancel, status disable for users
 - Granular UI gating: nav/quick actions/dashboard cards/tables all follow effective perms; direct URL access redirects

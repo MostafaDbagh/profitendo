@@ -168,15 +168,15 @@ export default function Settings() {
               type="password"
               inputMode="numeric"
               autoComplete="off"
-              minLength={4}
-              maxLength={8}
+              minLength={6}
+              maxLength={6}
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               placeholder={t("pinEnter")}
               className={`${inputCls} tabular`}
               dir="ltr"
             />
-            <button data-testid="pin-save-btn" type="submit" disabled={savingPin || pin.length < 4}
+            <button data-testid="pin-save-btn" type="submit" disabled={savingPin || pin.length !== 6}
               className="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-60 whitespace-nowrap">
               {savingPin ? <Loader2 className="w-4 h-4 animate-spin" /> : t("pinSaved")}
             </button>

@@ -67,7 +67,7 @@ export function authRouter(auth: AuthService) {
     await auth.limit('login-email', req.body.email, 10);
     await sendSession(res, await auth.login(req.body.email, req.body.password));
   });
-  router.post('/login/pin', validateBody(z.object({email,pin:z.string().regex(/^[0-9]{4,8}$/)}).strict()), async (req,res) => {
+  router.post('/login/pin', validateBody(z.object({email,pin:z.string().regex(/^[0-9]{6}$/)}).strict()), async (req,res) => {
     await auth.limit('owner-pin-login-ip', req.ip ?? '', 20);
     const token = ownerPinDeviceToken(auth, req.headers.cookie);
     await sendSession(res, await loginWithOwnerPin(auth, req.body.email, req.body.pin, token));

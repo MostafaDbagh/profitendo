@@ -113,7 +113,7 @@ class TestOwnerPinStillGatesFinance:
     def test_pin_required_for_profit_report(self):
         admin = owner_login()
         # set pin
-        r = admin.post(f"{API}/auth/pin", json={"pin": "1234"})
+        r = admin.post(f"{API}/auth/pin", json={"pin": "123456"})
         assert r.status_code == 200, r.text
         try:
             # profit report without pin_token should 403 PIN_REQUIRED

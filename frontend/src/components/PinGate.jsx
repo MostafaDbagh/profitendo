@@ -37,9 +37,10 @@ export default function PinGate({ onSuccess, testid = "pin-gate" }) {
             data-testid="pin-gate-input"
             type="password"
             inputMode="numeric"
+            required minLength={6} maxLength={6} pattern="[0-9]{6}"
             autoComplete="off"
             value={pin}
-            onChange={(e) => setPin(e.target.value)}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
             placeholder={t("pinEnter")}
             className="w-full px-4 py-3 rounded-lg border border-slate-200 text-center text-lg tracking-widest tabular focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             dir="ltr"
@@ -47,7 +48,7 @@ export default function PinGate({ onSuccess, testid = "pin-gate" }) {
           <button
             data-testid="pin-gate-submit"
             type="submit"
-            disabled={loading || pin.length < 4}
+            disabled={loading || pin.length !== 6}
             className="w-full py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}

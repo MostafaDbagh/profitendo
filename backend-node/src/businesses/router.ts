@@ -40,7 +40,7 @@ export function businessRouter(auth: AuthService) {
   router.get('/:businessId', async (req, res) => { res.json(await service.get(ctx(res), String(req.params.businessId))); });
   router.patch('/:businessId/preferences', validateBody(z.object({ ownerAsCashier: z.boolean().optional(), hiddenTabs: z.array(z.enum(['expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit','partners','accounts'])).max(21), tabOrder: z.array(z.enum(['dashboard','security','settings','expenses','reports','returns','counts','damage','payments','migration','sales','transfers','inventory','suppliers','purchases','catalogue','locations','billing','team','roles','invitations','audit','partners','accounts'])).max(24).refine(v => new Set(v).size === v.length).optional() }).strict()), async (req, res) => { res.json(await service.preferences(ctx(res), String(req.params.businessId), req.body.hiddenTabs, req.body.tabOrder, req.body.ownerAsCashier)); });
   router.patch('/:businessId', validateBody(businessPatch), async (req, res) => { res.json(await service.update(ctx(res), String(req.params.businessId), req.body)); });
-  const pin = z.string().regex(/^[0-9]{4,8}$/);
+  const pin = z.string().regex(/^[0-9]{6}$/);
   router.put('/:businessId/owner-pin', validateBody(z.object({pin: pin.nullable(), password: z.string().min(1).max(128)}).strict()), async (req,res) => {
     const {status, token} = await configureOwnerPin(auth, ctx(res), String(req.params.businessId), req.body.password, req.body.pin);
     const {name, options: {maxAge, ...options}} = ownerPinDeviceCookie(auth);

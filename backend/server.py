@@ -267,7 +267,7 @@ async def set_language(data: LanguageInput, user: dict = Depends(get_current_use
 # ---------- Owner PIN & session unlock ----------
 
 class PinInput(BaseModel):
-    pin: str = Field(pattern="^\\d{4,8}$")
+    pin: str = Field(pattern="^[0-9]{6}$")
 
 
 class UnlockInput(BaseModel):

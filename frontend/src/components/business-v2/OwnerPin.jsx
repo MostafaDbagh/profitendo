@@ -9,7 +9,7 @@ import { Feedback, buttonClass, panelClass, primaryClass } from './UI';
 const copy = {
   en: {
     passwordPlaceholder:'Enter your password to enable or disable PIN', disablePasswordHint:'Enter your current password to disable PIN.',
-    pinHint:'Enter 4–8 digits.', title:'Owner PIN', hint:'Use a 4–8 digit PIN to protect sensitive sections such as profit, partners, and treasury.',
+    pinHint:'Enter 6 digits.', title:'Owner PIN', hint:'Use a 6-digit PIN to protect sensitive sections such as profit, partners, and treasury.',
     on:'Enabled', off:'Disabled', pin:'PIN', password:'Current account password', save:'Save PIN', remove:'Disable PIN',
     saved:'Owner PIN settings saved.',
     enableBrowser:'Enable PIN sign-in on this browser', disableBrowser:'Turn off PIN sign-in on this browser', browserDisabled:'PIN sign-in is off on this browser.',
@@ -21,7 +21,7 @@ const copy = {
   },
   ar: {
     passwordPlaceholder:'أدخل كلمة المرور لتفعيل الرمز أو إيقافه', disablePasswordHint:'أدخل كلمة مرور حسابك الحالية لإلغاء تفعيل الرمز.',
-    pinHint:'أدخل من ٤ إلى ٨ أرقام.', title:'رمز المالك PIN', hint:'رمز من ٤ إلى ٨ أرقام لحماية الأقسام الحساسة مثل الأرباح والشركاء والخزينة.',
+    pinHint:'أدخل ٦ أرقام.', title:'رمز المالك PIN', hint:'رمز من ٦ أرقام لحماية الأقسام الحساسة مثل الأرباح والشركاء والخزينة.',
     on:'مفعّل', off:'غير مفعّل', pin:'رمز PIN', password:'كلمة مرور الحساب الحالية', save:'حفظ رمز PIN', remove:'إلغاء تفعيل الرمز',
     saved:'تم حفظ إعدادات رمز المالك.',
     enableBrowser:'تفعيل تسجيل الدخول بالرمز في هذا المتصفح', disableBrowser:'إيقاف تسجيل الدخول بالرمز في هذا المتصفح', browserDisabled:'تم إيقاف تسجيل الدخول بالرمز في هذا المتصفح.',
@@ -33,7 +33,7 @@ const copy = {
   },
 };
 
-const isPin = value => /^[0-9]{4,8}$/.test(value);
+const isPin = value => /^[0-9]{6}$/.test(value);
 
 export function OwnerPinSettings({context, api, c, lang, onPinStatus}) {
   const text = copy[lang === 'ar' ? 'ar' : 'en'];

@@ -667,7 +667,7 @@ it('allows only an owner to configure and unlock sensitive sections with a sessi
     expect(summary.body.estimatedProfit).toBeUndefined();
     expect(await db.authUser.findUnique({where:{id:ownerA.id},select:{ownerPinHash:true}}))
       .toMatchObject({ownerPinHash:expect.stringMatching(/^\$argon2id\$/)});
-    expect((await write(`/${a}/owner-pin/unlock`,{pin:'0000'},ownerA,'post')).body.error.code).toBe('OWNER_PIN_INCORRECT');
+    expect((await write(`/${a}/owner-pin/unlock`,{pin:'000000'},ownerA,'post')).body.error.code).toBe('OWNER_PIN_INCORRECT');
     expect((await write(`/${a}/owner-pin/unlock`,{pin},ownerA,'post')).status).toBe(200);
     expect((await get(backup,ownerA)).status).toBe(200);
     expect((await get(profit,ownerA)).status).toBe(200);

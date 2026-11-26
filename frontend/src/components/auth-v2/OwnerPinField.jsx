@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 export default function OwnerPinField({ id, label, hint, value, onChange, disabled, children }) {
   const [cursor, setCursor] = useState(0);
-  const slots = Math.max(6, value.length);
+  const slots = 6;
   const activeSlot = Math.min(cursor, slots - 1);
 
   return (
@@ -17,9 +17,9 @@ export default function OwnerPinField({ id, label, hint, value, onChange, disabl
             inputMode="numeric"
             autoComplete="off"
             required
-            minLength={4}
-            maxLength={8}
-            pattern="[0-9]{4,8}"
+            minLength={6}
+            maxLength={6}
+            pattern="[0-9]{6}"
             aria-describedby={`${id}-hint`}
             disabled={disabled}
             value={value}
@@ -29,7 +29,7 @@ export default function OwnerPinField({ id, label, hint, value, onChange, disabl
               setCursor(input.selectionStart ?? input.value.length);
             }}
             onPaste={event => {
-              const digits = event.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 8);
+              const digits = event.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
               event.preventDefault();
               if (!digits) return;
               onChange(digits);
