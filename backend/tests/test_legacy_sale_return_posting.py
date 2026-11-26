@@ -57,6 +57,20 @@ async def exercise(case):
             if case == "aggregate":
                 await post("sales", {"items": [sale_item(2), sale_item(2)]}, 400)
                 assert await postings() == before and await stock() == 3
+            elif case == "money_range":
+                await post("sales", {"items": [{**sale_item(1), "unit_price": 1e308, "total": 1}]}, 422)
+                assert await postings() == before and await stock() == 3
+                for route, extra, field in (
+                    ("sales", {}, "unit_price"),
+                    ("purchases", {"supplier": "QA"}, "unit_cost"),
+                    ("returns", {"reason": "other"}, "unit_price"),
+                ):
+                    for quantity, prices in ((2, [1e308]), (1, [4e13, 4e13])):
+                        body = {**extra, "items": [{"product_id": pid, "quantity": quantity,
+                                                   field: price} for price in prices]}
+                        await post(route, body, 422)
+                        assert await postings() == before and await stock() == 3
+                        assert await db.purchases.count_documents({"business_id": bid}) == 0
             elif case == "cancel_duplicate":
                 sale = await post("sales", {"items": [sale_item(2)]}, 201)
                 body = refund(sale["sale_id"], 1)
@@ -158,6 +172,106 @@ async def exercise(case):
                 entries = await db.journal_entries.find({"business_id": bid, "source_type": "return"}).to_list(None)
                 cash_out = sum(l["credit"] - l["debit"] for e in entries for l in e["lines"] if l["code"] == "1100")
                 assert cash_out == sale["total"] == 19
+            elif case == "sale_carrying":
+                product = await post("products", {"name": "Carrying amount", "selling_price": 10,
+                                                   "product_cost": 0}, 201)
+                key = {"business_id": bid, "product_id": product["product_id"]}
+                def item(qty):
+                    return {"product_id": key["product_id"], "quantity": qty, "unit_price": 10}
+                async def receipt(qty, cost):
+                    await post("purchases", {"supplier": "Valuation", "items": [
+                        {"product_id": key["product_id"], "quantity": qty, "unit_cost": cost}]}, 201)
+                async def reconcile(qty, carrying):
+                    p = await db.products.find_one(key)
+                    entries = await db.journal_entries.find({"business_id": bid}).to_list(None)
+                    gl = sum(line["debit"] - line["credit"] for entry in entries
+                             for line in entry["lines"] if line["code"] == "1400")
+                    assert (p["stock_qty"], float(p["purchase_valuation"]["value"]), round(gl, 2)) == (qty, carrying, carrying)
+
+                await receipt(2, 1)
+                await receipt(1, 1.01)
+                first = await post("sales", {"items": [item(1)]}, 201)
+                second = await post("sales", {"items": [item(1), item(1)]}, 201)
+                assert first["cogs"] + second["cogs"] == 3.01
+                assert [row["cogs"] for row in second["items"]] == [1, 1.01]
+                await reconcile(0, 0)
+                await receipt(1, 10)
+                edit_path = "sales/" + second["sale_id"]
+                edited = await http.put(edit_path, json={"items": [item(2)], "pin": owner_password})
+                assert edited.status_code == 200 and edited.json()["cogs"] == 2.01, edited.text
+                await reconcile(1, 10)
+                edited = await http.put(edit_path, json={"items": [item(3)], "pin": owner_password})
+                assert edited.status_code == 200 and edited.json()["cogs"] == 12.01, edited.text
+                await reconcile(0, 0)
+                edited = await http.put(edit_path, json={"items": [item(2)], "pin": owner_password})
+                assert edited.status_code == 200 and edited.json()["cogs"] == 2.01, edited.text
+                await reconcile(1, 10)
+                await post(edit_path + "/cancel", {}, 200)
+                await reconcile(3, 12.01)
+                await post("sales/" + first["sale_id"] + "/cancel", {}, 200)
+                await reconcile(4, 13.01)
+                await post("sales", {"items": [item(6)]}, 400)
+                await reconcile(4, 13.01)
+                await db.businesses.update_one({"business_id": bid}, {"$set": {"allow_negative_stock": True}})
+                short = await post("sales", {"items": [item(6)]}, 201)
+                assert short["cogs"] == 19.52
+                await reconcile(-2, -6.51)
+                await post("sales/" + short["sale_id"] + "/cancel", {}, 200)
+                await reconcile(4, 13.01)
+            elif case == "cost_allocations":
+                # Use purchased opening stock so the inventory journal and carrying value
+                # have the same opening basis, independent of the generic adjustment fixture.
+                item = await post("products", {"name": "Cost allocation", "selling_price": 10, "product_cost": 0}, 201)
+                valued_pid = item["product_id"]
+                async def receive(qty, cost):
+                    await post("purchases", {"supplier": "Test", "items": [
+                        {"product_id": valued_pid, "quantity": qty, "unit_cost": cost}]}, 201)
+                async def carrying(quantity, value):
+                    row = await db.products.find_one({"product_id": valued_pid})
+                    assert row["stock_qty"] == quantity
+                    assert float(row["purchase_valuation"]["value"]) == value, row
+                    entries = await db.journal_entries.find({"business_id": bid}).to_list(None)
+                    inventory = sum(l["debit"] - l["credit"] for entry in entries for l in entry["lines"] if l["code"] == "1400")
+                    assert round(inventory, 2) == value, (inventory, value)
+                await receive(3, 1.003333)
+                sale = await post("sales", {"items": [{"product_id": valued_pid, "quantity": 3, "unit_price": 10}]}, 201)
+                assert sale["items"][0]["cogs"] == 3.01
+                await receive(1, 5)
+                body = {"sale_id": sale["sale_id"], "reason": "other",
+                        "items": [{"product_id": valued_pid, "quantity": 1}]}
+                ret = await post("returns", body, 201)
+                assert ret["cogs_reversed"] == 1
+                await carrying(2, 6)
+                path = "returns/" + ret["return_id"]
+                response = await http.put(path, json={"items": [{"product_id": valued_pid, "quantity": 2}],
+                                                      "pin": owner_password})
+                assert response.status_code == 200 and response.json()["cogs_reversed"] == 2.01, response.text
+                await carrying(3, 7.01)
+                for restock, qty, value in ((False, 1, 5), (True, 3, 7.01)):
+                    response = await http.put(path, json={"restock": restock, "pin": owner_password})
+                    assert response.status_code == 200, response.text
+                    await carrying(qty, value)
+                await post(path+"/cancel", {}, 200)
+                await carrying(1, 5)
+                for expected in (1, 1.01, 1):
+                    ret = await post("returns", body, 201)
+                    assert ret["cogs_reversed"] == expected
+                await carrying(4, 8.01)
+                dashboard = (await http.get("dashboard")).raise_for_status().json()
+                reported = next(p for p in dashboard["products"] if p["product_id"] == valued_pid)
+                assert reported["actual_cogs"] == 0 and reported["revenue"] == 0
+                assert dashboard["total_product_costs"] == 0
+            elif case == "overflow":
+                sale = await post("sales", {"items": [sale_item(2)]}, 201)
+                baseline = await postings()
+                large = {"product_id": pid, "quantity": 2, "unit_price": 1e308}
+                body = {"sale_id": sale["sale_id"], "reason": "other", "items": [large]}
+                await post("returns/preview", body, 422)
+                await post("returns", body, 422)
+                await post("returns", {"reason": "other", "items": [large]}, 422)
+                individually_valid = {"product_id": pid, "quantity": 1, "unit_price": 5e13}
+                await post("returns", {"reason": "other", "items": [individually_valid, individually_valid]}, 422)
+                assert await postings() == baseline and await stock() == 1
             elif case == "discount":
                 sale = await post("sales", {"items": [{**sale_item(3), "discount": 20}]}, 201)
                 assert sale["total"] == 10
@@ -199,6 +313,9 @@ class SaleReturnRegressionTests(unittest.TestCase):
     def test_supplier_return_preserves_source_until_reversed(self):
         self.check_posting("supplier_source")
 
+    def test_extended_and_cumulative_money_overflow_rolls_back(self):
+        self.check_posting("money_range")
+
     def test_duplicate_sku_oversell(self):
         self.check_posting("aggregate")
 
@@ -216,6 +333,15 @@ class SaleReturnRegressionTests(unittest.TestCase):
 
     def test_legacy_refund_allocations_survive_cancellation_and_edit(self):
         self.check_posting("legacy_holes")
+
+    def test_sale_depletion_edits_cancellation_and_negative_stock_reconcile(self):
+        self.check_posting("sale_carrying")
+
+    def test_customer_return_cost_allocations_and_reversals_reconcile(self):
+        self.check_posting("cost_allocations")
+
+    def test_customer_return_rejects_overflow_before_posting(self):
+        self.check_posting("overflow")
 
     def test_discounted_partial_refund_preview_matches_journal(self):
         self.check_posting("discount")

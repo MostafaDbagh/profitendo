@@ -145,6 +145,66 @@ async def exercise():
         await cancel_purchase(receipt["purchase_id"], user)
         ending = await db.products.find_one({"product_id": "zero-after-sale"})
         assert ending["stock_qty"] == 0 and ending["purchase_valuation"]["value"] == "0"
+
+        from inventory import list_movements
+        from purchases import _stock_value
+        from reports import get_report
+        from server import dashboard, dashboard_drilldown
+        perms = {"products.costs": True, "finance.profit": True, "finance.margin": True, "inventory.view": True}
+        owner = {**user, "business_id": "negative-valued", "business": {"allow_negative_stock": True}, "permissions": perms}
+        staff = {**owner, "permissions": {"inventory.view": True}}
+        key = {"business_id": owner["business_id"], "product_id": "backordered"}
+        await db.products.insert_one({**key, "name": "Backordered", "stock_qty": 0, "product_cost": 0})
+
+        async def backorder_receipt(units, price):
+            return await create_purchase(PurchaseInput(supplier="QA", items=[
+                {"product_id": key["product_id"], "quantity": units, "unit_cost": price}]), owner)
+
+        await backorder_receipt(10, 10)
+        await create_sale_record(owner["business_id"], owner, SaleInput(items=[
+            {"product_id": key["product_id"], "quantity": 20, "unit_price": 50}]))
+        high_cost = await backorder_receipt(5, 100)
+        assert (await inventory_list(owner))[0]["stock_value"] == 400
+        assert (await get_report("inventory", None, None, None, owner))["inventory_value"] == 400
+        assert (await dashboard(owner))["inventory_value"] == 400
+        assert (await dashboard_drilldown("inventory_value", owner))["rows"][0]["value"] == 400
+        assert "stock_value" not in (await inventory_list(staff))[0]
+        restricted = await get_report("inventory", None, None, None, staff)
+        assert "inventory_value" not in restricted and "unit_cost" not in restricted["rows"][0]
+        await rejects(403, dashboard_drilldown, "inventory_value", staff)
+
+        await cancel_purchase(high_cost["purchase_id"], owner)
+        assert (await inventory_list(owner))[0]["stock_value"] == -100
+        # Manually counting one additional unit updates the stored cost basis,
+        # and a restricted operator can see only the counted quantity.
+        changed = await adjust_stock(AdjustmentInput(product_id=key["product_id"], quantity=1,
+                                                     movement_type="ADJUSTMENT"), staff)
+        assert "carrying_value_delta" not in changed and changed["new_stock"] == -9
+        assert all("carrying_value_delta" not in m for m in await list_movements(user=staff))
+        assert (await inventory_list(owner))[0]["stock_value"] == -90
+        doc = await db.products.find_one(key)
+        assert await _stock_value(key["business_id"], doc) == -90
+
+        count = await db.purchases.count_documents({"business_id": owner["business_id"]})
+        await rejects(422, backorder_receipt, 10, 1e308)
+        assert await db.purchases.count_documents({"business_id": owner["business_id"]}) == count
+        assert (await db.products.find_one(key))["stock_qty"] == -9
+
+        # Cost metadata in the report follows the same visibility policy as the return API.
+        for status, restock in (("confirmed", True), ("confirmed", False), ("cancelled", True)):
+            await db.returns.insert_one({"business_id": owner["business_id"], "status": status, "restock": restock,
+                "refund_total": 1, "cogs_reversed": 2, "items": [
+                    {"unit_cost": 2, "cogs": 2, "sale_ranges": [[0, 1]], "quantity": 1}]})
+        sales_report = await get_report("sales", None, None, None, {**staff, "permissions": {"sales.view": True}})
+        assert "cost_allocations" not in sales_report["rows"][0]
+        report_staff = {**staff, "permissions": {"returns.view": True}}
+        returned = await get_report("returns", None, None, None, report_staff)
+        assert all("cogs_reversed" not in row and set(row["items"][0]) == {"quantity"} for row in returned["rows"])
+        from unittest.mock import AsyncMock, patch
+        with patch("reports.get_status", AsyncMock(return_value={"assistant_access": True})):
+            profit = await get_report("profit", None, None, None,
+                                      {**owner, "permissions": {**perms, "finance.reports": True}})
+        assert profit["refunds"] == 2 and profit["cogs"] == 198
     finally:
         try:
             await client.drop_database(os.environ["DB_NAME"])

@@ -3,7 +3,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 
 from core import db, require_perm, caps_of, compute_cash_balance, pin_ok
+from invoice_dates import invoice_date
 from subscriptions import get_status
+from purchases import reported_stock_value
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -19,7 +21,14 @@ REPORT_PERMS = {
 
 
 def in_range(iso: str, frm: Optional[str], to: Optional[str]) -> bool:
-    d = (iso or "")[:10]
+    if not frm and not to:
+        return True
+    try:
+        d = invoice_date(iso)
+    except ValueError:
+        return False
+    if not d:
+        return False
     if frm and d < frm:
         return False
     if to and d > to:
@@ -51,7 +60,7 @@ async def get_report(
     fin = caps["costs"] and caps["profit"]
 
     if report_type == "sales":
-        docs = await db.sales.find({"business_id": bid}, {"_id": 0, "business_id": 0}).sort("created_at", -1).to_list(5000)
+        docs = await db.sales.find({"business_id": bid}, {"_id": 0, "business_id": 0, "cost_allocations": 0}).sort("created_at", -1).to_list(5000)
         rows = [s for s in docs if s.get("status") == "confirmed" and in_range(s.get("date"), date_from, date_to)]
         if not fin:
             for s in rows:
@@ -76,7 +85,7 @@ async def get_report(
         return {"rows": rows, "count": len(rows), "total": round(sum(p["total"] for p in rows), 2)}
 
     if report_type == "inventory":
-        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(2000)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
         rows = []
         for p in docs:
             stock = p.get("stock_qty", 0) or 0
@@ -91,7 +100,7 @@ async def get_report(
             }
             if caps["costs"]:
                 row["unit_cost"] = p.get("product_cost", 0) or 0
-                row["stock_value"] = round(stock * (p.get("product_cost", 0) or 0), 2)
+                row["stock_value"] = reported_stock_value(p)
             rows.append(row)
         result = {"rows": rows, "count": len(rows), "low_count": sum(1 for r in rows if r["status"] in ("low", "out"))}
         if caps["costs"]:
@@ -101,12 +110,15 @@ async def get_report(
     if report_type == "returns":
         docs = await db.returns.find({"business_id": bid}, {"_id": 0, "business_id": 0}).sort("created_at", -1).to_list(5000)
         rows = [r for r in docs if in_range(r.get("return_date"), date_from, date_to)]
-        if not fin:
-            for r in rows:
+        for r in rows:
+            if not fin:
                 r.pop("cogs_reversed", None)
-                for it in r.get("items", []):
+            for it in r.get("items", []):
+                it.pop("sale_ranges", None)
+                if not fin:
                     it.pop("unit_cost", None)
-        return {"rows": rows, "count": len(rows), "refund_total": round(sum(r["refund_total"] for r in rows), 2)}
+                    it.pop("cogs", None)
+        return {"rows": rows, "count": len(rows), "refund_total": round(sum(r["refund_total"] for r in rows if r.get("status") != "cancelled"), 2)}
 
     if report_type == "expenses":
         docs = await db.expenses.find({"business_id": bid}, {"_id": 0, "business_id": 0}).sort("date", -1).to_list(5000)
@@ -119,14 +131,14 @@ async def get_report(
     if report_type == "profit":
         sales = await db.sales.find({"business_id": bid, "status": "confirmed"}, {"_id": 0}).to_list(10000)
         sales = [s for s in sales if in_range(s.get("date"), date_from, date_to)]
-        returns = await db.returns.find({"business_id": bid}, {"_id": 0}).to_list(10000)
+        returns = await db.returns.find({"business_id": bid, "status": {"$ne": "cancelled"}}, {"_id": 0}).to_list(10000)
         returns = [r for r in returns if in_range(r.get("return_date"), date_from, date_to)]
         expenses = await db.expenses.find({"business_id": bid}, {"_id": 0}).to_list(10000)
         expenses = [e for e in expenses if in_range(e.get("date"), date_from, date_to)]
         revenue = sum(s["total"] for s in sales)
         cogs = sum(s.get("cogs", 0) for s in sales)
         refunds = sum(r["refund_total"] for r in returns)
-        cogs_reversed = sum(r.get("cogs_reversed", 0) for r in returns)
+        cogs_reversed = sum(r.get("cogs_reversed", 0) for r in returns if r.get("restock", True))
         net_revenue = revenue - refunds
         net_cogs = cogs - cogs_reversed
         gross = net_revenue - net_cogs

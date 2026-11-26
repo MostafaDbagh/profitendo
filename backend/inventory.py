@@ -5,8 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field, field_validator
 
-from numeric_inputs import MIN_STOCK_QUANTITY, MAX_STOCK_QUANTITY, bounded_stock
+from numeric_inputs import MIN_STOCK_QUANTITY, MAX_STOCK_QUANTITY, bounded_stock, checked_money
 from catalogue_query import catalogue_rows
+from purchases import _amount, _stock_value, _valuation_fields, reported_stock_value
 from pymongo import ReturnDocument
 from core import atomic_posting, db, require_perm, log_audit, now_iso, can_finance
 
@@ -50,7 +51,7 @@ async def inventory_list(user: dict = Depends(require_perm("inventory.view")), p
         }
         if fin:
             row["unit_cost"] = p.get("product_cost", 0) or 0
-            row["stock_value"] = round(stock * (p.get("product_cost", 0) or 0), 2)
+            row["stock_value"] = reported_stock_value(p)
         out.append(row)
     return out
 
@@ -61,7 +62,10 @@ async def list_movements(product_id: Optional[str] = None, limit: int = 50, user
     if product_id:
         query["product_id"] = product_id
     limit = max(1, min(limit, 200))
-    docs = await db.inventory_movements.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    projection = {"_id": 0}
+    if not can_finance(user):
+        projection["carrying_value_delta"] = 0
+    docs = await db.inventory_movements.find(query, projection).sort("created_at", -1).to_list(limit)
     return docs
 
 
@@ -83,9 +87,15 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
     if resulting_stock < 0 and not allow_negative:
         raise HTTPException(status_code=400, detail="Insufficient stock")
     now = now_iso()
+    before = await _stock_value(bid, p)
+    if resulting_stock == 0:
+        delta_value = -before
+    else:
+        delta_value = _amount(round(checked_money(_amount(qty) * _amount(p.get("product_cost") or 0)), 2))
+    fields = _valuation_fields(p, resulting_stock, before + delta_value, now)
     updated = await db.products.find_one_and_update(
         {"business_id": bid, "product_id": data.product_id},
-        {"$set": {"stock_qty": resulting_stock, "updated_at": now}},
+        {"$set": {"stock_qty": resulting_stock, **fields}},
         return_document=ReturnDocument.AFTER,
     )
     if not updated:
@@ -98,6 +108,7 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
         "product_name": p["name"],
         "quantity": qty,
         "movement_type": data.movement_type,
+        "carrying_value_delta": checked_money(delta_value),
         "reference_id": None,
         "reference_number": None,
         "user_id": user["user_id"],
@@ -108,4 +119,6 @@ async def adjust_stock(data: AdjustmentInput, user: dict = Depends(require_perm(
     await db.inventory_movements.insert_one(mov)
     await log_audit(bid, user, "inventory.adjusted", "product", p["product_id"], f"{p['name']}: {qty:+d} ({data.movement_type})")
     mov.pop("_id", None)
+    if not can_finance(user):
+        mov.pop("carrying_value_delta", None)
     return {**mov, "new_stock": new_stock}

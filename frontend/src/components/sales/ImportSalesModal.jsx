@@ -1,8 +1,6 @@
 import { formatQuantity } from '@/lib/quantity';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCsvImport } from "../useCsvImport";
 import { Upload, Download, Loader2, CheckCircle2, XCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
-import { toast } from "sonner";
-import api, { formatApiError } from "../../lib/api";
 import { useLanguage } from "../../context/LanguageContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
@@ -13,6 +11,10 @@ const STATUS_STYLE = {
   invalid: { cls: "bg-red-500/15 text-red-300 border border-red-500/30", icon: XCircle, key: "statusInvalid" },
 };
 const REASON_KEY = {
+  existing_invoice_conflict: "reasonExistingInvoiceConflict",
+  invoice_invalid: "reasonInvoiceInvalid", invoice_conflict: "reasonInvoiceConflict",
+  invalid_payment_method: "reasonInvalidPaymentMethod", invalid_date: "reasonInvalidImportDate",
+  ambiguous_product: "reasonAmbiguousProduct", field_too_long: "reasonImportFieldTooLong",
   product_not_found: "reasonProductNotFound", invalid_price: "reasonInvalidPrice",
   invalid_quantity: "reasonInvalidQuantity", insufficient_stock: "reasonInsufficientStock", exists_ref: "reasonExistsRef",
 };
@@ -24,60 +26,8 @@ const FIELD_KEY = {
 
 export function ImportSalesModal({ open, onClose, onImported }) {
   const { t } = useLanguage();
-  const [file, setFile] = useState(null);
-  const [headers, setHeaders] = useState([]);
-  const [mapping, setMapping] = useState(null);
-  const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const fileRef = useRef(null);
-
-  const reset = () => { setFile(null); setHeaders([]); setMapping(null); setRows([]); setSummary(null); setResult(null); };
-  const close = () => { reset(); onClose(); };
-
-  const preview = useCallback(async (f, m) => {
-    if (!f) return;
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-      fd.append("mapping", JSON.stringify(m || {}));
-      const { data } = await api.post("/sales/import/preview", fd);
-      setHeaders(data.headers);
-      if (!m || !Object.values(m).some(Boolean)) setMapping(data.suggested_mapping);
-      setRows(data.rows);
-      setSummary(data.summary);
-    } catch (err) {
-      toast.error(formatApiError(err, t("somethingWrong")));
-      setFile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (file && mapping) {
-      const h = setTimeout(() => preview(file, mapping), 350);
-      return () => clearTimeout(h);
-    }
-  }, [mapping]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const commit = async () => {
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("mapping", JSON.stringify(mapping));
-      const { data } = await api.post("/sales/import/commit", fd);
-      setResult(data);
-      onImported();
-    } catch (err) {
-      toast.error(formatApiError(err, t("importFailed")));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { file, fileRef, headers, mapping, setMapping, rows, summary, loading, committing,
+    result, close, commit, pickFile } = useCsvImport("sales", t, onClose, onImported);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && close()}>
@@ -105,9 +55,9 @@ export function ImportSalesModal({ open, onClose, onImported }) {
           <>
             <p className="text-xs text-slate-400 mb-4">{t("salesImportDesc")}</p>
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
-              <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" data-testid="import-sales-file-input"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setResult(null); setFile(f); preview(f, null); } }} />
-              <button data-testid="import-sales-choose-file" onClick={() => fileRef.current?.click()}
+              <input disabled={committing} ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" data-testid="import-sales-file-input"
+                onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
+              <button data-testid="import-sales-choose-file" disabled={committing} onClick={() => fileRef.current?.click()}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-slate-600 text-sm font-semibold text-slate-300 hover:border-emerald-500 hover:text-emerald-300 transition-colors">
                 <Upload className="w-4 h-4" /> {file ? file.name : t("chooseFile")}
               </button>
@@ -126,7 +76,7 @@ export function ImportSalesModal({ open, onClose, onImported }) {
                   {FIELDS.map((f) => (
                     <div key={f}>
                       <label className="text-[11px] text-slate-400 mb-1 block">{t(FIELD_KEY[f])}</label>
-                      <select data-testid={`sales-map-${f}`} value={mapping[f] || ""} onChange={(e) => setMapping({ ...mapping, [f]: e.target.value })} className={selectCls}>
+                      <select disabled={committing} data-testid={`sales-map-${f}`} value={mapping[f] || ""} onChange={(e) => setMapping({ ...mapping, [f]: e.target.value })} className={selectCls}>
                         <option value="">{t("noMap")}</option>
                         {headers.filter(Boolean).map((h) => <option key={h} value={h}>{h}</option>)}
                       </select>

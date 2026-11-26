@@ -17,6 +17,7 @@ from core import (
 
 from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney
 from catalogue_query import catalogue_rows
+from purchases import reported_stock_value
 from cutover import allow_legacy_request
 
 app = FastAPI()
@@ -615,16 +616,23 @@ async def dashboard(user: dict = Depends(get_current_user)):
             "revenue": {"$sum": "$items.total"},
             "cogs": {"$sum": {"$ifNull": ["$items.cogs", 0]}},
             "lines": {"$sum": 1},
-            "lines_with_cost": {"$sum": {"$cond": [{"$gt": [{"$ifNull": ["$items.cogs", 0]}, 0]}, 1, 0]}},
+            "lines_with_cost": {"$sum": {"$cond": [{"$or": [
+                {"$gt": [{"$ifNull": ["$items.cogs", 0]}, 0]},
+                {"$gt": [{"$ifNull": ["$items.unit_cost", 0]}, 0]},
+            ]}, 1, 0]}},
         }},
     ]).to_list(5000)
     ret_lines = await db.returns.aggregate([
-        {"$match": {"business_id": bid}},
+        {"$match": {"business_id": bid, "status": {"$ne": "cancelled"}}},
         {"$unwind": "$items"},
         {"$group": {
             "_id": "$items.product_id",
             "refund": {"$sum": "$items.total"},
-            "cogs_rev": {"$sum": {"$multiply": [{"$ifNull": ["$items.unit_cost", 0]}, "$items.quantity"]}},
+            "cogs_rev": {"$sum": {"$cond": [
+                {"$ifNull": ["$restock", True]},
+                {"$ifNull": ["$items.cogs", {"$multiply": [{"$ifNull": ["$items.unit_cost", 0]}, "$items.quantity"]}]},
+                0,
+            ]}},
         }},
     ]).to_list(5000)
     posted = {}
@@ -660,16 +668,16 @@ async def dashboard(user: dict = Depends(get_current_user)):
                          and p["profit_margin"] is not None and p["profit_margin"] < 15][:5]
 
     sales = await db.sales.find({"business_id": bid, "status": "confirmed"}, {"_id": 0}).to_list(10000)
-    returns = await db.returns.find({"business_id": bid}, {"_id": 0}).to_list(10000)
+    returns = await db.returns.find({"business_id": bid, "status": {"$ne": "cancelled"}}, {"_id": 0}).to_list(10000)
     expenses = await db.expenses.find({"business_id": bid}, {"_id": 0}).to_list(10000)
     sales_revenue = sum(s["total"] for s in sales)  # Σ posted invoices only
     cogs = sum(s.get("cogs", 0) for s in sales)     # Σ posted COGS records (weighted cost at sale time)
     refunds = sum(r["refund_total"] for r in returns)
-    cogs_reversed = sum(r.get("cogs_reversed", 0) for r in returns)
+    cogs_reversed = sum(r.get("cogs_reversed", 0) for r in returns if r.get("restock", True))
     cogs_net = round(cogs - cogs_reversed, 2)
     gross_profit = sales_revenue - refunds - cogs_net
     expenses_total = sum(e["amount"] for e in expenses)
-    inventory_value = sum((d.get("stock_qty", 0) or 0) * (d.get("product_cost", 0) or 0) for d in docs)
+    inventory_value = sum(reported_stock_value(d) for d in docs)
 
     # KPI source audit: Total Sales and COGS are independent pipelines.
     # total_sales := Σ confirmed invoice totals (NEVER derived from costs)
@@ -734,13 +742,13 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
         if not fin:
             raise HTTPException(status_code=403, detail="Not authorized")
         sales = await db.sales.find({"business_id": bid, "status": "confirmed"}, {"_id": 0}).to_list(10000)
-        returns = await db.returns.find({"business_id": bid}, {"_id": 0}).to_list(10000)
+        returns = await db.returns.find({"business_id": bid, "status": {"$ne": "cancelled"}}, {"_id": 0}).to_list(10000)
         expenses = await db.expenses.find({"business_id": bid}, {"_id": 0}).to_list(10000)
         docs = await db.products.find({"business_id": bid}, {"_id": 0}).to_list(None)
         products = [product_public(d, caps) for d in docs]
         revenue = round(sum(s["total"] for s in sales), 2)
         refunds = round(sum(r["refund_total"] for r in returns), 2)
-        cogs_net = round(sum(s.get("cogs", 0) for s in sales) - sum(r.get("cogs_reversed", 0) for r in returns), 2)
+        cogs_net = round(sum(s.get("cogs", 0) for s in sales) - sum(r.get("cogs_reversed", 0) for r in returns if r.get("restock", True)), 2)
         additional = round(sum((p["unit_cost"] - p["product_cost"]) * (p.get("quantity_sold", 0) or 0) for p in products), 2)
         expenses_total = round(sum(e["amount"] for e in expenses), 2)
         net = round(revenue - refunds - cogs_net - additional, 2)
@@ -754,10 +762,10 @@ async def dashboard_drilldown(metric: str, user: dict = Depends(get_current_user
     if metric == "inventory_value":
         if not caps["costs"]:
             raise HTTPException(status_code=403, detail="Not authorized")
-        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "product_cost": 1}).to_list(None)
+        docs = await db.products.find({"business_id": bid}, {"_id": 0, "name": 1, "sku": 1, "stock_qty": 1, "product_cost": 1, "purchase_valuation": 1}).to_list(None)
         rows = [{"name": d["name"], "sku": d.get("sku", ""), "stock_qty": d.get("stock_qty", 0) or 0,
                  "product_cost": d.get("product_cost", 0) or 0,
-                 "value": round((d.get("stock_qty", 0) or 0) * (d.get("product_cost", 0) or 0), 2)}
+                 "value": reported_stock_value(d)}
                 for d in docs if (d.get("stock_qty", 0) or 0) != 0]
         return {"metric": metric, "rows": sorted(rows, key=lambda r: -r["value"])}
     if metric == "cash_balance":

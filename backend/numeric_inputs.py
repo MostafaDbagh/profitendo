@@ -34,6 +34,17 @@ def bounded_stock(current, delta):
     return stored
 
 
+def checked_money(value):
+    """Require finite arithmetic with enough precision to store monetary cents."""
+    try:
+        stored = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise HTTPException(422, "Amount exceeds supported currency precision") from None
+    if not math.isfinite(stored) or math.ulp(stored) > 0.01:
+        raise HTTPException(422, "Amount exceeds supported currency precision")
+    return stored
+
+
 def nonnegative_decimal(value):
     if isinstance(value, bool) or (isinstance(value, float) and value == 0 and math.copysign(1, value) < 0):
         raise ValueError("Expected a nonnegative finite number")

@@ -10,11 +10,13 @@ Design:
 """
 import logging
 import uuid
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 
+from numeric_inputs import checked_money
 from posting import in_posting_transaction
 from accounts import seed_accounts
 from core import db, require_perm, log_audit, now_iso, next_number
@@ -106,19 +108,24 @@ async def _active_entry(bid: str, source_type: str, source_id: str) -> Optional[
 
 async def post_source(bid, user, *, source_type, source_id, source_number, lines, narration,
                       date=None, kind="posted", reversal_of=None, backfilled=False, replace=False):
-    if kind == "posted":
-        existing = await _active_entry(bid, source_type, source_id)
-        if existing:
-            if not replace:
-                return existing  # idempotent: never double-post a source document
-            await reverse_source(bid, source_type, source_id, user, f"قيد عكسي للتعديل · {narration}")
-    total_debit = round(sum(l["debit"] for l in lines), 2)
-    total_credit = round(sum(l["credit"] for l in lines), 2)
-    if not total_debit and not total_credit and not any(l["debit"] or l["credit"] for l in lines):
+    existing = await _active_entry(bid, source_type, source_id) if kind == "posted" else None
+    if existing and not replace:
+        return existing
+
+    def column_total(column):
+        amounts = (Decimal(str(checked_money(line[column]))) for line in lines)
+        return round(checked_money(sum(amounts)), 2)
+
+    total_debit = column_total("debit")
+    total_credit = column_total("credit")
+    empty = not any(line["debit"] or line["credit"] for line in lines)
+    if not empty and (total_debit <= 0 or total_debit != total_credit):
+        raise HTTPException(status_code=400, detail=f"Unbalanced journal entry: {total_debit} != {total_credit}")
+    if existing:
+        await reverse_source(bid, source_type, source_id, user, f"قيد عكسي للتعديل · {narration}")
+    if empty:
         # Free, zero-cost stock can move without a monetary journal entry.
         return None
-    if total_debit <= 0 or total_debit != total_credit:
-        raise HTTPException(status_code=400, detail=f"Unbalanced journal entry: {total_debit} != {total_credit}")
     now = now_iso()
     doc = {
         "entry_id": f"jrn_{uuid.uuid4().hex[:12]}",

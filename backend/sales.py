@@ -1,12 +1,15 @@
 import uuid
 import io
+from collections import defaultdict
+from decimal import Decimal
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock, checked_money
+from purchases import _stock_value, _valuation_fields
 from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, caps_of, CURRENCIES, require_edit_pin
 from ledger import post_sale, reverse_sale, try_post
 
@@ -43,7 +46,7 @@ class SaleUpdate(BaseModel):
 
 
 def sale_public(doc: dict, caps: dict) -> dict:
-    doc = {k: v for k, v in doc.items() if k not in ("_id", "business_id")}
+    doc = {k: v for k, v in doc.items() if k not in ("_id", "business_id", "cost_allocations")}
     if not caps.get("costs"):
         doc.pop("cogs", None)
         for item in doc.get("items", []):
@@ -104,12 +107,123 @@ async def create_sale(data: SaleInput, user: dict = Depends(require_perm("sales.
     return sale_public(doc, caps_of(user))
 
 
+def _cent(value):
+    checked_money(value)
+    return round(Decimal(str(value)), 2)
+
+
+def _cost_through(layers, units):
+    """Recorded cost of a prefix of the sold units, rounded once per partial layer."""
+    cost = Decimal(0)
+    for layer in layers:
+        if units <= 0:
+            break
+        take = min(units, layer["quantity"])
+        cost += _cent(Decimal(str(layer["value"])) * take / layer["original_quantity"])
+        units -= take
+    return cost
+
+
+async def _apply_sale_lines(bid, user, items, original, now):
+    """Retain the original units' posted cost; allocate only extra units at today's basis."""
+    old = defaultdict(list)
+    if original:
+        if "cost_allocations" in original:
+            for group in original["cost_allocations"]:
+                old[group["product_id"]] = group["layers"]
+        else:
+            for line in original["items"]:
+                cost = line.get("cogs")
+                if cost is None:
+                    cost = Decimal(str(line.get("unit_cost", 0))) * line["quantity"]
+                old[line["product_id"]].append({"quantity": line["quantity"], "original_quantity": line["quantity"],
+                                                "value": checked_money(_cent(cost))})
+        historical = sum(_cost_through(group, sum(layer["quantity"] for layer in group)) for group in old.values())
+        if historical != _cent(original.get("cogs", historical)):
+            raise HTTPException(409, "Historical sale line costs require reconciliation")
+
+    amounts = defaultdict(int)
+    for item in items:
+        amounts[item.product_id] = bounded_stock(amounts[item.product_id], item.quantity)
+    products, layers, deltas = {}, {}, {}
+    for pid in sorted(old.keys() | amounts.keys()):
+        key = {"business_id": bid, "product_id": pid}
+        product = await db.products.find_one(key)
+        if not product:
+            raise HTTPException(404, "Product not found")
+        products[pid] = product
+        prev = old[pid]
+        previously_sold = sum(layer["quantity"] for layer in prev)
+        sold = amounts[pid]
+        delta = sold - previously_sold
+        layers[pid] = list(prev)
+        if not delta:
+            continue
+        stock = product.get("stock_qty") or 0
+        remaining = bounded_stock(stock, -delta)
+        if delta > 0 and remaining < 0 and not (user.get("business") or {}).get("allow_negative_stock"):
+            raise HTTPException(400, f"Insufficient stock: {product['name']}")
+        value = await _stock_value(bid, product)
+        if delta > 0:
+            available = max(Decimal(0), Decimal(str(stock)))
+            consumed = min(Decimal(delta), available)
+            # Exhausting physical stock assigns its entire remaining carrying value.
+            extra_cost = value * consumed / available if available else Decimal(0)
+            extra_cost += (delta - consumed) * Decimal(str(product.get("product_cost") or 0))
+            issued = _cent(extra_cost)
+            layers[pid].append({"quantity": delta, "original_quantity": delta, "value": checked_money(issued)})
+        else:
+            issued = _cost_through(prev, sold) - _cost_through(prev, previously_sold)
+            retained = sold
+            layers[pid] = []
+            for layer in prev:
+                if not retained:
+                    break
+                qty = min(retained, layer["quantity"])
+                layers[pid].append({**layer, "quantity": qty})
+                retained -= qty
+        fields = _valuation_fields(product, remaining, value - issued, now)
+        await db.products.update_one(key, {"$set": {
+            **fields, "stock_qty": remaining,
+            "quantity_sold": max(0, bounded_stock(product.get("quantity_sold") or 0, delta)),
+        }})
+        deltas[pid] = bounded_stock(0, -delta)
+
+    positions = defaultdict(int)
+    lines = []
+    subtotal = discount_total = total_cost = Decimal(0)
+    for item in items:
+        pid = item.product_id
+        product = products[pid]
+        start = positions[pid]
+        end = start + item.quantity
+        cost = _cost_through(layers[pid], end) - _cost_through(layers[pid], start)
+        positions[pid] = end
+        price = checked_money(item.unit_price if item.unit_price is not None else (product.get("selling_price") or 0))
+        base = _cent(item.total if item.total is not None else Decimal(str(price)) * item.quantity)
+        discount = min(_cent(item.discount), base)
+        lines.append({
+            "product_id": pid, "name": product["name"], "quantity": item.quantity,
+            "unit_type": item.unit_type, "unit_price": price, "discount": checked_money(discount),
+            "total": checked_money(base - discount), "unit_cost": checked_money(cost / item.quantity),
+            "cogs": checked_money(cost),
+        })
+        subtotal += base
+        discount_total += discount
+        total_cost += cost
+    total = subtotal - discount_total
+    return ({
+        "cost_allocations": [{"product_id": pid, "layers": group} for pid, group in layers.items() if group],
+        "items": lines, "subtotal": checked_money(subtotal), "discount_total": checked_money(discount_total),
+        "total": checked_money(total), "cogs": checked_money(total_cost), "profit": checked_money(total - total_cost),
+    }, products, deltas)
+
+
 @atomic_posting
 async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_ref: Optional[str] = None,
                              sale_date: Optional[str] = None) -> dict:
     """Core sale creation — used by the API endpoint and the bulk importer.
     Stock, weighted-average cost, inventory movements and GL posting all happen here."""
-    allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
     if data.currency and data.currency not in CURRENCIES:
         raise HTTPException(status_code=400, detail="Invalid currency")
     currency = data.currency or (user.get("business") or {}).get("base_currency", "USD")
@@ -118,47 +232,10 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
         existing = await db.sales.find_one({"business_id": bid, "client_ref": data.client_ref})
         if existing:
             return existing
-    requested = {}
-    products = []
-    for it in data.items:
-        p = await db.products.find_one({"product_id": it.product_id, "business_id": bid})
-        if not p:
-            raise HTTPException(status_code=404, detail="Product not found")
-        requested[it.product_id] = bounded_stock(requested.get(it.product_id, 0), it.quantity)
-        if not allow_negative and (p.get("stock_qty", 0) or 0) < requested[it.product_id]:
-            raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
-        products.append((p, it))
-
     sid = f"sal_{uuid.uuid4().hex[:12]}"
     number = await next_number(bid, "sale")
     now = now_iso()
-    lines = []
-    subtotal = 0.0
-    total_discount = 0.0
-    cogs = 0.0
-    for p, it in products:
-        price = it.unit_price if it.unit_price is not None else (p.get("selling_price", 0) or 0)
-        line_base = round(it.total, 2) if it.total is not None else round(price * it.quantity, 2)
-        discount = min(it.discount, line_base)
-        line_total = round(line_base - discount, 2)
-        unit_cost = p.get("product_cost", 0) or 0
-        line_cogs = round(unit_cost * it.quantity, 2)
-        subtotal += line_base
-        total_discount += discount
-        cogs += line_cogs
-        lines.append({
-            "product_id": p["product_id"],
-            "name": p["name"],
-            "quantity": it.quantity,
-            "unit_type": it.unit_type,
-            "unit_price": price,
-            "discount": round(discount, 2),
-            "total": line_total,
-            "unit_cost": unit_cost,
-            "cogs": line_cogs,
-        })
-    total = round(subtotal - total_discount, 2)
-    cogs = round(cogs, 2)
+    totals, products, _ = await _apply_sale_lines(bid, user, data.items, None, now)
 
     doc = {
         "sale_id": sid,
@@ -170,12 +247,7 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
         "payment_method": data.payment_method,
         "notes": data.notes or "",
         "currency": currency,
-        "items": lines,
-        "subtotal": round(subtotal, 2),
-        "discount_total": round(total_discount, 2),
-        "total": total,
-        "cogs": cogs,
-        "profit": round(total - cogs, 2),
+        **totals,
         "status": "confirmed",
         "import_ref": import_ref,
         "created_by": user["user_id"],
@@ -184,16 +256,8 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
     }
     await db.sales.insert_one(doc)
 
-    for p, it in products:
-        pid = p["product_id"]
-        if pid in requested:
-            sold = requested.pop(pid)
-            await db.products.update_one(
-                {"business_id": bid, "product_id": pid},
-                {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, -sold),
-                          "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, sold),
-                          "updated_at": now}},
-            )
+    for it in data.items:
+        p = products[it.product_id]
         await db.inventory_movements.insert_one({
             "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
             "business_id": bid,
@@ -209,7 +273,7 @@ async def create_sale_record(bid: str, user: dict, data: SaleInput, *, import_re
             "created_at": now,
         })
 
-    await log_audit(bid, user, "sale.created", "sale", sid, f"{number} · {total}")
+    await log_audit(bid, user, "sale.created", "sale", sid, f"{number} · {totals['total']}")
     await try_post(post_sale(bid, user, doc))
     doc.pop("_id", None)
     return doc
@@ -225,7 +289,6 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
         raise HTTPException(status_code=404, detail="Sale not found")
     if sale.get("status") != "confirmed":
         raise HTTPException(status_code=400, detail="Only confirmed sales can be edited")
-    allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
     now = now_iso()
     updates = {}
     if data.customer is not None:
@@ -244,38 +307,16 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
             raise HTTPException(409, "Reverse linked returns before changing sale lines")
         if len(data.items) < 1:
             raise HTTPException(status_code=400, detail="At least one item is required")
-        old_map = {}
-        for line in sale["items"]:
-            old_map[line["product_id"]] = old_map.get(line["product_id"], 0) + line["quantity"]
-        new_map = {}
-        for it in data.items:
-            new_map[it.product_id] = bounded_stock(new_map.get(it.product_id, 0), it.quantity)
-        prods = {}
-        for pid in set(old_map) | set(new_map):
-            p = await db.products.find_one({"product_id": pid, "business_id": bid})
-            if not p:
-                raise HTTPException(status_code=404, detail="Product not found")
-            prods[pid] = p
-        for pid, p in prods.items():
-            new_stock = bounded_stock(p.get("stock_qty") or 0, old_map.get(pid, 0) - new_map.get(pid, 0))
-            if not allow_negative and new_stock < 0:
-                raise HTTPException(status_code=400, detail=f"Insufficient stock: {p['name']}")
-        for pid, p in prods.items():
-            delta = new_map.get(pid, 0) - old_map.get(pid, 0)
-            if delta == 0:
-                continue
-            await db.products.update_one(
-                {"business_id": bid, "product_id": pid},
-                {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, -delta),
-                          "quantity_sold": bounded_stock(p.get("quantity_sold") or 0, delta),
-                          "updated_at": now}},
-            )
+        totals, prods, deltas = await _apply_sale_lines(bid, user, data.items, sale, now)
+        updates.update(totals)
+        for pid, delta in deltas.items():
+            p = prods[pid]
             await db.inventory_movements.insert_one({
                 "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
                 "business_id": bid,
                 "product_id": pid,
                 "product_name": p["name"],
-                "quantity": bounded_stock(0, -delta),
+                "quantity": delta,
                 "movement_type": "ADJUSTMENT",
                 "reference_id": sale_id,
                 "reference_number": sale["sale_number"],
@@ -284,42 +325,6 @@ async def update_sale(sale_id: str, data: SaleUpdate, user: dict = Depends(requi
                 "notes": f"sale edit {sale['sale_number']}",
                 "created_at": now,
             })
-        lines = []
-        subtotal = 0.0
-        total_discount = 0.0
-        cogs = 0.0
-        for it in data.items:
-            p = prods[it.product_id]
-            price = it.unit_price if it.unit_price is not None else (p.get("selling_price", 0) or 0)
-            line_base = round(it.total, 2) if it.total is not None else round(price * it.quantity, 2)
-            discount = min(it.discount, line_base)
-            line_total = round(line_base - discount, 2)
-            unit_cost = p.get("product_cost", 0) or 0
-            line_cogs = round(unit_cost * it.quantity, 2)
-            subtotal += line_base
-            total_discount += discount
-            cogs += line_cogs
-            lines.append({
-                "product_id": p["product_id"],
-                "name": p["name"],
-                "quantity": it.quantity,
-                "unit_type": it.unit_type,
-                "unit_price": price,
-                "discount": round(discount, 2),
-                "total": line_total,
-                "unit_cost": unit_cost,
-                "cogs": line_cogs,
-            })
-        total = round(subtotal - total_discount, 2)
-        cogs = round(cogs, 2)
-        updates.update({
-            "items": lines,
-            "subtotal": round(subtotal, 2),
-            "discount_total": round(total_discount, 2),
-            "total": total,
-            "cogs": cogs,
-            "profit": round(total - cogs, 2),
-        })
 
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
@@ -342,17 +347,9 @@ async def cancel_sale(sale_id: str, user: dict = Depends(require_perm("sales.can
     if sale.get("status") == "cancelled":
         raise HTTPException(status_code=400, detail="Sale already cancelled")
     now = now_iso()
-    allow_negative = (user.get("business") or {}).get("allow_negative_stock", False)
+    _, products, _ = await _apply_sale_lines(bid, user, [], sale, now)
     for line in sale["items"]:
-        p = await db.products.find_one({"product_id": line["product_id"], "business_id": bid})
-        if not p:
-            continue
-        new_qty = max(0, bounded_stock(p.get("quantity_sold") or 0, -line["quantity"]))
-        await db.products.update_one(
-            {"business_id": bid, "product_id": p["product_id"]},
-            {"$set": {"stock_qty": bounded_stock(p.get("stock_qty") or 0, line["quantity"]),
-                      "quantity_sold": new_qty, "updated_at": now}},
-        )
+        p = products[line["product_id"]]
         await db.inventory_movements.insert_one({
             "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
             "business_id": bid,

@@ -16,6 +16,7 @@ BUSINESS_EXCLUDED_FIELDS = {"pin_hash"}
 BACKUP_COLLECTIONS = [
     "products",
     "sales",
+    "sales_import_receipts",
     "purchases",
     "purchase_returns",
     "returns",

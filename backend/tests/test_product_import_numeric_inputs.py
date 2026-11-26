@@ -70,6 +70,25 @@ async def exercise():
             assert committed["invoices_created"] == 1 and committed["invalid"] == 2
             assert (await db.products.find_one(tenant))["stock_qty"] == -1
 
+            numbers = ('Product name,SKU,Purchase price,Selling price,Initial quantity\n'
+                       'Bad price,M1,"1,25",2,1\nBad grouping,M2,1,"1 2",1\n'
+                       'Bad opening,M3,1,2,"1,25"\nHuge,M4,1e308,2,10\n'
+                       'Rounded away,M5,0.00001,2,1\n'
+                       'Good grouping,M6,"1,250.50",2,1\n')
+            preview = await upload("products/import/preview", numbers)
+            assert [r["reason"] for r in preview["rows"]] == [
+                "invalid_price", "invalid_price", "invalid_quantity", "invalid_price", "invalid_price", None]
+            attempts = await asyncio.gather(*(upload("products/import/commit", numbers) for _ in range(4)))
+            assert sum(r["new"] for r in attempts) == 1
+            assert all(r["invalid"] == 5 for r in attempts)
+            assert await db.products.count_documents({**tenant, "sku": "M6"}) == 1
+            assert (await db.products.find_one({**tenant, "sku": "M6"}))["product_cost"] == 1250.50
+
+            sale_number = 'Invoice,SKU,Quantity,Unit price\nBAD-COMMA,good,1,"1,25"\n'
+            assert (await upload("sales/import/preview", sale_number))["summary"]["invalid"] == 1
+            assert (await upload("sales/import/commit", sale_number))["invoices_created"] == 0
+            assert await db.sales.count_documents({**tenant, "import_ref": "BAD-COMMA"}) == 0
+
             purchases = "Supplier,SKU,Quantity,Unit cost\nQA,good,1,-1e-500\nQA,good,1.00001,3\n"
             preview = await upload("purchases/import/preview", purchases)
             assert [r["reason"] for r in preview["rows"]] == ["invalid_price", "invalid_quantity"]

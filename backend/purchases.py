@@ -6,7 +6,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock
+from numeric_inputs import MAX_STOCK_QUANTITY, NonnegativeStockQuantity, NonnegativeMoney, bounded_stock, checked_money
 from core import atomic_posting, db, require_perm, log_audit, now_iso, next_number, require_edit_pin
 from ledger import post_purchase, reverse_purchase, try_post
 
@@ -62,11 +62,11 @@ async def _fetch_products(bid: str, product_ids) -> dict:
 
 def _build_lines(items, prods: dict):
     lines = []
-    subtotal = 0.0
+    subtotal = Decimal(0)
     for it in items:
         p = prods[it.product_id]
-        line_total = round(it.quantity * it.unit_cost, 2)
-        subtotal += line_total
+        line_total = round(checked_money(_amount(it.quantity) * _amount(it.unit_cost)), 2)
+        subtotal += _amount(line_total)
         lines.append({
             "product_id": p["product_id"],
             "name": p["name"],
@@ -74,7 +74,7 @@ def _build_lines(items, prods: dict):
             "unit_cost": it.unit_cost,
             "total": line_total,
         })
-    return lines, round(subtotal, 2)
+    return lines, checked_money(subtotal)
 
 
 async def _record_movement(bid: str, user: dict, p: dict, qty: float, mtype: str, ref_id: str, ref_number: str, notes: str, now: str):
@@ -121,15 +121,20 @@ async def _historical_value(bid, pid, stock):
     """Reconcile pre-snapshot stock with priced source documents and their movements."""
     key = {"business_id": bid, "product_id": pid}
     movements = defaultdict(Decimal)
-    async for row in db.inventory_movements.find(key, {"reference_id": 1, "quantity": 1}):
+    adjusted_quantity = Decimal(0)
+    total = Decimal(0)
+    async for row in db.inventory_movements.find(key, {"reference_id": 1, "quantity": 1, "carrying_value_delta": 1}):
         if not row.get("reference_id"):
-            # Older manual adjustments did not save a unit cost.
-            return None
+            if "carrying_value_delta" not in row:
+                # Older manual adjustments did not record their valuation.
+                return None
+            total += _amount(row["carrying_value_delta"])
+            adjusted_quantity += _amount(row["quantity"])
+            continue
         movements[row["reference_id"]] += _amount(row["quantity"])
-    if sum(movements.values()) != stock:
+    if sum(movements.values()) + adjusted_quantity != stock:
         return None
 
-    total = Decimal(0)
     sources = (
         (db.purchases, "purchase_id", "total", 1),
         (db.sales, "sale_id", "cogs", -1),
@@ -146,18 +151,34 @@ async def _historical_value(bid, pid, stock):
                 if line["product_id"] != pid:
                     continue
                 units = _amount(line["quantity"])
-                total += sign * _line_value(line, price_field)
+                field = price_field or ("cogs" if "cogs" in line else None)
+                total += sign * _line_value(line, field)
                 quantity += sign * units
             if movements.pop(doc[identifier], 0) != quantity:
                 return None
     return None if any(movements.values()) else total
 
 
+def _matching_basis(product, stock, cost):
+    basis = product.get("purchase_valuation")
+    if basis and _amount(basis["quantity"]) == stock and _amount(basis["unit_cost"]) == cost:
+        return basis
+
+
+def reported_stock_value(product):
+    """Read the stored carrying amount independently of the nonnegative selling-cost basis."""
+    stock = _amount(product.get("stock_qty") or 0)
+    cost = _amount(product.get("product_cost") or 0)
+    basis = _matching_basis(product, stock, cost)
+    value = _amount(basis["value"]) if basis else stock * cost
+    return round(checked_money(value), 2)
+
+
 async def _stock_value(bid, product, *, reversing=False):
     stock = _amount(product.get("stock_qty") or 0)
     cost = _amount(product.get("product_cost") or 0)
-    basis = product.get("purchase_valuation")
-    if basis and _amount(basis["quantity"]) == stock and _amount(basis["unit_cost"]) == cost:
+    basis = _matching_basis(product, stock, cost)
+    if basis:
         if basis["at"] == product.get("updated_at"):
             return _amount(basis["value"])
         # A rename, SKU change or other catalogue edit updates the timestamp as
@@ -167,8 +188,6 @@ async def _stock_value(bid, product, *, reversing=False):
         }, {"_id": 1})
         if not later_movement:
             return _amount(basis["value"])
-    if not stock:
-        return Decimal(0)
     # Imported opening balances have no priced movements. Once purchases have
     # posted, their four-place legacy average may no longer encode the balance.
     if await db.purchases.find_one({"business_id": bid, "items.product_id": product["product_id"]}, {"_id": 1}):
@@ -189,13 +208,19 @@ async def _stock_value(bid, product, *, reversing=False):
 
 
 def _valuation_fields(product, quantity, value, now):
+    checked_money(value)
     if quantity == 0 and abs(value) >= Decimal("0.005"):
         raise HTTPException(409, "Cancellation would leave inventory value without stock")
     if quantity > 0 and value <= Decimal("-0.005"):
         raise HTTPException(409, "Purchase would leave negative inventory value")
     average = product.get("product_cost", 0) or 0
     if quantity:
-        average = float(max(Decimal(0), value / _amount(quantity)))
+        ratio = value / _amount(quantity)
+        if ratio >= 0:
+            average = checked_money(ratio)
+        # When backorders carry a positive total value, no nonnegative average
+        # can express it. Keep the previous unit cost for further movements and
+        # report the actual carrying amount from the snapshot.
     else:
         value = Decimal(0)
     return {"product_cost": average, "updated_at": now, "purchase_valuation": {
@@ -246,7 +271,7 @@ async def create_purchase(data: PurchaseInput, user: dict) -> dict:
     number = await next_number(bid, "purchase")
     now = now_iso()
     lines, subtotal = _build_lines(data.items, prods)
-    total = round(subtotal + data.additional_costs, 2)
+    total = round(checked_money(_amount(subtotal) + _amount(data.additional_costs)), 2)
 
     doc = {
         "purchase_id": pid,
@@ -314,7 +339,7 @@ async def update_purchase(purchase_id: str, data: PurchaseUpdate, user: dict = D
         raise HTTPException(status_code=400, detail="Nothing to update")
     subtotal = updates.get("subtotal", purchase["subtotal"])
     additional = updates.get("additional_costs", purchase.get("additional_costs", 0))
-    updates["total"] = round(subtotal + additional, 2)
+    updates["total"] = round(checked_money(_amount(subtotal) + _amount(additional)), 2)
     await db.purchases.update_one({"business_id": bid, "purchase_id": purchase_id}, {"$set": updates})
     await log_audit(bid, user, "purchase.updated", "purchase", purchase_id, f"{purchase['purchase_number']} · {', '.join(updates.keys())}")
     doc = await db.purchases.find_one({"business_id": bid, "purchase_id": purchase_id}, {"_id": 0})

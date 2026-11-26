@@ -24,6 +24,8 @@ const statusBadge = {
   out: "bg-red-50 text-red-600 border-red-100",
 };
 
+const initialAdjustment = { movement_type: "ADJUSTMENT", direction: "increase", quantity: "", notes: "" };
+
 export default function Inventory() {
   const { t, lang } = useLanguage();
   const { can } = useAuth();
@@ -31,7 +33,7 @@ export default function Inventory() {
   const [rows, setRows] = useState(null);
   const [movements, setMovements] = useState([]);
   const [adjustFor, setAdjustFor] = useState(null);
-  const [adjForm, setAdjForm] = useState({ movement_type: "ADJUSTMENT", quantity: "", notes: "" });
+  const [adjForm, setAdjForm] = useState(initialAdjustment);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -51,19 +53,20 @@ export default function Inventory() {
 
   const submitAdjust = async (e) => {
     e.preventDefault();
-    const qty = parseInt(adjForm.quantity, 10);
-    if (!qty) return;
+    const qty = Number(adjForm.quantity);
+    if (!Number.isSafeInteger(qty) || qty <= 0) return;
+    const decrease = adjForm.movement_type === "DAMAGE" || adjForm.direction === "decrease";
     setSaving(true);
     try {
       await api.post("/inventory/adjust", {
         product_id: adjustFor.product_id,
         movement_type: adjForm.movement_type,
-        quantity: qty,
+        quantity: decrease ? -qty : qty,
         notes: adjForm.notes,
       });
       toast.success(t("movementAdded"));
       setAdjustFor(null);
-      setAdjForm({ movement_type: "ADJUSTMENT", quantity: "", notes: "" });
+      setAdjForm(initialAdjustment);
       load();
     } catch (err) {
       toast.error(formatApiError(err, t("somethingWrong")));
@@ -133,7 +136,7 @@ export default function Inventory() {
                   {fin && <td className="px-5 py-3.5 tabular text-slate-700">{fmtMoney(r.stock_value || 0)}</td>}
                   {can("inventory.adjust") && (
                     <td className="px-5 py-3.5 text-end">
-                      <button data-testid={`adjust-${r.product_id}`} onClick={() => setAdjustFor(r)}
+                      <button data-testid={`adjust-${r.product_id}`} onClick={() => { setAdjForm(initialAdjustment); setAdjustFor(r); }}
                         className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
                         <SlidersHorizontal className="w-4 h-4" />
                       </button>
@@ -242,9 +245,17 @@ export default function Inventory() {
                 <option value="MANUAL_CORRECTION">{t("mv_MANUAL_CORRECTION")}</option>
               </select>
             </div>
+            {adjForm.movement_type !== "DAMAGE" && <div>
+              <label htmlFor="adjust-direction" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("adjustDirection")}</label>
+              <select id="adjust-direction" data-testid="adjust-direction" className={inputCls} value={adjForm.direction}
+                onChange={(e) => setAdjForm((f) => ({ ...f, direction: e.target.value }))}>
+                <option value="increase">{t("increaseStock")}</option>
+                <option value="decrease">{t("decreaseStock")}</option>
+              </select>
+            </div>}
             <div>
               <label htmlFor="adjust-qty-input" className="text-sm font-medium text-slate-700 mb-1.5 block">{t("adjustQty")}<RequiredMark/></label>
-              <input id="adjust-qty-input" data-testid="adjust-qty-input" {...selectInputOnFocus} type="number" step="1" required value={adjForm.quantity}
+              <input id="adjust-qty-input" data-testid="adjust-qty-input" {...selectInputOnFocus} type="number" min="1" step="1" required value={adjForm.quantity}
                 onChange={(e) => setAdjForm((f) => ({ ...f, quantity: e.target.value }))} className={`${inputCls} tabular`} />
               <p className="text-xs text-slate-400 mt-1">{t("currentStock")}: {adjustFor?.stock_qty}</p>
             </div>

@@ -18,6 +18,7 @@ import math
 import re
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 import openpyxl
@@ -25,8 +26,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from numeric_inputs import MAX_STOCK_QUANTITY, nonnegative_decimal
-from core import db, require_perm, log_audit, now_iso
+from numeric_inputs import MAX_STOCK_QUANTITY, checked_money, nonnegative_decimal
+from posting import in_posting_transaction
+from pymongo.errors import PyMongoError
+from core import atomic_posting, db, require_perm, log_audit, now_iso
 
 router = APIRouter(prefix="/api/products/import", tags=["import"])
 products_bulk_router = APIRouter(prefix="/api/products", tags=["products-bulk"])
@@ -79,7 +82,13 @@ def _clean_num(v, *, quantity=False, whole=False):
     if v is None or (isinstance(v, str) and not v.strip()):
         return None, True
     if isinstance(v, str):
-        v = v.strip().replace("٬", "").replace(",", "").replace(" ", "")
+        v = v.strip().replace("٫", ".")
+        # Only strip recognized thousands groups. Never turn a decimal comma
+        # or internal whitespace into a different quantity or price.
+        if re.fullmatch(r"\d{1,3}([,٬])\d{3}(?:\1\d{3})*(?:\.\d+)?", v):
+            v = v.replace("٬", "").replace(",", "")
+        if not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", v):
+            return None, False
     try:
         number = nonnegative_decimal(v)
         if quantity:
@@ -92,9 +101,25 @@ def _clean_num(v, *, quantity=False, whole=False):
         value = float(number)
         if not math.isfinite(value) or (quantity and value > MAX_STOCK_QUANTITY):
             return None, False
-        return round(value, 4) or 0.0, True
-    except (ValueError, OverflowError):
+        if not quantity:
+            checked_money(value)
+        if Decimal(str(round(value, 4))) != number:
+            return None, False
+        return value or 0.0, True
+    except (HTTPException, ValueError, OverflowError):
         return None, False
+
+
+def _nonempty_rows(source):
+    rows = []
+    for row in source:
+        if not any(cell is not None and str(cell).strip() for cell in row):
+            continue
+        # One header plus MAX_ROWS nonempty records; stop before storing overflow.
+        if len(rows) == MAX_ROWS + 1:
+            raise HTTPException(400, "IMPORT_TOO_MANY_ROWS")
+        rows.append(list(row))
+    return rows
 
 
 async def _parse_file(file: UploadFile):
@@ -110,8 +135,12 @@ async def _parse_file(file: UploadFile):
         try:
             wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             ws = wb.active
-            rows = [list(r) for r in ws.iter_rows(max_row=MAX_ROWS + 2, values_only=True)]
-            wb.close()
+            try:
+                rows = _nonempty_rows(ws.iter_rows(values_only=True))
+            finally:
+                wb.close()
+        except HTTPException:
+            raise
         except Exception:
             raise HTTPException(status_code=400, detail="IMPORT_UNREADABLE_FILE")
     elif name.endswith(".csv"):
@@ -119,15 +148,18 @@ async def _parse_file(file: UploadFile):
             text = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
             raise HTTPException(status_code=400, detail="IMPORT_UNREADABLE_FILE")
-        rows = [r for r in csv.reader(io.StringIO(text))][: MAX_ROWS + 2]
+        try:
+            rows = _nonempty_rows(csv.reader(io.StringIO(text)))
+        except csv.Error:
+            raise HTTPException(status_code=400, detail="IMPORT_UNREADABLE_FILE") from None
     else:
         raise HTTPException(status_code=400, detail="IMPORT_UNSUPPORTED_FORMAT")
-    rows = [r for r in rows if any(c is not None and str(c).strip() for c in r)]
     if not rows:
         raise HTTPException(status_code=400, detail="IMPORT_EMPTY_FILE")
-    if len(rows) - 1 > MAX_ROWS:
-        raise HTTPException(status_code=400, detail="IMPORT_TOO_MANY_ROWS")
     headers = [_clean_str(h, 80) for h in rows[0]]
+    named = [header.casefold() for header in headers if header]
+    if len(named) != len(set(named)):
+        raise HTTPException(400, "Duplicate column names. Give each CSV column a unique header.")
     return headers, rows[1:]
 
 
@@ -142,7 +174,7 @@ def _suggest_mapping(headers, aliases=FIELD_ALIASES):
                    for field, names in aliases.items() for alias in names if alias.casefold() in text]
         if matches:
             exact, length, field = max(matches)
-            score = (exact, length)
+            score = (text == field, exact, length)
             if field not in scores or score > scores[field]:
                 scores[field] = score
                 mapping[field] = header
@@ -201,6 +233,12 @@ def _evaluate(headers, data_rows, mapping, strategy, by_sku, by_name):
         if not ok3:
             out.append({"row": n, "values": values, "status": "invalid", "reason": "invalid_quantity"})
             continue
+        if purchase_price is not None:
+            try:
+                checked_money(Decimal(str(purchase_price)) * Decimal(str(qty or 0)))
+            except HTTPException:
+                out.append({"row": n, "values": values, "status": "invalid", "reason": "invalid_price"})
+                continue
         if sku and sku in seen_sku:
             out.append({"row": n, "values": values, "status": "duplicate", "reason": "duplicate_in_file"})
             continue
@@ -265,19 +303,23 @@ async def apply_rows(user, rows, by_sku):
                 inserted_ids.append(doc["product_id"])
             elif r["status"] == "update":
                 target = by_sku[v["sku"]]
-                original = await db.products.find_one({"product_id": target["product_id"]})
+                original = await db.products.find_one({"business_id": bid, "product_id": target["product_id"]})
                 updates = {"updated_at": now_iso()}
                 for f in ("name", "category", "spec_unit", "selling_price", "product_cost", "description"):
                     if v.get(f) not in (None, ""):
                         updates[f] = v[f]
-                await db.products.update_one({"product_id": target["product_id"]}, {"$set": updates})
+                await db.products.update_one({"business_id": bid, "product_id": target["product_id"]}, {"$set": updates})
                 backups.append(original)
-    except Exception:
+    except Exception as exc:
+        if in_posting_transaction():
+            if isinstance(exc, PyMongoError) and exc.has_error_label("TransientTransactionError"):
+                raise
+            raise HTTPException(status_code=500, detail="IMPORT_ROLLED_BACK") from exc
         logger.exception("import commit failed — rolling back batch")
         if inserted_ids:
-            await db.products.delete_many({"product_id": {"$in": inserted_ids}})
+            await db.products.delete_many({"business_id": bid, "product_id": {"$in": inserted_ids}})
         for original in backups:
-            await db.products.replace_one({"product_id": original["product_id"]}, original)
+            await db.products.replace_one({"business_id": bid, "product_id": original["product_id"]}, original)
         raise HTTPException(status_code=500, detail="IMPORT_ROLLED_BACK")
 
 
@@ -326,14 +368,24 @@ async def import_commit(file: UploadFile = File(...), mapping: str = Form(defaul
     import json
     if strategy not in ("skip", "update"):
         raise HTTPException(status_code=400, detail="IMPORT_BAD_STRATEGY")
-    if strategy == "update" and user.get("role") != "OWNER" and "products.edit" not in (user.get("permissions") or {}):
+    if strategy == "update" and user.get("role") != "OWNER" and not (user.get("permissions") or {}).get("products.edit"):
         raise HTTPException(status_code=403, detail="Missing permission: products.edit")
     try:
         mapping_obj = json.loads(mapping) if mapping else {}
     except ValueError:
         raise HTTPException(status_code=400, detail="IMPORT_BAD_MAPPING")
-    _, _, rows = await _parse_and_evaluate(file, mapping_obj, strategy, user["business_id"])
-    by_sku, _ = await _existing_maps(user["business_id"])
+    headers, data_rows = await _parse_file(file)
+    return await _commit_products(user, headers, data_rows, mapping_obj or _suggest_mapping(headers), strategy)
+
+
+@atomic_posting
+async def _commit_products(user, headers, data_rows, mapping, strategy):
+    bid = user["business_id"]
+    # Take a tenant-scoped write lock before checking for existing products.
+    # Motor retries a competing transaction with a fresh catalogue snapshot.
+    await db.businesses.update_one({"business_id": bid}, {"$inc": {"product_import_revision": 1}})
+    by_sku, by_name = await _existing_maps(bid)
+    rows = _evaluate(headers, data_rows, mapping, strategy, by_sku, by_name)
     writable = [r for r in rows if r["status"] in ("new", "update")]
     await apply_rows(user, writable, by_sku)
     summary = _summary(rows)

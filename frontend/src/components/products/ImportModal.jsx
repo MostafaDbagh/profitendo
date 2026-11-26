@@ -1,8 +1,6 @@
 import CopyableCode from '@/components/CopyableCode';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCsvImport } from "../useCsvImport";
 import { Upload, Download, Loader2, CheckCircle2, XCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
-import { toast } from "sonner";
-import api, { formatApiError } from "../../lib/api";
 import { useLanguage } from "../../context/LanguageContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
@@ -25,70 +23,8 @@ const FIELD_KEY = {
 
 export function ImportModal({ open, onClose, onImported }) {
   const { t } = useLanguage();
-  const [file, setFile] = useState(null);
-  const [headers, setHeaders] = useState([]);
-  const [mapping, setMapping] = useState(null);
-  const [strategy, setStrategy] = useState("skip");
-  const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const fileRef = useRef(null);
-
-  const reset = () => { setFile(null); setHeaders([]); setMapping(null); setStrategy("skip"); setRows([]); setSummary(null); setResult(null); };
-  const close = () => { reset(); onClose(); };
-
-  const preview = useCallback(async (f, m, s) => {
-    if (!f) return;
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-      fd.append("mapping", JSON.stringify(m || {}));
-      fd.append("strategy", s);
-      const { data } = await api.post("/products/import/preview", fd);
-      setHeaders(data.headers);
-      if (!m || !Object.values(m).some(Boolean)) setMapping(data.suggested_mapping);
-      setRows(data.rows);
-      setSummary(data.summary);
-    } catch (err) {
-      toast.error(formatApiError(err, t("somethingWrong")));
-      setFile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (file && mapping) {
-      const h = setTimeout(() => preview(file, mapping, strategy), 350);
-      return () => clearTimeout(h);
-    }
-  }, [mapping, strategy]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pickFile = (f) => {
-    if (!f) return;
-    setResult(null);
-    setFile(f);
-    preview(f, null, strategy);
-  };
-
-  const commit = async () => {
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("mapping", JSON.stringify(mapping));
-      fd.append("strategy", strategy);
-      const { data } = await api.post("/products/import/commit", fd);
-      setResult(data);
-      onImported();
-    } catch (err) {
-      toast.error(formatApiError(err, t("importFailed")));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { file, fileRef, headers, mapping, setMapping, strategy, setStrategy, rows, summary, loading, committing,
+    result, close, commit, pickFile } = useCsvImport("products", t, onClose, onImported);
 
   const writable = summary ? summary.new + summary.update : 0;
 
@@ -120,9 +56,9 @@ export function ImportModal({ open, onClose, onImported }) {
           <>
             <p className="text-xs text-slate-400 mb-4">{t("importDesc")}</p>
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
-              <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" data-testid="import-file-input"
-                onChange={(e) => pickFile(e.target.files?.[0])} />
-              <button data-testid="import-choose-file" onClick={() => fileRef.current?.click()}
+              <input disabled={committing} ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" data-testid="import-file-input"
+                onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
+              <button data-testid="import-choose-file" disabled={committing} onClick={() => fileRef.current?.click()}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-slate-600 text-sm font-semibold text-slate-300 hover:border-emerald-500 hover:text-emerald-300 transition-colors">
                 <Upload className="w-4 h-4" /> {file ? file.name : t("chooseFile")}
               </button>
@@ -142,7 +78,7 @@ export function ImportModal({ open, onClose, onImported }) {
                   {["name", "sku", "category", "unit", "purchase_price", "selling_price", "initial_quantity", "description"].map((f) => (
                     <div key={f}>
                       <label className="text-[11px] text-slate-400 mb-1 block">{t(FIELD_KEY[f])}</label>
-                      <select data-testid={`map-${f}`} value={mapping[f] || ""} onChange={(e) => setMapping({ ...mapping, [f]: e.target.value })} className={selectCls}>
+                      <select disabled={committing} data-testid={`map-${f}`} value={mapping[f] || ""} onChange={(e) => setMapping({ ...mapping, [f]: e.target.value })} className={selectCls}>
                         <option value="">{t("noMap")}</option>
                         {headers.filter(Boolean).map((h) => <option key={h} value={h}>{h}</option>)}
                       </select>
@@ -154,7 +90,7 @@ export function ImportModal({ open, onClose, onImported }) {
                   <div className="flex flex-col sm:flex-row gap-2.5">
                     {[["skip", "strategySkip"], ["update", "strategyUpdate"]].map(([v, k]) => (
                       <label key={v} className={`flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-sm cursor-pointer transition-colors ${strategy === v ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200" : "border-slate-700/50 text-slate-400"}`}>
-                        <input type="radio" name="import-strategy" value={v} checked={strategy === v} onChange={() => setStrategy(v)} className="accent-emerald-500" data-testid={`strategy-${v}`} />
+                        <input disabled={committing} type="radio" name="import-strategy" value={v} checked={strategy === v} onChange={() => setStrategy(v)} className="accent-emerald-500" data-testid={`strategy-${v}`} />
                         {t(k)}
                       </label>
                     ))}
