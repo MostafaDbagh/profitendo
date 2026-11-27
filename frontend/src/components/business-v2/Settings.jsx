@@ -35,9 +35,10 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
     setBusy(true); setError(''); setNotice('');
     try {
       const { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate, countryCode } = form;
-      const updated = await api(`/businesses/${business.id}`, { method: 'PATCH', body: { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate: syria ? '0' : salesTaxRate, countryCode: countryCode ?? null } });
+      const updated = await api(`/businesses/${business.id}`, { method: 'PATCH', body: { revision, name, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate: syria ? '0' : salesTaxRate, countryCode: countryCode ?? null, ...(form.actionLabels && {actionLabels:form.actionLabels}) } });
       setForm(updated); onName(updated.name); draft.clear();setNotice('saved');
       if (initialSetup) onSetupComplete();
+      else if (form.actionLabels !== business.actionLabels) reload();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   return <PageLayout as="div"><form className={`${panelClass} space-y-5 max-w-3xl`} onSubmit={save}>
@@ -56,6 +57,17 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select></OptionalFields></div>:<>      <Select id="business-date" label={c('dateFormat')} value={form.dateFormat} onChange={set('dateFormat')}>{[['dmy','31/12/2026'],['mdy','12/31/2026'],['ymd','2026-12-31']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select>
       <Select id="business-number" label={c('numberFormat')} value={form.numberFormat} onChange={set('numberFormat')}>{[['western','1,234.56'],['european','1.234,56'],['arabic','١٬٢٣٤٫٥٦']].map(([v,text]) => <option key={v} value={v}>{text}</option>)}</Select></>}
 
+      {!initialSetup && <Disclosure className="sm:col-span-2" title={lang==='ar'?'تسميات الأزرار':'Button labels'}>
+        <p className="text-xs text-slate-600">{lang==='ar'?'عدّل التسميات العربية لهذا النشاط. اترك الحقل فارغًا لاستخدام التسمية الأصلية.':'Edit the English labels for this business. Leave a field blank to use its default.'}</p>
+        {['addProduct','newSale'].map(key=>{
+          const label=key==='addProduct'?(lang==='ar'?'إضافة منتج':'Add product'):(lang==='ar'?'بيع جديد':'New sale');
+          return <Field key={key} id={`label-${key}`} label={label} placeholder={label} maxLength={48}
+            value={form.actionLabels?.[lang]?.[key]??''} onChange={event=>{
+              const value=event.target.value;
+              setForm(current=>({...current,actionLabels:{...current.actionLabels,[lang]:{...current.actionLabels?.[lang],[key]:value}}}));
+            }}/>;
+        })}
+      </Disclosure>}
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
   </form>{!initialSetup && permissions['migration.manage'] && <Disclosure title={lang==='ar'?'إعدادات المحاسبة':'Accounting settings'} className="max-w-3xl"><FifoSettings {...{context,api,c,lang}}/></Disclosure>}{!initialSetup && editable && context.role === 'OWNER' && <>

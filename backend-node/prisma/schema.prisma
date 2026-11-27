@@ -69,6 +69,7 @@ model Business {
   baseCurrency String @default("USD") @map("base_currency")
   timezone     String @default("UTC")
   dateFormat   String @default("dmy") @map("date_format")
+  actionLabels Json @default("{}") @map("action_labels")
   numberFormat String @default("western") @map("number_format")
   revision     Int @default(0)
   currencyLockedAt DateTime? @map("currency_locked_at") @db.Timestamptz(3)

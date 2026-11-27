@@ -1,3 +1,4 @@
+import CustomizableTable from '../business-v2/CustomizableTable';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
 import CustomerReturn from '../completion-v2/CustomerReturn';
@@ -5,7 +6,7 @@ import { saleStaff } from './saleStaff';
 import { useLocalDraft, LocalDraftNotice } from '../../lib/localDraft';
 import { useRef,useState } from 'react';
 import { Field } from '../auth-v2/Fields';
-import { Feedback,Modal,Select,Table,Pager,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
+import { Feedback,Modal,Select,Pager,buttonClass,primaryClass,panelClass } from '../business-v2/UI';
 import { useResource } from '../business-v2/useBusinessApi';
 import Editor from './Editor';
 import Receipt,{money} from './Receipt';
@@ -20,7 +21,7 @@ function SaleDetail({doc,setDoc,path,api,c,lang,edit,close,onReturn}){
  <div className="flex flex-wrap gap-2">{doc.capabilities.edit&&<button className={buttonClass} disabled={busy} onClick={edit}>{c('saleEdit')}</button>}{doc.capabilities.cancel&&<button className={buttonClass} disabled={busy} onClick={e=>setCancel(e.currentTarget)}>{c('saleCancel')}</button>}</div></div></div>
  {cancel&&<Modal {...{c,lang,busy}} title={c('saleConfirmCancel')} description={c('saleConfirmCancelHint')} returnFocus={cancel} close={()=>setCancel(null)}><div className="flex gap-2"><button className={buttonClass} disabled={busy} onClick={()=>setCancel(null)}>{c('close')}</button><button className={primaryClass} disabled={busy} onClick={cancelDraft}>{c('confirm')}</button></div></Modal>}</PageLayout>;
 }
-export default function Sales({context,api,c,lang,initialAction}){
+export default function Sales({context,api,c,lang,initialAction,reload}){
  const path=`/businesses/${context.business.id}/sales`,[page,setPage]=useState(1),[status,setStatus]=useState(''),[doc,setDoc]=useState(null),[returning,setReturning]=useState(false),[editing,setEditing]=useState(['new','setup'].includes(initialAction) && !!context.permissions['sales.create']),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const resource=useResource(api,`${path}?page=${page}${status?`&status=${status}`:''}`);
  const close=()=>{setEditing(false);setDoc(null);setError('');resource.reload();};
@@ -29,7 +30,7 @@ export default function Sales({context,api,c,lang,initialAction}){
  if(editing)return <Editor {...{context,api,c,lang,doc,close}} done={d=>{setDoc(d);setEditing(false);resource.reload();}}/>;
  if(doc)return <SaleDetail key={`${doc.id}-${doc.revision}`} {...{doc,setDoc,path,api,c,lang,close}} edit={()=>setEditing(true)} onReturn={context.permissions['returns.create']&&context.permissions['returns.view']?()=>setReturning(true):undefined}/>;
  return <PageLayout as="div" title={c('sales')} actions={[
-  {id:'new-sale',label:c('newSale'),variant:'primary',visible:!!context.permissions['sales.create'],onClick:()=>setEditing(true)},
- ]}><Feedback c={c} error={error||resource.error} retry={resource.reload}/>{!resource.data&&!resource.error&&<LoadingState>{c('loading')}</LoadingState>}<Table showRows={!!resource.data} filters={<div className="max-w-xs"><Select id="sales-status" label={c('saleStatus')} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="">{c('saleAll')}</option>{['DRAFT','COMPLETED','CANCELLED'].map(s=><option key={s} value={s}>{c(s)}</option>)}</Select></div>} filtersActive={Boolean(status)} c={c} headers={['reference','saleShop','saleCustomerName','saleStaff','status','saleTotal','actions']} empty={!resource.data?.items.length}>{resource.data?.items.map(row=><tr key={row.id}><td className="px-5 py-4"><bdi>{row.reference}</bdi></td><td className="px-5 py-4">{row.locationName}</td><td className="px-5 py-4"><bdi>{row.customerName?.trim() || '—'}</bdi></td><td className="px-5 py-4"><bdi className="font-semibold text-emerald-700">{saleStaff(row,c).name}</bdi></td><td className="px-5 py-4">{c(row.status)}</td><td className="px-5 py-4 whitespace-nowrap">{money(row.total,row,lang)}</td><td className="px-5 py-4"><button className={buttonClass} disabled={loading} onClick={()=>open(row.id)}>{c('openDocument')}</button></td></tr>)}</Table>
+  {id:'new-sale',label:context.business.actionLabels?.[lang]?.['newSale'] || c('newSale'),variant:'primary',visible:!!context.permissions['sales.create'],onClick:()=>setEditing(true)},
+ ]}><Feedback c={c} error={error||resource.error} retry={resource.reload}/>{!resource.data&&!resource.error&&<LoadingState>{c('loading')}</LoadingState>}<CustomizableTable tableName="sales" actionKey="newSale" {...{context,api,lang}} reload={reload} showRows={!!resource.data} filters={<div className="max-w-xs"><Select id="sales-status" label={c('saleStatus')} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="">{c('saleAll')}</option>{['DRAFT','COMPLETED','CANCELLED'].map(s=><option key={s} value={s}>{c(s)}</option>)}</Select></div>} filtersActive={Boolean(status)} c={c} headers={['reference','saleShop','saleCustomerName','saleStaff','status','saleTotal','actions']} empty={!resource.data?.items.length}>{resource.data?.items.map(row=><tr key={row.id}><td className="px-5 py-4"><bdi>{row.reference}</bdi></td><td className="px-5 py-4">{row.locationName}</td><td className="px-5 py-4"><bdi>{row.customerName?.trim() || '—'}</bdi></td><td className="px-5 py-4"><bdi className="font-semibold text-emerald-700">{saleStaff(row,c).name}</bdi></td><td className="px-5 py-4">{c(row.status)}</td><td className="px-5 py-4 whitespace-nowrap">{money(row.total,row,lang)}</td><td className="px-5 py-4"><button className={buttonClass} disabled={loading} onClick={()=>open(row.id)}>{c('openDocument')}</button></td></tr>)}</CustomizableTable>
  {resource.data&&<Pager data={resource.data} {...{setPage,c}}/>}</PageLayout>;
 }

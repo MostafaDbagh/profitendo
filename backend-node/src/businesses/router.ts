@@ -15,7 +15,15 @@ import { permissionKeys, PERMISSIONS, staffRoles } from './permissions.js';
 import { BusinessService } from './service.js';
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) }).strict();
 const currency = z.enum(['USD','EUR','GBP','SAR','AED','EGP','SYP','JOD','IQD','LBP','KWD','QAR','BHD','OMR','YER','TRY']);
+const actionLabel = z.string().trim().max(48).optional();
+const labelKeys = [
+  'addProduct','newSale',
+  ...['productName','category','productUnitsSold','productAvailableTotal','sku','barcodeColumn','unit','sellingPrice','purchasePrice','productSaleCount','status','actions'].map(key=>'catalogue_'+key),
+  ...['reference','saleShop','saleCustomerName','saleStaff','status','saleTotal','actions'].map(key=>'sales_'+key),
+];
+const localizedActions = z.record(z.string().refine(key=>labelKeys.includes(key)), actionLabel.unwrap()).optional();
 const businessPatch = z.object({
+  actionLabels: z.object({ar: localizedActions, en: localizedActions}).strict().optional(),
   countryCode: z.string().refine(v => v in countryCurrencies).nullable().optional(),
   salesTaxRate: z.string().regex(/^(0|[1-9]\d?)(\.\d{1,4})?$|^100(?:\.0{1,4})?$/).optional(),
   revision: z.number().int().nonnegative(), name: z.string().trim().min(2).max(120).optional(), baseCurrency: currency.optional(),
