@@ -6,7 +6,7 @@ import { useResource } from './useBusinessApi';
 import { Feedback, Modal, Pager, buttonClass, primaryClass } from './UI';
 import LocationForm from './LocationForm';
 import LocationAssignments from './LocationAssignments';
-export default function Locations({ context, api, c, lang, initialAction }) {
+export default function Locations({ context, api, c, lang, initialAction, onLocationsChanged }) {
   const path=`/businesses/${context.business.id}/locations`,manage=context.permissions['locations.manage'];
   const [page,setPage]=useState(1);
   const [dialog,setDialog]=useState(()=>['new','setup'].includes(initialAction)&&manage?{type:'create',kind:'SHOP'}:null);
@@ -22,7 +22,7 @@ export default function Locations({ context, api, c, lang, initialAction }) {
     setNotice('');
     setDialog({type,location,kind});
   }
-  function done(saved=true){setDialog(null);setNotice(saved?'saved':'');reload();}
+  function done(saved=true){setDialog(null);setNotice(saved?'saved':'');reload();if(saved)onLocationsChanged?.();}
   async function changeStatus(){setBusy(true);setFailure('');try{await api(`${path}/${dialog.location.id}`,{method:'PATCH',body:{revision:dialog.location.revision,active:!!dialog.location.archivedAt}});done();}catch(e){setFailure(e.message);}finally{setBusy(false);}}
   return <PageLayout>
     <PageHeader title={c('locations')} accessory={manage&&<div className="flex flex-wrap gap-2">

@@ -41,8 +41,14 @@ import Catalogue from '../components/catalogue-v2/Catalogue';
 import Team from '../components/business-v2/Team';
 import { Audit, Roles } from '../components/business-v2/Records';
 const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['customers','customers.view',Users], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['contactSupport',null,Headset], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
-function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls }) {
+function BusinessWorkspace({ businessId, api, c, lang, onName, onShopName, businessControls }) {
   const { data: loadedContext, error, reload } = useResource(api, `/businesses/${businessId}`);
+  const shopsPath = loadedContext?.permissions['locations.view'] ? `/businesses/${businessId}/locations?kind=SHOP&state=active` : null;
+  const {data: shops, reload: refreshShops} = useResource(api, shopsPath);
+  const shopName = shops?.total === 1 ? shops.items[0]?.name : undefined;
+  useEffect(() => {
+    onShopName({businessId, name: shopName});
+  }, [businessId, shopName, onShopName]);
   const [pinOverride, setPinStatus] = useState(null);
   const [, refreshPinExpiry] = useState(0);
   const ownerPin = pinOverride ?? loadedContext?.ownerPin;
@@ -147,7 +153,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
       </nav>
     <PageContainer ref={contentRef} tabIndex={-1} className="flex-1 outline-none lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain"><PageLayout as="div"><SubscriptionNotice {...{context,api,lang}} section={current} onSection={setSection}/>{initialAction==='setup'&&<button type="button" className={buttonClass} onClick={()=>setSection('guidance')}>{lang==='ar'?'العودة إلى خطوات البداية':'Back to setup steps'}</button>}{pinLocked && ['payments','expenses','partners','accounts'].includes(current)
       ? <OwnerPinUnlock {...{context,api,c,lang}} onPinStatus={setPinStatus} />
-      : <Component pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</PageLayout></PageContainer>
+      : <Component onLocationsChanged={refreshShops} pinLocked={pinLocked} onPinStatus={setPinStatus} visibleTabs={visible.map(([key])=>key)} onSection={setSection} mode={current} initialAction={initialAction} key={`${current}-${context.business.revision}-${initialAction ?? ''}`} {...{ context, api, c, lang, reload, onName }} />}{current==='settings'&&<TabPreferences {...{context,api,c,lang,hiddenTabs,tabOrder,ownerAsCashier}} availableTabs={availableTabs.filter(([key])=>!['guidance','contactSupport'].includes(key))} onTabsSaved={setSavedPreferences}/>}</PageLayout></PageContainer>
   </div></UpgradeContext.Provider></DraftScope.Provider>;
 }
 export default function BusinessV2() {
@@ -155,6 +161,7 @@ export default function BusinessV2() {
   const { lang, setLang } = useLanguage(), navigate = useNavigate(), api = useBusinessApi();
   const c = (key, fallback = 'failed') => businessCopy[lang]?.[key] || businessCopy.en[key] || businessCopy[lang]?.[fallback] || businessCopy.en[fallback];
   const [businesses, setBusinesses] = useState(null), [selected, setSelected] = useState(''), [error, setError] = useState(''), [version, setVersion] = useState(0);
+  const [headerShop, setHeaderShop] = useState(null);
   const onName = useCallback(name => setBusinesses(rows => rows?.map(b => b.id === selected ? { ...b, name } : b)), [selected]);
   useEffect(() => {
     const controller = new AbortController(); setError(''); setBusinesses(null);
@@ -169,7 +176,7 @@ export default function BusinessV2() {
   const hasBusiness = businesses?.some(business => business.id === selected);
   const businessControls = surface => <>
         <button className={`${buttonClass} shrink-0`} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar', false)}>{c('language')}</button>
-        {businesses?.length > 0 && <select id={surface === 'desktop' ? 'active-business' : 'active-business-mobile'} aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-h-11 min-w-0 max-w-full truncate sm:max-w-64 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>}
+        {businesses?.length > 0 && <select id={surface === 'desktop' ? 'active-business' : 'active-business-mobile'} aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-h-11 min-w-0 max-w-full truncate sm:max-w-64 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.id === selected && headerShop?.businessId === selected && headerShop.name ? headerShop.name : b.name}</option>)}</select>}
         {businesses?.length===0&&<Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}
   </>;
   return <div className={`min-h-screen text-slate-900 ${params.get('tab')==='billing'?'bg-white':'bg-slate-50'} ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
@@ -186,6 +193,6 @@ export default function BusinessV2() {
     {!businesses && !error && <LoadingState className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</LoadingState>}
     {businesses?.length === 0 && params.get('tab')==='security'&&<PageContainer><Security {...{api,lang}}/></PageContainer>}
     {businesses?.length === 0 && params.get('tab')!=='security' && <div className="px-4 md:px-8 space-y-4"><p className="text-sm text-slate-500">{c('noBusiness')}</p><Link className={buttonClass} to="/billing-v2">{lang==='ar'?'الفوترة وإلغاء الاشتراك':'Billing and cancellation'}</Link><Link className={`${buttonClass} ms-2`} to="/contact">{lang==='ar'?'تواصل معنا':'Contact Us'}</Link></div>}
-    {hasBusiness && <WorkspaceErrorBoundary key={selected} lang={lang}><BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onName={onName} /></WorkspaceErrorBoundary>}
+    {hasBusiness && <WorkspaceErrorBoundary key={selected} lang={lang}><BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onShopName={setHeaderShop} onName={onName} /></WorkspaceErrorBoundary>}
   </div>;
 }
