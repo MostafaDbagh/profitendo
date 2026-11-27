@@ -5,7 +5,7 @@ import {currencyFormatter} from '../../lib/currencyFormat';
 import SaleCatalog from './SaleCatalog';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
-import { Barcode, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import { Barcode, ChevronDown, Plus, ShoppingBasket, Store, Trash2 } from 'lucide-react';
 import useLocationOptions from '../business-v2/useLocationOptions';
 import { formatQuantity } from '@/lib/quantity';
 import CopyableCode from '@/components/CopyableCode';
@@ -52,11 +52,17 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
  return <PageLayout as="div" className="mx-auto w-full max-w-screen-2xl"><header dir={lang==='ar'?'rtl':'ltr'} className="flex items-center gap-2 rounded-xl bg-[#047756] px-3 py-1 text-white">
   <h1 className="shrink-0 text-xl font-bold">{doc?c('saleEdit'):lang==='ar'?'بيع':'Sale'}</h1>
-  <div className="min-w-0 max-w-xs flex-1 [&_label]:sr-only">
-   <Select id="sale-store" label={c('chooseLocation')} value={shop?.id||''} disabled={shopLocked||shops.loading&&!doc} className="min-h-11 truncate text-slate-900" onChange={e=>setShop(shops.items.find(item=>item.id===e.target.value)||null)}>
+  <div className="relative inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg ring-1 ring-inset ring-white/60 bg-[#047756] px-3 text-white focus-within:ring-2 focus-within:ring-white">
+   <Store aria-hidden="true" className="h-5 w-5 shrink-0"/>
+   <bdi aria-hidden="true" className="min-w-0 truncate text-sm font-semibold">{shop?.name||c('chooseLocation')}</bdi>
+   <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0"/>
+   <select id="sale-store" aria-label={c('chooseLocation')} title={shop?.name}
+    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"
+    value={shop?.id||''} disabled={shopLocked||shops.loading&&!doc}
+    onChange={e=>setShop(shops.items.find(item=>item.id===e.target.value)||null)}>
     {!shop&&<option value="">{c('chooseLocation')}</option>}
-    {(doc?[shop]:shops.items).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
-   </Select>
+    {(doc?[shop]:shops.items).map(item=><option key={item.id} value={item.id} dir="auto">{item.name}</option>)}
+   </select>
   </div>
   <button className="ms-auto min-h-11 shrink-0 rounded-lg border border-white/60 px-3 font-semibold" disabled={busy||pending>0} onClick={close}>{c('close')}</button>
  </header><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
@@ -77,7 +83,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <SaleCatalog key={shop?.id} {...{api,root,path,shop,context,c,lang,add,busy}} text={barcode} clear={()=>setBarcode('')}/>
  </div></section>
 
- <form onSubmit={save} className="flex h-[min(46rem,84dvh)] min-h-[24rem] min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
+ <form onSubmit={save} className={`flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${rows.length ? 'h-[min(46rem,84dvh)]' : ''}`}><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
  {rows.map((r,i)=><div key={r.key} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"><div className="grid min-w-0 gap-4 sm:grid-cols-2  xl:items-start">
  <div className="min-w-0 sm:col-span-2 "><p className="mb-2 text-xs font-medium text-slate-500">{lang==='ar'?'المنتج':'Product'}</p><h3 className="font-semibold break-words text-slate-900">{r.name}</h3><div className="mt-1 text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode></div></div>
  <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} {...selectInputOnFocus} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
