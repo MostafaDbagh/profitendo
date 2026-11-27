@@ -40,3 +40,21 @@ for(const lang of ['en','ar'])test(`scan, stock limit and failed save preserve s
  expect(done).not.toHaveBeenCalled();expect(quantity.value).toBe('2');expect(host.textContent).toContain('Milk');
  const writes=api.mock.calls.filter(([,options])=>options?.method);expect(writes).toHaveLength(1);expect(writes[0][1].body.lines[0].quantity).toBe('2');
 });
+
+test('decreasing the cart quantity from two to one replaces minus with an enabled remove button',async()=>{
+ await render('en');
+ const barcode=host.querySelector('#pos-barcode');
+ await act(async()=>{fill(barcode,'001');barcode.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
+ const quantity=host.querySelector('#sale-quantity-0');
+ act(()=>quantity.nextElementSibling.click());
+ expect(quantity.value).toBe('2');
+ const decrease=quantity.previousElementSibling;
+ expect(decrease.textContent).toBe('−');
+ act(()=>decrease.click());
+ expect(quantity.value).toBe('1');
+ expect(decrease.getAttribute('aria-label')).toBe('saleRemove · Milk');
+ expect(decrease.querySelector('svg')).not.toBeNull();
+ act(()=>decrease.click());
+ expect(host.querySelector('#sale-quantity-0')).toBeNull();
+ expect([...host.querySelectorAll('button')].find(b=>b.textContent==='reviewSale').disabled).toBe(true);
+});

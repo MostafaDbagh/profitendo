@@ -100,6 +100,8 @@ export default function Editor({context,api,c,lang,doc,done,close}){
   const pack=r.packs.find(p=>p.id===r.packId);
   const expanded=expandedLine===r.key;
   const validQuantity=/^\d{1,14}(\.\d{1,4})?$/.test(r.quantity);
+  const lastUnit=validQuantity && scale(r.quantity)===10000n;
+  function removeLine(){setRows(old=>old.filter(line=>line.key!==r.key));}
   function step(delta){
    const next=scale(r.quantity)+delta;
    change(r.key,{quantity:formatQuantity(`${next/10000n}.${String(next%10000n).padStart(4,'0')}`)});
@@ -112,7 +114,11 @@ export default function Editor({context,api,c,lang,doc,done,close}){
     </button>
     <bdi className="shrink-0 text-center text-sm font-bold tabular-nums">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
     <div dir="ltr" className="inline-flex shrink-0 items-center rounded-lg border border-slate-200">
-     <button type="button" className="h-11 w-9 font-bold text-[#047756] disabled:text-slate-400" aria-label={`${lang==='ar'?'تقليل الكمية':'Decrease quantity'} · ${r.name}`} disabled={!validQuantity||scale(r.quantity)<=10000n} onClick={()=>step(-10000n)}>−</button>
+     <button type="button" className="inline-flex h-11 w-9 items-center justify-center font-bold text-[#047756] disabled:text-slate-400"
+       aria-label={`${lastUnit?c('saleRemove'):lang==='ar'?'تقليل الكمية':'Decrease quantity'} · ${r.name}`}
+       disabled={!validQuantity||scale(r.quantity)<10000n} onClick={lastUnit?removeLine:()=>step(-10000n)}>
+       {lastUnit?<Trash2 aria-hidden="true" className="h-4 w-4"/>:'−'}
+     </button>
      <input id={`sale-quantity-${i}`} {...selectInputOnFocus} aria-label={`${c('saleQuantity')} · ${r.name}`} className="sale-quantity-input h-10 w-12 min-w-0 rounded text-center text-sm font-semibold tabular-nums focus-visible:ring-2 focus-visible:ring-[#047756]" value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required/>
      <button type="button" className="h-11 w-9 font-bold text-[#047756]" aria-label={`${lang==='ar'?'زيادة الكمية':'Increase quantity'} · ${r.name}`} disabled={!validQuantity} onClick={()=>step(10000n)}>+</button>
     </div>
@@ -127,7 +133,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select> {available.has(r.productId)&&<span className="block text-xs text-slate-600">
   {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
  </span>}
- <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 " aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
+ <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 " aria-label={`${c('saleRemove')}: ${r.name}`} onClick={removeLine}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
  {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 " title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}
     </div>
    </div>
