@@ -21,7 +21,6 @@ const metrics = [
   ['estimatedProfit', 'Estimated profit', 'الربح التقديري', ChartNoAxesCombined],
   ['netSales', 'Net Sales', 'صافي المبيعات', TrendingUp],
 ];
-const cardClass = 'min-h-24 min-w-0 rounded-xl border px-3 py-4 shadow-sm sm:px-4';
 
 function Summary({context, api, c, lang, pinLocked}) {
   const ar = lang === 'ar';
@@ -40,14 +39,14 @@ function Summary({context, api, c, lang, pinLocked}) {
     <div className="flex gap-2" role="group" aria-label={ar?'الفترة':'Period'}>{['today','month'].map(value=><button key={value} type="button" aria-pressed={period===value} className={period===value?primaryClass:buttonClass} onClick={()=>setPeriod(value)}>{value==='today'?(ar?'اليوم':'Today'):(ar?'هذا الشهر':'This month')}</button>)}</div>
     <Feedback error={error} c={c} retry={reload} />
     {!data && !error && <LoadingState>{c('loading')}</LoadingState>}
-    {data && <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(8rem,9rem))]">
-      {metrics.filter(([key])=>['sales','expenses','estimatedProfit'].includes(key)&&data[key]!==undefined&&(!pinLocked||key==='sales')).map(([key,en,arabic,Icon])=><div key={key} className={`${cardClass} ${key === 'netSales' ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'}`}>
-        <dt className="flex items-center gap-1 text-sm text-slate-600">
-          <Icon className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+    {data && <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,17rem),1fr))] gap-3">
+      {metrics.filter(([key])=>['sales','expenses','estimatedProfit'].includes(key)&&data[key]!==undefined&&(!pinLocked||key==='sales')).map(([key,en,arabic,Icon])=><div key={key} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <dt className="flex items-center gap-2 text-sm font-medium text-slate-600">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><Icon className="h-4 w-4" aria-hidden="true" /></span>
           <span className="min-w-0">{ar ? arabic : en}</span>
           {key === 'estimatedProfit' && <Popover>
             <PopoverTrigger asChild>
-              <button type="button" className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-500"
+              <button type="button" className="ms-auto inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-500"
                 aria-label={ar ? 'كيف تُحسب الأرباح؟' : 'How is profit calculated?'}>
                 <Info className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -71,7 +70,7 @@ function Summary({context, api, c, lang, pinLocked}) {
             </PopoverContent>
           </Popover>}
         </dt>
-        <dd className="mt-1 break-words text-lg font-semibold tabular-nums text-slate-900">
+        <dd className="mt-3 text-xl font-semibold tabular-nums text-slate-900">
           <bdi>{data[key]===null ? c('profitUnavailable') : format.format(data[key])}</bdi>
         </dd>
       </div>)}

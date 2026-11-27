@@ -711,6 +711,7 @@ model Sale {
   timezone String
   currency String
   currencyDigits Int @map("currency_digits")
+  customerPhone String @default("") @map("customer_phone")
   customerName String @default("") @map("customer_name")
   notes String @default("")
   taxRate Decimal @default(0) @map("tax_rate") @db.Decimal(7,4)

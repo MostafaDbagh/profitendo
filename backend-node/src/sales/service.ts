@@ -82,7 +82,7 @@ export class SalesService{
    if(prior){if(prior.actorId!==ctx.user.id&&!access.permissions['sales.manage'])fail('FORBIDDEN',403);if(prior.requestHash!==requestHash)fail('IDEMPOTENCY_CONFLICT');return present(prior,access);}
    if(access.location.archivedAt)fail('LOCATION_ARCHIVED');await entitled(tx,bid);
    const {lines,...pricing}=await this.price(tx,bid,input.lines,access,input.locationId),id=randomUUID();
-   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:access.user.name,actorRole:access.membership.role,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
+   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,...(input.customerPhone!==undefined?{customerPhone:input.customerPhone}:{}),customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:access.user.name,actorRole:access.membership.role,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
    await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
    await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.created',targetId:id,changes:{}}});
    return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
@@ -91,7 +91,7 @@ export class SalesService{
  async update(ctx:AuthContext,bid:string,id:string,input:SalePatch){return this.auth.transaction(async tx=>{
   const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,input.revision);await requireLocation(this.auth,tx,ctx,bid,doc.locationId,'sales.create');await entitled(tx,bid);
   const {lines,...pricing}=await this.price(tx,bid,input.lines,access,doc.locationId);await tx.saleLine.deleteMany({where:{businessId:bid,saleId:id}});await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
-  await tx.sale.update({where:{id},data:{...pricing,customerName:input.customerName,notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
+  await tx.sale.update({where:{id},data:{...pricing,...(input.customerPhone!==undefined?{customerPhone:input.customerPhone}:{}),customerName:input.customerName,notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.repriced',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  });}
  async cancel(ctx:AuthContext,bid:string,id:string,revision:number){return this.auth.transaction(async tx=>{const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,revision);if(!access.permissions['sales.delete'])fail('FORBIDDEN',403);await tx.sale.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.cancelled',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);});}

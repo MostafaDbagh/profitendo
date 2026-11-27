@@ -256,7 +256,7 @@ export const completionCopy={
     "cancelRecordHint": "إلغاء المسودة دون تغيير المخزون أو الدفعات.",
     "paymentsHint": "سجّل الدفعات المنفذة وتابع الأرصدة وطابق الصندوق.",
     "recordPayment": "تسجيل دفعة",
-    "paymentHistory": "سجل الدفعات",
+    "paymentHistory": "سجل المصاريف",
     "dailyCash": "إغلاق الصندوق اليومي",
     "SUPPLIER_PAYMENT": "دفعة للمورد",
     "SUPPLIER_REFUND": "مبلغ مسترد من المورد",

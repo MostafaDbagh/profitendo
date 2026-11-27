@@ -256,7 +256,7 @@ async function treasuryLocation(){return (await db.location.create({data:{busine
 async function treasuryDay(){const {businessDay}=await import('../src/finance/cash.js');return businessDay(new Date(),(await db.business.findUniqueOrThrow({where:{id:business}})).timezone);}
 it('treasury: rejects malformed payments without recording money or audit events',async()=>{
  const locationId=await treasuryLocation(),before=await db.moneyEntry.count({where:{businessId:business}}),audit=await db.authAudit.count({where:{businessId:business,action:'payment.recorded'}});
- const invalid=[{amount:'0'},{amount:'-1'},{amount:'NaN'},{amount:'1e3'},{amount:'1.001'},{amount:1},{method:'CHEQUE'},{reason:'x'},{confirm:false},{reference:''},{kind:'CASH_IN',method:'CARD'},{kind:'CASH_OUT',method:'TRANSFER'},{kind:'CUSTOMER_REFUND'},{sourceId:randomUUID()}];
+ const invalid=[{amount:'0'},{amount:'-1'},{amount:'NaN'},{amount:'1e3'},{amount:'1.001'},{amount:1},{method:'CHEQUE'},{reason:'x'},{confirm:false},{reference:'x'.repeat(151)},{kind:'CASH_IN',method:'CARD'},{kind:'CASH_OUT',method:'TRANSFER'},{kind:'CUSTOMER_REFUND'},{sourceId:randomUUID()}];
  for(const extra of invalid){const r=await pay('EXPENSE','1',{locationId,...extra});expect(r.status,JSON.stringify(extra)+r.text).toBe(422);}
  expect(await db.moneyEntry.count({where:{businessId:business}})).toBe(before);expect(await db.authAudit.count({where:{businessId:business,action:'payment.recorded'}})).toBe(audit);
 });
@@ -268,7 +268,7 @@ it('treasury: repeated cash submission records one entry and changed retries con
 });
 it('treasury: exact cents reconcile cash only and isolate another drawer',async()=>{
  const locationId=await treasuryLocation(),day=await treasuryDay();
- for(const [kind,amount,method] of [['CASH_IN','0.10','CASH'],['CASH_IN','0.20','CASH'],['CASH_OUT','0.05','CASH'],['EXPENSE','0.02','CASH'],['EXPENSE','90','CARD'],['EXPENSE','80','TRANSFER']])expect((await pay(kind!,amount!,{locationId,method})).status).toBe(201);
+ for(const [kind,amount,method] of [['CASH_IN','0.10','CASH'],['CASH_IN','0.20','CASH'],['CASH_OUT','0.05','CASH'],['EXPENSE','0.02','CASH'],['EXPENSE','90','CARD'],['EXPENSE','80','TRANSFER']])expect((await pay(kind!,amount!,{locationId,method,reference:''})).status).toBe(201);
  expect((await get(`/cash?locationId=${locationId}&day=${day}`)).body).toMatchObject({inflow:'0.3000',outflow:'0.0700'});
  const otherDrawer=await treasuryLocation();expect((await get(`/cash?locationId=${otherDrawer}&day=${day}`)).body).toMatchObject({inflow:'0.0000',outflow:'0.0000'});
  const closed=await write('/cash',{locationId,day,opening:'10',counted:'10.23',expected:'10.23',confirm:true});expect(closed.status,closed.text).toBe(200);expect(closed.body.variance).toBe('0');
