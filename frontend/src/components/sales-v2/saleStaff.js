@@ -3,6 +3,6 @@ export function saleStaff(doc, c) {
   const completed = doc.status === 'COMPLETED' && Boolean(doc.completedName);
   const name = (completed ? doc.completedName : doc.actorName) || '—';
   const role = completed ? doc.completedRole : doc.actorRole;
-  const label = role === 'OWNER' ? c('saleAdmin') : role === 'CASHIER' ? c('saleCashier') : role ? c(role) : c('saleStaff');
+  const label = role === 'OWNER' || role === 'CASHIER' ? c('saleCashier') : role ? c(role) : c('saleStaff');
   return { name, label };
 }

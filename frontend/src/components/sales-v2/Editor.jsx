@@ -108,7 +108,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
      <span className="flex items-center gap-1 text-sm font-semibold"><bdi className="break-words">{r.name}</bdi><ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 text-slate-500"/></span>
      <span className="text-xs text-slate-500"><bdi>{r.quantity||'—'} × {money.format(Number(r.unitPrice)*Number(pack?.baseQuantity??1))}</bdi>{pack&&` · ${pack.name}`}</span>
     </button>
-    <bdi className="text-sm font-bold tabular-nums">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
+    <bdi className="px-1.5 text-center text-sm font-bold tabular-nums sm:px-4">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
     <div dir="ltr" className="inline-flex items-center rounded-lg border border-slate-200">
      <button type="button" className="h-11 w-9 font-bold text-[#047756] disabled:text-slate-400" aria-label={`${lang==='ar'?'تقليل الكمية':'Decrease quantity'} · ${r.name}`} disabled={!validQuantity||scale(r.quantity)<=10000n} onClick={()=>step(-10000n)}>−</button>
      <input id={`sale-quantity-${i}`} {...selectInputOnFocus} aria-label={`${c('saleQuantity')} · ${r.name}`} className="sale-quantity-input h-10 w-12 min-w-0 rounded text-center text-sm font-semibold tabular-nums focus-visible:ring-2 focus-visible:ring-[#047756]" value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required/>
