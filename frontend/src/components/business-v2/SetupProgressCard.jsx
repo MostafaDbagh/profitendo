@@ -57,7 +57,7 @@ function SetupCard({context, api, lang, onSection, visibleTabs, onHide}) {
         <div>
           <h3 id="workspace-setup-title" className="font-bold text-slate-900">{title}</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            {ar ? 'أضف متجرك ومنتجاتك، ثم سجّل أول عملية بيع.' : 'Add your shop and products, then record your first sale.'}
+            {ar ? 'أضف متجرك ومنتجاتك واستلم المخزون، ثم سجّل أول عملية بيع.' : 'Add your shop and products, receive stock, then record your first sale.'}
           </p>
         </div>
       </div>

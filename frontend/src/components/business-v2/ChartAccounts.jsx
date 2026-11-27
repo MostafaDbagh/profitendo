@@ -1,5 +1,5 @@
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
-import {LoadingState} from '../page-layout/PageResults';
+import {EmptyState, LoadingState} from '../page-layout/PageResults';
 import { useRef, useState } from 'react';
 import { BookOpen, Pencil, Plus, Power, Search, Trash2 } from 'lucide-react';
 import { Field, inputClass } from '../auth-v2/Fields';
@@ -112,7 +112,7 @@ export default function ChartAccounts({ context, api, c, lang }) {
     </div>
     {!dialog && <Feedback error={error||loadError} c={t} retry={loadError ? reload : undefined} />}
     {!data && !loadError && <LoadingState>{c('loading')}</LoadingState>}
-    {data && !rows.length && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{data.items.length ? text.noMatches : text.empty}</p>}
+    {data && !rows.length && <EmptyState icon={data.items.length ? Search : BookOpen} className="rounded-xl border border-slate-200 bg-white p-6">{data.items.length ? text.noMatches : text.empty}</EmptyState>}
     <div className="grid gap-4 xl:grid-cols-2">
       {groups.map(group => {
         const accounts = rows.filter(row=>row.category===group);
