@@ -1,4 +1,6 @@
 import {useState} from 'react';
+import {Users} from 'lucide-react';
+import {EmptyState} from '../page-layout/PageResults';
 import {PageLayout} from '../page-layout/PageLayout';
 import {useResource} from '../business-v2/useBusinessApi';
 import {Feedback,Pager,buttonClass,panelClass} from '../business-v2/UI';
@@ -14,7 +16,7 @@ export default function Customers({context,api,c,lang}){
     placeholder={ar?'مثال: أحمد أو 0912345678':'e.g. Alex or 0912345678'}
     value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
    <Feedback {...{error,c}} retry={reload}/>
-   <div className={panelClass}>{data?.items.map(item=><button key={item.id} className="flex min-h-11 w-full items-center justify-between border-b px-2 text-start hover:bg-emerald-50" onClick={()=>setSelected(item)}><strong>{item.name}</strong><bdi>{item.phone}</bdi></button>)}{data&&!data.total&&c('empty')}</div>
+   <div className={panelClass}>{data?.items.map(item=><button key={item.id} className="flex min-h-11 w-full items-center justify-between border-b px-2 text-start hover:bg-emerald-50" onClick={()=>setSelected(item)}><strong>{item.name}</strong><bdi>{item.phone}</bdi></button>)}{data&&!data.total&&<EmptyState icon={Users}>{c('empty')}</EmptyState>}</div>
    {data&&<Pager {...{data,setPage,c}}/>}
   </>}
  </PageLayout>;
