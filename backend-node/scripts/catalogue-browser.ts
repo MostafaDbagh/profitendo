@@ -35,12 +35,12 @@ try{
  await scan.fill('UNKNOWN');await scan.press('Enter');await page.getByRole('alert').waitFor();
  await open(staff);await staff.getByRole('cell',{name:'MILK-001',exact:true}).waitFor();assert.equal(await staff.getByRole('columnheader',{name:'Purchase cost',exact:true}).count(),0);assert.equal(await staff.getByRole('button',{name:'Add product',exact:true}).count(),0);assert(!(await staff.content()).includes('1.2345'));
  await page.getByRole('button',{name:'Edit product',exact:true}).click();await page.getByLabel('Product name',{exact:true}).fill('Fresh milk updated');await page.getByRole('dialog').getByRole('button',{name:'Save changes',exact:true}).click();await page.getByRole('cell',{name:'Fresh milk updated',exact:true}).waitFor();
- await page.getByRole('button',{name:'Packs & image',exact:true}).click();await page.getByLabel('Pack name',{exact:true}).fill('Carton of 12');await page.getByLabel('Base units per pack',{exact:true}).fill('12');await page.getByRole('button',{name:'Add pack',exact:true}).click();await page.getByRole('button',{name:'Retire',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Details & photos',exact:true}).click();assert.equal(await page.locator('#pack-name').count(),0);
  const sharp=(await import('sharp')).default;const png=await sharp({create:{width:20,height:20,channels:3,background:'#10b981'}}).png().toBuffer();await page.locator('#product-image').setInputFiles({name:'product.png',mimeType:'image/png',buffer:png});await page.getByAltText('Fresh milk updated',{exact:true}).waitFor();
- await page.getByRole('button',{name:'Retire',exact:true}).click();await page.getByRole('button',{name:'Confirm retirement',exact:true}).click();await page.getByText('Retired',{exact:true}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
+ await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
  for(const lang of ['en','ar'])for(const width of [320,390,768,1024,1440]){
   await page.setViewportSize({width,height:width<768?844:1100});await page.evaluate(l=>localStorage.setItem('profitlens_lang',l),lang);await open(page,lang);await shot(page,`new-${lang}-${width}-list`);await page.getByRole('button',{name:lang==='ar'?'إضافة منتج':'Add product',exact:true}).click();await page.getByRole('dialog').waitFor();await shot(page,`new-${lang}-${width}-form`);await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
-  for(const [en,ar,kind] of [['Packs & image','العبوات والصورة','assets'],['Categories & units','الفئات والوحدات','references']]){
+  for(const [en,ar,kind] of [['Details & photos','التفاصيل والصور','assets'],['Categories & units','الفئات والوحدات','references']]){
    const button=page.getByRole('button',{name:lang==='ar'?ar:en,exact:true});await button.click();await page.getByRole('dialog').waitFor();await shot(page,`new-${lang}-${width}-${kind}`);assert(await page.getByRole('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
   }
  }

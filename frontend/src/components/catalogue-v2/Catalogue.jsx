@@ -69,7 +69,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     scanner:lang==='ar'?'الماسح الضوئي':'Barcode scanner',
     options:lang==='ar'?'خيارات بحث إضافية':'More options',
     exportCsv:lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV',
-    assets:lang==='ar'?'العبوات والصورة':'Packs & image',
+    assets:lang==='ar'?'التفاصيل والصور':'Details & photos',
   };
   const extraFields=Object.entries(defaults).map(([key,label])=>({key:'catalogue_'+key,label}));
   const displayLabel=key=>savedLabels['catalogue_'+key] || defaults[key];
@@ -147,7 +147,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
       {!stockProduct.stockByLocation?.length&&<p className="mt-1 text-xs text-slate-500">{lang==='ar'?'لا تتوفر تفاصيل المواقع':'No location details available'}</p>}
     </Modal>}
     {references&&<References canDelete={context.permissions['catalogue.delete']} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>setReferences(false)}/>}
-    {assets&&<ProductAssets canDelete={context.permissions['catalogue.delete']} product={assets} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>{setAssets(null);reload();}}/>}
+    {assets&&<ProductAssets title={displayLabel('assets')} product={assets} {...{path,api,c,lang}} returnFocus={trigger.current} close={()=>{setAssets(null);reload();}}/>}
     {importing&&<ProductImport businessId={context.business.id} {...{api,c,lang}} returnFocus={trigger.current} close={()=>{setImporting(false);reload();}} done={()=>{setImporting(false);refreshContext();}}/>}
     {edit&&<ProductForm canDelete={context.permissions['catalogue.delete']} product={edit.product} initialName={edit.name} {...{cost,path,api,c,lang}} returnFocus={trigger.current} close={()=>setEdit(null)} done={finishProduct}/>}
   </PageLayout>;
