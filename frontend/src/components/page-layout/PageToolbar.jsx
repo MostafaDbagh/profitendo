@@ -16,7 +16,7 @@ export function TableSearchButton({ label, type = 'submit', disabled, onClick })
   );
 }
 
-export function TableCsvButton({ label, disabled, onClick }) {
+export function TableCsvButton({ label, compactLabel, disabled, onClick }) {
   const { lang } = useLanguage();
   const shortLabel = lang === 'ar' ? 'تصدير CSV' : 'Export CSV';
   const accessibleLabel = label || shortLabel;
@@ -25,8 +25,8 @@ export function TableCsvButton({ label, disabled, onClick }) {
     <button type="button" className={controlClass} aria-label={accessibleLabel} title={accessibleLabel}
       disabled={disabled} onClick={onClick}>
       <Download aria-hidden="true" className="h-4 w-4 shrink-0" />
-      <span className="sm:hidden" aria-hidden="true">CSV</span>
-      <span className="hidden sm:inline lg:hidden" aria-hidden="true">{shortLabel}</span>
+      <span className="sm:hidden" aria-hidden="true">{compactLabel || 'CSV'}</span>
+      <span className="hidden sm:inline lg:hidden" aria-hidden="true">{compactLabel || shortLabel}</span>
       <span className="hidden lg:inline" aria-hidden="true">{accessibleLabel}</span>
     </button>
   );
@@ -34,11 +34,11 @@ export function TableCsvButton({ label, disabled, onClick }) {
 
 /** @typedef {import('react').ReactNode} Slot */
 /** @param {{search?: Slot, primaryFilters?: Slot, filters?: Slot, filtersActive?: boolean, importAction?: Slot, exportAction?: Slot}} props */
-export default function PageToolbar({ layout, search, primaryFilters, filters, filtersActive, importAction, exportAction }) {
+export default function PageToolbar({ optionsOverride, layout, search, primaryFilters, filters, filtersActive, importAction, exportAction }) {
   const { lang } = useLanguage();
   const ar = lang === 'ar';
   const dir = ar ? 'rtl' : 'ltr';
-  const optionsLabel = ar ? 'خيارات بحث إضافية' : 'More options';
+  const optionsLabel = optionsOverride || (ar ? 'خيارات بحث إضافية' : 'More options');
   const activeLabel = ar ? 'تصفية مفعّلة' : 'Filtered';
   if (!search && !primaryFilters && !filters && !importAction && !exportAction) return null;
 
@@ -60,7 +60,7 @@ export default function PageToolbar({ layout, search, primaryFilters, filters, f
         {filters && <PopoverTrigger asChild>
           <button type="button" className={`${controlClass} group relative ${extraControls?'!w-auto flex-[1_1_7rem]':''} ${filtersActive ? '!border-emerald-200 !bg-accent !text-accent-foreground' : ''}`}
             aria-label={filtersActive ? `${optionsLabel} (${activeLabel})` : optionsLabel}>
-            <span className="sm:hidden" aria-hidden="true">{ar ? 'خيارات بحث' : 'Options'}</span>
+            <span className="sm:hidden" aria-hidden="true">{optionsOverride || (ar ? 'خيارات بحث' : 'Options')}</span>
             <span className="hidden sm:inline" aria-hidden="true">{optionsLabel}</span>
             <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180 sm:h-4 sm:w-4" />
             {filtersActive && <span aria-hidden="true" className="absolute end-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />}

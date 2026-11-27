@@ -1,3 +1,4 @@
+import Program from '../loyalty/Program';
 import {PageHeader, PageLayout} from '../page-layout/PageLayout';
 import Disclosure, {OptionalFields} from './Disclosure';
 import TimezoneField from './TimezoneField';
@@ -70,7 +71,7 @@ export default function Settings({ context, api, c, reload, onName, lang, initia
       </Disclosure>}
     </fieldset>
     {editable && <button className={primaryClass} disabled={busy || error === 'REVISION_CONFLICT' || (initialSetup && !form.countryCode)}>{busy ? c('saving') : initialSetup ? (lang === 'ar' ? 'بدء العمل' : 'Get started') : c('save')}</button>}
-  </form>{!initialSetup && permissions['migration.manage'] && <Disclosure title={lang==='ar'?'إعدادات المحاسبة':'Accounting settings'} className="max-w-3xl"><FifoSettings {...{context,api,c,lang}}/></Disclosure>}{!initialSetup && editable && context.role === 'OWNER' && <>
+  </form>{!initialSetup&&editable&&!pinLocked&&<Program {...{context,api,c,lang,reload}}/>}{!initialSetup && permissions['migration.manage'] && <Disclosure title={lang==='ar'?'إعدادات المحاسبة':'Accounting settings'} className="max-w-3xl"><FifoSettings {...{context,api,c,lang}}/></Disclosure>}{!initialSetup && editable && context.role === 'OWNER' && <>
       {pinLocked ? <OwnerPinUnlock {...{context,api,c,lang,onPinStatus}} /> :
         <><BusinessBackup {...{context,api,c,lang}}/><DangerZone {...{context,api,c,lang,reload}}/></>}
     </>}</PageLayout>;

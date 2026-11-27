@@ -22,6 +22,8 @@ export const PERMISSIONS = {
   'reports.view': { ownerOnly: false },
   'migration.manage': { ownerOnly: true },
   'sales.delete': { ownerOnly: false },
+  'customers.view': { ownerOnly: false },
+  'loyalty.redeem': { ownerOnly: false },
   'sales.view': { ownerOnly: false },
   'sales.create': { ownerOnly: false },
   'sales.discount': { ownerOnly: false },
@@ -73,7 +75,7 @@ export const ROLE_DEFAULTS: Record<MembershipRole, readonly Permission[]> = {
   CASHIER: ['returns.view','returns.create','sales.view','sales.create','business.view', 'locations.view', 'catalogue.view'],
   VIEWER: ['reports.view','transfers.view','inventory.view','business.view', 'locations.view', 'catalogue.view'],
 };
-const inherited: Partial<Record<Permission,Permission>> = {'damage.view':'counts.view','damage.create':'counts.create','damage.approve':'counts.approve','damage.delete':'counts.delete','catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
+const inherited: Partial<Record<Permission,Permission>> = {'customers.view':'sales.create','loyalty.redeem':'sales.create','damage.view':'counts.view','damage.create':'counts.create','damage.approve':'counts.approve','damage.delete':'counts.delete','catalogue.create':'catalogue.manage','catalogue.edit':'catalogue.manage','suppliers.create':'suppliers.manage','suppliers.edit':'suppliers.manage'};
 export function effectivePermissions(role: MembershipRole, overrides: Prisma.JsonValue) {
   const changes = overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {};
   const result = Object.fromEntries(permissionKeys.map(key => [key,

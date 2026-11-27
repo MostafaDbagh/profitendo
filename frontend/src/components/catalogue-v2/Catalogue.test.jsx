@@ -10,7 +10,6 @@ jest.mock('react-router-dom', () => ({ useNavigate: () => () => {} }), { virtual
 jest.mock('@/lib/quantity', () => ({ formatQuantity: value => String(value ?? '') }), { virtual: true });
 jest.mock('@/lib/utils', () => jest.requireActual('../../lib/utils'), { virtual: true });
 jest.mock('@/components/CopyableCode', () => ({ __esModule: true, default: ({ children }) => <span>{children}</span> }), { virtual: true });
-jest.mock('./ProductImport', () => () => null);
 jest.mock('../ui/dialog', () => ({
   Dialog: ({ children }) => <div role="dialog">{children}</div>,
   DialogContent: ({ children }) => <div>{children}</div>,
@@ -40,12 +39,15 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-async function render(lang, canCreate = true) {
+async function render(lang, canCreate = true, settings = {}) {
   localStorage.setItem('profitlens_lang', lang);
-  const context = { business: { id: 'shop' }, permissions: { 'catalogue.create': canCreate, 'catalogue.cost': canCreate } };
+  const context = { business: { id: 'shop', ...settings.business }, permissions: { 'business.edit': Boolean(settings.onPatch), 'catalogue.create': canCreate, 'catalogue.cost': canCreate } };
   const api = async (path, options) => {
     const url = new URL(path, 'https://app.example.test');
     paths.push(url);
+    if (url.searchParams.get('export') === 'true') return { filename: 'products.csv', csv: 'SKU,Name\r\n001-MILK,Milk' };
+    if (url.pathname.endsWith('/product-imports/template')) return { filename: 'product-import-template.' + url.searchParams.get('format'), fileBase64: btoa('template') };
+    if (options?.method === 'PATCH') return settings.onPatch(options.body);
     if (options?.method === 'POST') {
       expect(options.body.name).toBe('Lemon');
       return { id: 'lemon', sku: '003-LEMON', active: true };
@@ -163,4 +165,60 @@ test('a restored product form reuses its submission key after an unknown respons
   expect(keys[0]).toBeTruthy();
   expect(keys[1]).toBe(keys[0]);
   expect(keys[2]).not.toBe(keys[0]);
+});
+
+test('the catalogue rename action saves table and button labels together and displays them after reload', async () => {
+  const onPatch=jest.fn();
+  await render('ar',true,{business:{revision:3},onPatch});
+  const trigger=Array.from(host.querySelectorAll('button')).find(button=>button.textContent==='إعادة التسمية');
+  act(()=>trigger.click());
+  const form=document.querySelector('#label-catalogue_catalogue').form;
+  act(()=>{
+    fill(form.querySelector('#label-catalogue_catalogue'),'خدمات الحلاقة');
+    fill(form.querySelector('#label-catalogue_productName'),'الخدمة');
+    fill(form.querySelector('#label-addProduct'),'أضف حلاقة');
+  });
+  await act(async ()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  const patch=onPatch.mock.calls[0][0];
+  expect(patch.revision).toBe(3);
+  expect(patch.actionLabels.ar).toEqual({catalogue_catalogue:'خدمات الحلاقة',catalogue_productName:'الخدمة',addProduct:'أضف حلاقة'});
+  await render('ar',true,{business:patch});
+  expect(host.querySelector('h1,h2').textContent).toContain('خدمات الحلاقة');
+  expect(host.querySelector('th').textContent).toContain('الخدمة');
+  expect(Array.from(host.querySelectorAll('button')).some(button=>button.textContent.includes('أضف حلاقة'))).toBe(true);
+});
+
+test.each([false,true])('uses the standard export and import templates with custom catalogue labels enabled=%s', async custom => {
+  const overrides = { catalogue_catalogue:'خدمات الحلاقة', catalogue_productName:'الخدمة',
+    catalogue_exportCsv:'تصدير الخدمات', catalogue_importProducts:'استيراد الخدمات' };
+  await render('ar',true,{business:{actionLabels:{ar:custom ? overrides : {}}}});
+  const button = label => Array.from(document.querySelectorAll('button')).find(element =>
+    element.getAttribute('aria-label') === label || element.textContent === label);
+  const blobs = [];
+  const downloads = [];
+  const original = URL.createObjectURL;
+  URL.createObjectURL = blob => { blobs.push(blob); return 'blob:test'; };
+  const click = jest.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(function () { downloads.push(this.download); });
+  try {
+    await act(async () => button(custom ? overrides.catalogue_exportCsv : 'تصدير كل النتائج CSV').click());
+    await act(async () => button(custom ? overrides.catalogue_importProducts : businessCopy.ar.importProducts).click());
+    await act(async () => button(businessCopy.ar.downloadImportTemplate).click());
+    await act(async () => button('تنزيل قالب CSV').click());
+    expect(paths.slice(-3).map(url => url.pathname + url.search)).toEqual([
+      '/businesses/shop/products/insights?page=1&state=active&search=&filter=all&export=true&lang=ar',
+      '/businesses/shop/product-imports/template?format=xlsx&lang=ar',
+      '/businesses/shop/product-imports/template?format=csv&lang=ar',
+    ]);
+    expect(downloads).toEqual(['products.csv','product-import-template.xlsx','product-import-template.csv']);
+    const csv = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(blobs[0]);
+    });
+    expect(csv).toBe('SKU,Name\r\n001-MILK,Milk');
+  } finally {
+    click.mockRestore();
+    if (original) URL.createObjectURL = original;
+    else delete URL.createObjectURL;
+  }
 });

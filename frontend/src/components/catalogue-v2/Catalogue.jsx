@@ -61,29 +61,42 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     setNotice(saved?'saved':'');
     if(created)refreshContext();
   }
+  const savedLabels=context.business.actionLabels?.[lang] ?? {};
+  const defaults={
+    catalogue:c('catalogue'), importProducts:c('importProducts'), search:c('search'),
+    previous:c('previous'), next:c('next'), findProduct:c('findProduct'), editProduct:c('editProduct'),
+    references:lang==='ar'?'الفئات والوحدات':'Categories & units',
+    scanner:lang==='ar'?'الماسح الضوئي':'Barcode scanner',
+    options:lang==='ar'?'خيارات بحث إضافية':'More options',
+    exportCsv:lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV',
+    assets:lang==='ar'?'العبوات والصورة':'Packs & image',
+  };
+  const extraFields=Object.entries(defaults).map(([key,label])=>({key:'catalogue_'+key,label}));
+  const displayLabel=key=>savedLabels['catalogue_'+key] || defaults[key];
+  const addLabel=savedLabels.addProduct || c('addProduct');
   const actions=[
-    {id:'add',label:context.business.actionLabels?.[lang]?.['addProduct'] || c('addProduct'),icon:Plus,variant:'primary',visible:!!(create&&cost),onClick:event=>open(event,null)},
-    {id:'import',label:c('importProducts'),icon:Upload,visible:!!(create&&cost),onClick:event=>{trigger.current=event.currentTarget;setImporting(true);}},
-    {id:'references',label:lang==='ar'?'الفئات والوحدات':'Categories & units',
+    {id:'add',label:addLabel,icon:Plus,variant:'primary',visible:!!(create&&cost),onClick:event=>open(event,null)},
+    {id:'import',label:displayLabel('importProducts'),icon:Upload,visible:!!(create&&cost),onClick:event=>{trigger.current=event.currentTarget;setImporting(true);}},
+    {id:'references',label:displayLabel('references'),
      visible:!!context.permissions['catalogue.manage'],onClick:event=>{trigger.current=event.currentTarget;setReferences(true);}},
   ];
   const currency=data?.currency ?? context.business.baseCurrency;
-  return <PageLayout title={c('catalogue')}
+  return <PageLayout title={displayLabel('catalogue')}
     titleMeta={currency && <>{c('pricesCurrency')}: <bdi dir="ltr" className="font-semibold">{currency}</bdi></>}
-    actions={actions} pagination={data&&<Pager {...{data,setPage,c}}/>}
+    actions={actions} pagination={data&&<Pager {...{data,setPage}} c={key=>defaults[key]?displayLabel(key):c(key)}/>}
     toolbar={<>
     <details className={`${panelClass} group !p-0`}>
       <summary className={`${buttonClass} flex w-full cursor-pointer list-none justify-between group-open:bg-muted [&::-webkit-details-marker]:hidden`}>
         <span className="flex items-center gap-2">
           <ScanBarcode aria-hidden="true" className="text-emerald-700"/>
-          {lang==='ar'?'الماسح الضوئي':'Barcode scanner'}
+          {displayLabel('scanner')}
         </span>
         <ChevronDown aria-hidden="true" className="text-slate-500 motion-safe:transition-transform group-open:rotate-180"/>
       </summary>
-      <form onSubmit={lookup} className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3"><label htmlFor="catalogue-scan" className="block text-sm font-medium text-slate-700">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}<RequiredMark/></label><div className="flex flex-wrap gap-2"><input ref={scanRef} id="catalogue-scan" aria-label={lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'} className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-slate-200 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500" dir="ltr" placeholder="001234567890" value={scan} onChange={e=>setScan(e.target.value)} maxLength={128} required/><button className={buttonClass} disabled={scanning}>{c(scanning?'loading':'findProduct')}</button></div><p className="text-xs text-slate-500">{lang==='ar'?'امسح الباركود أو أدخل رمز الصنف، ثم اضغط Enter.':'Scan a barcode or enter a SKU, then press Enter.'}</p><Feedback error={scanError} c={c}/>{found&&<div className="flex items-center gap-2"><p role="status" className="text-sm text-emerald-700">{c('productFound')}: {found.name} · <CopyableCode>{found.sku}</CopyableCode></p><button type="button" onClick={()=>setFound(null)} aria-label={lang==='ar'?'إخفاء نتيجة البحث':'Dismiss search result'} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X aria-hidden="true" className="h-4 w-4" /></button></div>}</form>
+      <form onSubmit={lookup} className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3"><label htmlFor="catalogue-scan" className="block text-sm font-medium text-slate-700">{lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'}<RequiredMark/></label><div className="flex flex-wrap gap-2"><input ref={scanRef} id="catalogue-scan" aria-label={lang==='ar'?'الباركود أو رمز الصنف':'Barcode or SKU'} className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-slate-200 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500" dir="ltr" placeholder="001234567890" value={scan} onChange={e=>setScan(e.target.value)} maxLength={128} required/><button className={buttonClass} disabled={scanning}>{scanning?c('loading'):displayLabel('findProduct')}</button></div><p className="text-xs text-slate-500">{lang==='ar'?'امسح الباركود أو أدخل رمز الصنف، ثم اضغط Enter.':'Scan a barcode or enter a SKU, then press Enter.'}</p><Feedback error={scanError} c={c}/>{found&&<div className="flex items-center gap-2"><p role="status" className="text-sm text-emerald-700">{c('productFound')}: {found.name} · <CopyableCode>{found.sku}</CopyableCode></p><button type="button" onClick={()=>setFound(null)} aria-label={lang==='ar'?'إخفاء نتيجة البحث':'Dismiss search result'} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X aria-hidden="true" className="h-4 w-4" /></button></div>}</form>
     </details>
-    <PageToolbar
-      search={<ProductTableSearch id="catalogue-search" {...{c,lang}} value={search} onChange={setSearch} onSearch={applySearch}
+    <PageToolbar optionsOverride={savedLabels.catalogue_options}
+      search={<ProductTableSearch id="catalogue-search" {...{c,lang}} searchLabel={displayLabel('search')} addLabel={addLabel} value={search} onChange={setSearch} onSearch={applySearch}
         results={checkAllProducts?allProducts.data:currentResults}
         failed={query===search.trim()&&Boolean(error||allProducts.error)}
         onSelect={selectSuggestion} onAdd={create&&cost?addFromSearch:undefined}/>}
@@ -99,13 +112,13 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
           {stock&&<option value="low">{lang==='ar'?'مخزون منخفض':'Low stock'}</option>}
         </Select>
       </div>}
-      exportAction={<TableCsvButton label={lang==='ar'?'تصدير كل النتائج CSV':'Export all results CSV'}
+      exportAction={<TableCsvButton label={displayLabel('exportCsv')} compactLabel={savedLabels.catalogue_exportCsv}
         disabled={exporting||!data} onClick={exportRows}/>}
     />
     </>}>
     <Feedback error={error||exportError} notice={notice} c={c} retry={reload}/>{!data&&!error&&<LoadingState>{c('loading')}</LoadingState>}
     {data&&<div>
-      <CustomizableTable tableName="catalogue" actionKey="addProduct" {...{context,api,lang}} reload={refreshContext} compact numericHeaders={['productUnitsSold','productAvailableTotal','sellingPrice','purchasePrice','productSaleCount']} tools={false} tableClassName="min-w-[1100px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-48">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular text-end"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
+      <CustomizableTable tableName="catalogue" extraFields={extraFields} actionKey="addProduct" {...{context,api,lang}} reload={refreshContext} compact numericHeaders={['productUnitsSold','productAvailableTotal','sellingPrice','purchasePrice','productSaleCount']} tools={false} tableClassName="min-w-[1100px] [&_td]:align-middle [&_td]:whitespace-nowrap" headers={['productName','category',...(sales?['productUnitsSold']:[]),...(stock?['productAvailableTotal']:[]),'sku','barcodeColumn','unit','sellingPrice',...(cost?['purchasePrice']:[]),...(sales?['productSaleCount']:[]),'status',...(manage?['actions']:[])]} empty={!data.items.length} c={c}>{data.items.map(p=><tr key={p.id}><td className="px-5 py-3 font-semibold min-w-48">{p.name}</td><td className="px-5 py-3">{p.category?.trim() || '-'}</td>{sales&&<td className="px-5 py-3 font-semibold tabular text-end"><bdi>{quantity(p.unitsSold)}</bdi></td>}{stock&&<td className="px-5 py-3">
       <div className="flex items-center justify-end gap-1 text-sm text-slate-700">
         <bdi className="font-semibold tabular">{quantity(p.available)}</bdi>
         <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -114,7 +127,7 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
           <Info aria-hidden="true" className="h-4 w-4"/>
         </button>
       </div>
-    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?<div><CopyableCode kind="barcode">{p.barcodes[0]}</CopyableCode>{p.barcodes.length>1&&<details className="mt-1"><summary className="cursor-pointer text-xs text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{lang==='ar'?`عرض ${p.barcodes.length-1} باركود إضافي`:`Show ${p.barcodes.length-1} more barcodes`}</summary><div className="mt-1 space-y-1">{p.barcodes.slice(1).map(barcode=><div key={barcode}><CopyableCode kind="barcode">{barcode}</CopyableCode></div>)}</div></details>}</div>:<span className="text-slate-400">—</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular text-end"><bdi dir="ltr">{p[k] == null ? '—' : Number(p[k]).toFixed(2)}</bdi></td>)}{sales&&<td className="px-5 py-3 tabular text-end"><bdi>{quantity(p.saleCount)}</bdi></td>}<td className="px-5 py-3"><TableStatus status={p.active?'active':'inactive'}>{c(p.active?'active':'inactive')}</TableStatus></td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button type="button" className={rowButtonClass} aria-label={`${c('editProduct')}: ${p.name}`} onClick={e=>open(e,p)}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{c('editProduct')}</button><button type="button" className={rowButtonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{lang==='ar'?'العبوات والصورة':'Packs & image'}</button></div></td>}</tr>)}</CustomizableTable>
+    </td>}<td className="px-5 py-3 whitespace-nowrap"><CopyableCode>{p.sku}</CopyableCode></td><td className="px-5 py-3 whitespace-nowrap">{p.barcodes?.length?<div><CopyableCode kind="barcode">{p.barcodes[0]}</CopyableCode>{p.barcodes.length>1&&<details className="mt-1"><summary className="cursor-pointer text-xs text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{lang==='ar'?`عرض ${p.barcodes.length-1} باركود إضافي`:`Show ${p.barcodes.length-1} more barcodes`}</summary><div className="mt-1 space-y-1">{p.barcodes.slice(1).map(barcode=><div key={barcode}><CopyableCode kind="barcode">{barcode}</CopyableCode></div>)}</div></details>}</div>:<span className="text-slate-400">—</span>}</td><td className="px-5 py-3">{unitLabel(p.unit,c)}</td>{['sellingPrice',...(cost?['purchasePrice']:[])].map(k=><td key={k} className="px-5 py-3 tabular text-end"><bdi dir="ltr">{p[k] == null ? '—' : Number(p[k]).toFixed(2)}</bdi></td>)}{sales&&<td className="px-5 py-3 tabular text-end"><bdi>{quantity(p.saleCount)}</bdi></td>}<td className="px-5 py-3"><TableStatus status={p.active?'active':'inactive'}>{c(p.active?'active':'inactive')}</TableStatus></td>{manage&&<td className="px-5 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button type="button" className={rowButtonClass} aria-label={`${displayLabel('editProduct')}: ${p.name}`} onClick={e=>open(e,p)}><Pencil aria-hidden="true" className="h-4 w-4 shrink-0"/>{displayLabel('editProduct')}</button><button type="button" className={rowButtonClass} onClick={e=>{trigger.current=e.currentTarget;setAssets(p);}}>{displayLabel('assets')}</button></div></td>}</tr>)}</CustomizableTable>
     </div>}
     {stock&&stockProduct&&<Modal title={stockProduct.name} description={lang==='ar'?'المخزون المتاح حسب الموقع':'Available stock by location'}
       {...{c,lang}} returnFocus={trigger.current} close={()=>setStockProduct(null)}>

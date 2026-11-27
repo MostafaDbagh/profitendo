@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { beforeAll, afterAll, it, expect } from 'vitest';
+import { beforeAll, afterAll, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import { pino } from 'pino';
 import { createDatabase } from '../src/database.js';
@@ -48,9 +48,13 @@ afterAll(async()=>{
   await tx.stockMovement.deleteMany({where:{businessId:{in:bids}}});
   await tx.$executeRawUnsafe('ALTER TABLE stock_movements ENABLE TRIGGER stock_history_immutable');
   for(const [table,trigger] of [['sale_payments','sale_payments_immutable'],['sale_lines','completed_sale_lines_immutable'],['sales','completed_sale_immutable']])await tx.$executeRawUnsafe(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`);
+  await tx.$queryRaw`SELECT set_config('profitlens.reset_business', ${business}, true)`;
+  await tx.adjustmentLine.deleteMany({where:{businessId:business}});await tx.adjustment.deleteMany({where:{businessId:business}});
+  await tx.loyaltyReward.deleteMany({where:{businessId:{in:bids}}});await tx.loyaltyVisit.deleteMany({where:{businessId:{in:bids}}});
   await tx.salePayment.deleteMany({where:{businessId:{in:bids}}});await tx.saleLine.deleteMany({where:{businessId:{in:bids}}});await tx.sale.deleteMany({where:{businessId:{in:bids}}});
   for(const [table,trigger] of [['sale_payments','sale_payments_immutable'],['sale_lines','completed_sale_lines_immutable'],['sales','completed_sale_immutable']])await tx.$executeRawUnsafe(`ALTER TABLE ${table} ENABLE TRIGGER ${trigger}`);
  });
+ await db.customer.deleteMany({where:{businessId:{in:bids}}});
  await db.productBarcode.deleteMany({where:{businessId:{in:bids}}});await db.productPack.deleteMany({where:{businessId:{in:bids}}});
  await db.stockBalance.deleteMany({where:{businessId:{in:bids}}});await db.locationAssignment.deleteMany({where:{businessId:{in:bids}}});await db.location.deleteMany({where:{businessId:{in:bids}}});await db.product.deleteMany({where:{businessId:{in:bids}}});
  await db.authAudit.deleteMany({where:{businessId:{in:bids}}});await db.business.deleteMany({where:{id:{in:bids}}});await db.authUser.deleteMany({where:{id:{in:ids}}});await db.billingPlan.delete({where:{id:planId}});await db.$disconnect();
@@ -335,4 +339,108 @@ it('records cashier checkout and leaves unknown legacy roles unset',async()=>{
  const legacy=await draft({lines:[{productId:p,quantity:'1'}]});
  await db.sale.update({where:{id:legacy.id},data:{actorRole:null}});
  expect((await get(`/${legacy.id}`)).body).toMatchObject({actorRole:null,actorName:legacy.actorName});
+});
+
+it('links a normalized customer, counts distinct local days and delivers each earned gift once',async()=>{
+ const clock=Date.now(),zone='Asia/Dubai',today=new Date(clock).toISOString().slice(0,10);
+ const start=new Date(today+'T20:05:00Z').getTime()-10*86400000;
+ await db.businessSubscription.update({where:{businessId:business},data:{trialStartedAt:new Date(start-86400000),trialEndsAt:new Date(start+15*86400000)}});
+ const customerPhone='٠٩١٢ ٣٤٥ ٦٧٨';
+ const b=await db.business.update({where:{id:business},data:{countryCode:'SY',timezone:zone}});
+ const program={enabled:true,length:10,repeat:true,stages:[{step:5,name:'Fifth gift',productId:product},{step:10,name:'Final gift',productId:null}]};
+ const configure=await request(app).put(`/api/businesses/${business}/sales/loyalty/program`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:b.revision,program});
+ expect(configure.status,configure.text).toBe(200);
+ const registered=await write('/loyalty/customers',{name:'Customer',phone:customerPhone},cashier);
+ expect(registered.status,registered.text).toBe(200);
+ const id=registered.body.customer.id;
+ expect((await write('/loyalty/customers/lookup',{phone:'+963912345678'},cashier)).body.customer.id).toBe(id);
+ expect((await get('/loyalty/customers/'+id,foreign,other)).status).toBe(404);
+ const linked=()=>draft({customerId:id});
+ let finalReward='',fifthSale:Awaited<ReturnType<typeof draft>>;
+ try{
+  for(let n=1;n<=11;n++){
+   const at=start+(n-1)*86400000;
+   vi.setSystemTime(at);
+   await db.authSession.updateMany({where:{userId:{in:[owner.user.id,cashier.user.id]}},data:{lastSeenAt:new Date(at),expiresAt:new Date(at+86400000)}});
+   const d=await linked(),input=checkoutBody(d);
+   if(n===1){
+    expect((await checkout(d,checkoutBody(d,{payment:{method:'CASH',received:'0'}}))).status).toBe(422);
+    const walk=await draft();expect((await checkout(walk)).status).toBe(200);
+    expect((await get('/loyalty/customers/'+id)).body.count).toBe(0);
+   }
+   const second=n===10?await draft({customerId:id},cashier):null;
+   const paid=await Promise.all([checkout(d,input),...(second?[checkout(second,checkoutBody(second),cashier)]:[])]);
+   for(const r of paid)expect(r.status,r.text).toBe(200);
+   expect((await checkout(d,input)).status).toBe(200);
+   const card=(await get('/loyalty/customers/'+id)).body;
+   expect(card.progress).toBe(n%10);expect(card.count).toBe(n);expect(card.today).toBe(true);
+   if(n===5){
+    fifthSale=d;
+    const gift=card.rewards[0];expect(gift.name).toBe('Fifth gift');
+    const before=Number(await stock(source));
+    const responses=await Promise.all([owner,cashier].map(who=>write('/loyalty/rewards/'+gift.id+'/redeem',{locationId:source},who)));
+    for(const r of responses)expect(r.status,r.text).toBe(200);
+    expect(Number(await stock(source))).toBe(before-1);
+   }
+   if(n===10){finalReward=card.rewards.find((r:{name:string})=>r.name==='Final gift').id;expect(card.cycle).toBe(2);}
+   if(n===11)expect(card.rewards.find((r:{id:string})=>r.id===finalReward).redeemedAt).toBeNull();
+  }
+  const workflow=(suffix:string,payload:object)=>request(app).post(`/api/businesses/${business}/workflows/adjustments${suffix}`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send(payload);
+  const returned=await workflow('',{clientKey:randomUUID(),kind:'CUSTOMER_RETURN',locationId:source,sourceId:fifthSale.id,reason:'Full loyalty test return',lines:fifthSale.lines.map((l:{id:string;productId:string;baseQuantity:string})=>({productId:l.productId,sourceLineId:l.id,quantity:l.baseQuantity}))});
+  expect(returned.status,returned.text).toBe(201);
+  const confirmed=await workflow('/'+returned.body.id+'/status',{revision:returned.body.revision,action:'confirm',confirm:true});
+  expect(confirmed.status,confirmed.text).toBe(200);
+  const afterReturn=(await get('/loyalty/customers/'+id)).body;
+  expect(afterReturn.count).toBe(10);
+  expect(afterReturn.rewards.find((r:{name:string})=>r.name==='Fifth gift')).toMatchObject({voided:true,redeemedBy:expect.any(String)});
+  expect(afterReturn.rewards.find((r:{id:string})=>r.id===finalReward)).toMatchObject({voided:false,redeemedAt:null});
+  const current=await db.business.findUniqueOrThrow({where:{id:business}});
+  const replacementProgram={enabled:true,repeat:false,length:2,stages:[{name:'Replacement gift',step:2,productId:null}]};
+  const configureAgain=await request(app).put(`/api/businesses/${business}/sales/loyalty/program`).set('Cookie',cookie(owner)).set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,owner.token)).send({revision:current.revision,program:replacementProgram});
+  expect(configureAgain.status,configureAgain.text).toBe(200);
+  expect((await get('/loyalty/customers/'+id)).body.rewards).toContainEqual(expect.objectContaining({id:finalReward,name:'Final gift',redeemedAt:null}));
+  const cancelDoc=await linked();
+  expect((await write('/'+cancelDoc.id+'/cancel',{revision:cancelDoc.revision,confirm:true})).status).toBe(200);
+  expect((await get('/loyalty/customers/'+id)).body.count).toBe(10);
+ }finally{vi.useRealTimers();await db.authSession.updateMany({where:{userId:{in:[owner.user.id,cashier.user.id]}},data:{lastSeenAt:new Date(),expiresAt:new Date(Date.now()+86400000)}});}
+},60000);
+
+it('validates milestone configuration and keeps an out-of-stock gift claimable on a non-renewing card',async()=>{
+ const root='/loyalty',item=await funded('1');
+ async function configure(program:object,who=owner){
+  const {revision}=await db.business.findUniqueOrThrow({where:{id:business}});
+  return request(app).put(`/api/businesses/${business}/sales/loyalty/program`).set('Cookie',cookie(who))
+   .set('Origin',settings.appOrigin).set('X-CSRF-Token',csrfFor(settings.key,who.token)).send({revision,program});
+ }
+ const gift={step:1,name:'Test gift',productId:item},program={length:1,repeat:false,enabled:true,stages:[gift]};
+ expect((await configure(program,cashier)).status).toBe(403);
+ for(const stages of [[],[gift,gift],[{...gift,step:2}],[{...gift,name:' '}],[{...gift,productId:randomUUID()}]]){
+  expect((await configure({...program,stages})).status).toBe(422);
+ }
+ expect((await configure({...program,enabled:false})).status).toBe(200);
+ expect((await write(root+'/customers',{phone:'abc',name:'Test'})).status).toBe(422);
+ const reg=await write(root+'/customers',{phone:'+963933333333',name:'Nonrenewing customer'});
+ expect(reg.status,reg.text).toBe(200);
+ const customerId=reg.body.customer.id;
+ const getCard=async()=>(await get(root+'/customers/'+customerId)).body;
+ const duplicate=await write(root+'/customers',{phone:'٠٠٩٦٣ ٩٣٣٣٣٣٣٣٣',name:'Other name'});
+ expect(duplicate.body.customer).toMatchObject({id:customerId,name:'Nonrenewing customer'});
+ const first=await draft({customerId});
+ expect((await checkout(first)).status).toBe(200);expect((await getCard()).count).toBe(0);
+ expect((await configure(program)).status).toBe(200);
+ const paid=await draft({customerId});expect((await checkout(paid)).status).toBe(200);
+ const card=await getCard();expect(card).toMatchObject({progress:1,count:1,cycle:1});
+ const rewardId=card.rewards[0].id;
+ async function adjust(delta:string){await auth.transaction(tx=>postStock(tx,{businessId:business,locationId:source,productId:item,delta,type:'TEST_ADJUSTMENT',sourceId:randomUUID(),sourceLineId:randomUUID(),reference:'Test supply',actorId:owner.user.id,notes:''}));}
+ const redeem=()=>write(root+'/rewards/'+rewardId+'/redeem',{locationId:source});
+ await adjust('-1');expect((await redeem()).body.error.code).toBe('INSUFFICIENT_STOCK');
+ expect((await getCard()).rewards[0].redeemedAt).toBeNull();
+ await adjust('1');expect((await redeem()).status).toBe(200);expect(await stock(source,item)).toBe('0.0000');
+ const tomorrow=new Date(Date.now()+86400000);
+ await db.businessSubscription.update({where:{businessId:business},data:{trialEndsAt:new Date(tomorrow.getTime()+86400000)}});
+ try{
+  vi.setSystemTime(tomorrow);await db.authSession.updateMany({where:{userId:owner.user.id},data:{lastSeenAt:tomorrow,expiresAt:new Date(tomorrow.getTime()+86400000)}});
+  const another=await draft({customerId});expect((await checkout(another)).status).toBe(200);
+  const final=await getCard();expect(final).toMatchObject({progress:1,count:1,cycle:1});expect(final.rewards).toHaveLength(1);
+ }finally{vi.useRealTimers();await db.authSession.updateMany({where:{userId:owner.user.id},data:{lastSeenAt:new Date(),expiresAt:new Date(Date.now()+86400000)}});}
 });

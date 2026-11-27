@@ -69,6 +69,7 @@ model Business {
   baseCurrency String @default("USD") @map("base_currency")
   timezone     String @default("UTC")
   dateFormat   String @default("dmy") @map("date_format")
+  loyaltyProgram Json? @map("loyalty_program")
   actionLabels Json @default("{}") @map("action_labels")
   numberFormat String @default("western") @map("number_format")
   revision     Int @default(0)
@@ -712,6 +713,8 @@ model Sale {
   timezone String
   currency String
   currencyDigits Int @map("currency_digits")
+  customerId String? @map("customer_id") @db.Uuid
+  loyaltyDay String? @map("loyalty_day")
   customerPhone String @default("") @map("customer_phone")
   customerName String @default("") @map("customer_name")
   notes String @default("")
@@ -1150,4 +1153,44 @@ model ChartAccount {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   @@id([businessId,code])
   @@map("chart_accounts")
+}
+
+model Customer {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String
+  phone String
+  cycle Int @default(1)
+  progress Int @default(0)
+  @@unique([businessId, phone])
+  @@unique([businessId, id])
+  @@index([businessId,name])
+  @@map("customers")
+}
+
+model LoyaltyVisit {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  saleId String @unique @map("sale_id") @db.Uuid
+  day String
+  cycle Int
+  step Int
+  reversed Boolean @default(false)
+  @@index([businessId,customerId,day])
+  @@map("loyalty_visits")
+}
+
+model LoyaltyReward {
+  id String @id @default(uuid()) @db.Uuid
+  visitId String @unique @map("visit_id") @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  name String
+  productId String? @map("product_id") @db.Uuid
+  redeemedAt DateTime? @map("redeemed_at")
+  redeemedBy String? @map("redeemed_by") @db.Uuid
+  voided Boolean @default(false)
+  @@index([businessId,customerId])
+  @@map("loyalty_rewards")
 }

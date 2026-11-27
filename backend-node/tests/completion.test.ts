@@ -121,8 +121,8 @@ it('customer refunds are capped and payment recording never changes stock',async
  const s=await sold(),l=s.lines[0],r=await adjustment('CUSTOMER_RETURN',[{productId:l.productId,sourceLineId:l.id,quantity:'1'}],{sourceId:s.id});await approve(r);const before=await stock(source,l.productId),input={clientKey:randomUUID(),kind:'CUSTOMER_REFUND',locationId:source,sourceId:r.id,amount:'7',method:'CARD',reference:'Refund terminal',reason:'Customer refund paid',confirm:true};
  const result=await Promise.all([write('/payments',input),write('/payments',input)]);expect(result.map(r=>r.status)).toEqual([201,201]);expect(result[0]!.body.id).toBe(result[1]!.body.id);expect((await pay('CUSTOMER_REFUND','6',{sourceId:r.id})).body.error.code).toBe('PAYMENT_EXCEEDS_BALANCE');expect((await pay('CUSTOMER_REFUND','5',{sourceId:r.id})).status).toBe(201);expect(await stock(source,l.productId)).toBe(before);
 });
-it('expense and cash movements are immutable, require precise amounts and references',async()=>{
- expect((await pay('EXPENSE','1.001')).body.error.code).toBe('MONEY_PRECISION');expect((await pay('EXPENSE','2',{reference:''})).status).toBe(422);
+it('expense and cash movements are immutable, require precise amounts and accept optional references',async()=>{
+ expect((await pay('EXPENSE','1.001')).body.error.code).toBe('MONEY_PRECISION');expect((await pay('EXPENSE','2',{reference:''})).status).toBe(201);
  const r=await pay('EXPENSE','3');expect(r.status).toBe(201);
  const expenses=await get('/payments?kind=EXPENSE');expect(expenses.status).toBe(200);expect(expenses.body.items.length).toBeGreaterThan(0);expect(expenses.body.items.every((row:{kind:string})=>row.kind==='EXPENSE')).toBe(true);expect((await get('/payments?kind=INVALID')).status).toBe(422);
 await expect(db.moneyEntry.update({where:{id:r.body.id},data:{amount:'1'}})).rejects.toThrow();

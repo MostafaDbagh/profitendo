@@ -86,6 +86,33 @@ it('rejects a changed business currency and commits a 500-row batch without part
  expect(await db.product.count({where:{businessId:other}})).toBe(500);expect(await db.productBarcode.count({where:{businessId:other}})).toBe(500);
  expect(await db.authAudit.count({where:{businessId:other,action:'product.created'}})).toBe(500);
 });
+it('preserves catalogue exports and accepts existing import files after display labels change', async () => {
+ const labelOwner = await actor('OWNER');
+ const root = '/api/businesses/' + business;
+ const exportProducts = () => request(app).get(root + '/products/insights?lang=ar&export=true').set('Cookie',cookie(labelOwner)).expect(200);
+ const before = await exportProducts();
+ expect(before.body.csv).toContain('Imported milk');
+ const template = await get('/template?lang=ar&format=csv',labelOwner).expect(200);
+ const labels = {ar:{catalogue_catalogue:'الخدمات',catalogue_productName:'الخدمة',catalogue_exportCsv:'تنزيل الخدمات',catalogue_importProducts:'رفع الخدمات'}};
+ const {revision} = await db.business.findUniqueOrThrow({where:{id:business}});
+ await request(app).patch(root).set('Cookie',cookie(labelOwner)).set('Origin',settings.appOrigin)
+   .set('X-CSRF-Token',csrfFor(settings.key,labelOwner.token)).send({revision,actionLabels:labels}).expect(200);
+ expect((await exportProducts()).body).toEqual(before.body);
+ expect((await get('/template?lang=ar&format=csv',labelOwner).expect(200)).body).toEqual(template.body);
+ const uploads = [
+   await file([productRow('LABEL-XLSX','LABEL-BAR-XLSX')]),
+   {filename:'old-catalogue.csv',fileBase64:Buffer.from([columns.join(','),productRow('LABEL-CSV','LABEL-BAR-CSV').join(',')].join('\r\n')).toString('base64')},
+ ];
+ for (const upload of uploads) {
+   const batch = await write('/preview',upload,labelOwner).expect(201);
+   expect(batch.body.issues).toEqual([]);
+   await write('/'+batch.body.id+'/commit',{confirm:true},labelOwner).expect(200);
+ }
+ const exported = await exportProducts();
+ expect(exported.body.csv).toContain('LABEL-XLSX');
+ expect(exported.body.csv).toContain('LABEL-CSV');
+});
+
 it('rechecks subscription eligibility while allowing completed retries after expiry',async()=>{
  const res=await preview([productRow('EXPIRED','EXP')]);
  await db.businessSubscription.update({where:{businessId:business},data:{trialStartedAt:new Date(Date.now()-86400000),trialEndsAt:new Date(Date.now()-1000)}});

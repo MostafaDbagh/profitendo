@@ -389,7 +389,7 @@ export const completionCopy={
     "MIGRATION_EXPIRED": "انتهت المعاينة. أنشئ معاينة جديدة.",
     "MIGRATION_FILE_INVALID": "استخدم CSV أقل من ٥٠ كيلوبايت بعناوين sku,quantity وحتى ١٠٠ صف.",
     "TIMEZONE_LOCKED": "تُثبّت المنطقة الزمنية بعد تسجيل الدفعات للحفاظ على سجلات الصندوق اليومية.",
-    "column_location": "الموقع",
+    "column_location": "المتجر",
     "column_sku": "رمز الصنف",
     "column_barcodes": "الباركود",
     "column_product": "المنتج",

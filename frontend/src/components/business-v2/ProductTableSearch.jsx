@@ -6,7 +6,7 @@ import { TableSearchButton } from '../page-layout/PageToolbar';
 
 const MAX_SUGGESTIONS = 8;
 
-export default function ProductTableSearch({ id, c, lang, value, results, failed, onChange, onSearch, onSelect, onAdd }) {
+export default function ProductTableSearch({ id, c, lang, searchLabel, addLabel, value, results, failed, onChange, onSearch, onSelect, onAdd }) {
   const listId = useId();
   const input = useRef(null);
   const option = useRef(null);
@@ -73,7 +73,7 @@ export default function ProductTableSearch({ id, c, lang, value, results, failed
             onChange(event.target.value);
           }}/>
       </div>
-      <TableSearchButton label={c('search')} />
+      <TableSearchButton label={searchLabel || c('search')} />
       {showPanel && <div className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white p-1 shadow-md">
         {!results && <LoadingState className="p-2 text-sm text-slate-500">{c('loading')}</LoadingState>}
         {results && !matches.length && <div className="space-y-2 p-3 text-center">
@@ -82,7 +82,7 @@ export default function ProductTableSearch({ id, c, lang, value, results, failed
           </p>
           {onAdd && <button type="button" className={`${primaryClass} !px-2 sm:!px-4`}
             onClick={() => { close(); onAdd(term, input.current); }}>
-            {c('addProduct')}
+            {addLabel || c('addProduct')}
           </button>}
         </div>}
         {showOptions && <ul id={listId} role="listbox" aria-label={c('searchProducts')}

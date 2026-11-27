@@ -1,3 +1,4 @@
+import {programOf} from '../loyalty/service.js';
 import type { AuthContext, AuthService } from '../auth/service.js';
 import { passwordMatches } from '../auth/crypto.js';
 import { ApiError } from '../errors.js';
@@ -22,9 +23,14 @@ export async function resetOperationalData(auth: AuthService, ctx: AuthContext, 
     await tx.moneyEntry.deleteMany({ where });
     await tx.adjustmentLine.deleteMany({ where });
     await tx.adjustment.deleteMany({ where });
+    await tx.loyaltyReward.deleteMany({where});
+    await tx.loyaltyVisit.deleteMany({where});
     await tx.salePayment.deleteMany({ where });
     await tx.saleLine.deleteMany({ where });
     await tx.sale.deleteMany({ where });
+    await tx.customer.deleteMany({where});
+    const program=programOf(access.business.loyaltyProgram);
+    if(program.stages.some(stage=>stage.productId))await tx.business.update({where:{id:businessId},data:{loyaltyProgram:{...program,enabled:false}}});
     await tx.transferEventLine.deleteMany({ where });
     await tx.transferEvent.deleteMany({ where });
     await tx.transferLine.deleteMany({ where });

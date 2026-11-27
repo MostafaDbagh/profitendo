@@ -84,7 +84,7 @@ function AppRouter() {
     <>
     <ScrollToTop />
     <Routes>
-      {process.env.REACT_APP_AUTH_API_URL && <><Route path="/auth-v2" element={<AuthV2 />} /><Route path="/sales-v2/:businessId/:id/receipt" element={<SaleReceiptV2 />} /><Route path="/business-v2" element={<BusinessV2 />} /><Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2 />} /><Route path="/platform-v2" element={<PlatformV2 />} /></>}
+      {process.env.REACT_APP_AUTH_API_URL && <><Route path="/auth-v2" element={<AuthV2 />} /><Route path="/business-v2" element={<BusinessV2 />} /><Route path="/contact" element={<ContactV2/>}/><Route path="/billing-v2" element={<BillingV2 />} /><Route path="/platform-v2" element={<PlatformV2 />} /></>}
       <Route path="/auth" element={<Auth />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />

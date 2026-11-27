@@ -1,5 +1,6 @@
 import { exclusiveTax } from './tax.js';
-import { lockCash } from '../finance/cash.js';
+import {recordVisit,programOf} from '../loyalty/service.js';
+import { businessDay,lockCash } from '../finance/cash.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AuthContext, AuthService, Tx } from '../auth/service.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -21,6 +22,12 @@ function present(doc:Sale,access:Access){
  const {requestHash,clientKey,checkoutKey,checkoutHash,...data}=doc;
  const edit=doc.status==='DRAFT'&&access.permissions['sales.create']&&(doc.actorId===access.user.id||access.permissions['sales.manage']);
  return {...data,lines:doc.lines.map(({unitCost,costAmount,product,...line})=>({...line,...(edit?{availablePacks:product.active?product.packs:[]}:{})})),capabilities:{edit,cancel:edit&&access.permissions['sales.delete'],checkout:edit}};
+}
+async function customerFields(tx:Tx,businessId:string,input:Pick<SalePatch,'customerId'|'customerName'|'customerPhone'>) {
+ if(!input.customerId)return {customerName:input.customerName,...(input.customerPhone!==undefined?{customerPhone:input.customerPhone}:{}),...(input.customerId===null?{customerId:null}:{})};
+ const customer=await tx.customer.findFirst({where:{businessId,id:input.customerId}});
+ if(!customer)fail('NOT_FOUND',404);
+ return {customerId:customer.id,customerName:customer.name,customerPhone:customer.phone};
 }
 async function entitled(tx:Tx,bid:string){if(!(await billingState(tx,bid)).active)fail('SUBSCRIPTION_REQUIRED',402);}
 export class SalesService{
@@ -78,11 +85,12 @@ export class SalesService{
  async create(ctx:AuthContext,bid:string,input:SaleInput,retry=true):Promise<ReturnType<typeof present>>{
   try{return await this.auth.transaction(async tx=>{
    await requireBusiness(this.auth,tx,ctx,bid,'sales.view');const access=await requireLocation(this.auth,tx,ctx,bid,input.locationId,'sales.create',false);
+   if(input.customerId&&!access.permissions['customers.view'])fail('FORBIDDEN',403);
    const prior=await tx.sale.findUnique({where:{businessId_clientKey:{businessId:bid,clientKey:input.clientKey}},include}),requestHash=hash(input);
    if(prior){if(prior.actorId!==ctx.user.id&&!access.permissions['sales.manage'])fail('FORBIDDEN',403);if(prior.requestHash!==requestHash)fail('IDEMPOTENCY_CONFLICT');return present(prior,access);}
    if(access.location.archivedAt)fail('LOCATION_ARCHIVED');await entitled(tx,bid);
    const {lines,...pricing}=await this.price(tx,bid,input.lines,access,input.locationId),id=randomUUID();
-   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,...(input.customerPhone!==undefined?{customerPhone:input.customerPhone}:{}),customerName:input.customerName,notes:input.notes,actorId:ctx.user.id,actorName:access.user.name,actorRole:access.membership.role,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
+   await tx.sale.create({data:{id,businessId:bid,locationId:input.locationId,clientKey:input.clientKey,requestHash,reference:`SALE-${id.slice(0,8).toUpperCase()}`,businessName:access.business.name,locationName:access.location.name,locationCode:access.location.code,timezone:access.business.timezone,...await customerFields(tx,bid,input),notes:input.notes,actorId:ctx.user.id,actorName:access.user.name,actorRole:access.membership.role,pricedBy:ctx.user.id,pricedName:ctx.user.name,...pricing}});
    await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
    await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.created',targetId:id,changes:{}}});
    return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
@@ -90,8 +98,9 @@ export class SalesService{
  }
  async update(ctx:AuthContext,bid:string,id:string,input:SalePatch){return this.auth.transaction(async tx=>{
   const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,input.revision);await requireLocation(this.auth,tx,ctx,bid,doc.locationId,'sales.create');await entitled(tx,bid);
+  if(input.customerId&&!access.permissions['customers.view'])fail('FORBIDDEN',403);
   const {lines,...pricing}=await this.price(tx,bid,input.lines,access,doc.locationId);await tx.saleLine.deleteMany({where:{businessId:bid,saleId:id}});await tx.saleLine.createMany({data:lines.map(l=>({...l,saleId:id}))});
-  await tx.sale.update({where:{id},data:{...pricing,...(input.customerPhone!==undefined?{customerPhone:input.customerPhone}:{}),customerName:input.customerName,notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
+  await tx.sale.update({where:{id},data:{...pricing,...await customerFields(tx,bid,{...input,customerId:input.customerId===undefined?doc.customerId:input.customerId}),notes:input.notes,pricedBy:ctx.user.id,pricedName:ctx.user.name,revision:{increment:1}}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.repriced',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  });}
  async cancel(ctx:AuthContext,bid:string,id:string,revision:number){return this.auth.transaction(async tx=>{const {doc,access}=await this.document(tx,ctx,bid,id,true);this.edit(doc,access,revision);if(!access.permissions['sales.delete'])fail('FORBIDDEN',403);await tx.sale.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.cancelled',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);});}
@@ -112,7 +121,10 @@ export class SalesService{
    if(movement.costAmount!==null)await tx.saleLine.update({where:{id:line.id},data:{costAmount:movement.costAmount}});
   }
   await tx.salePayment.create({data:{businessId:bid,saleId:id,method:input.payment.method,createdAt:postedAt,amount:doc.total,received:input.payment.received,change:checked(received-total),reference:input.payment.reference,actorId:ctx.user.id,actorName:ctx.user.name}});
-  await tx.sale.update({where:{id},data:{status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:access.user.name,completedRole:access.membership.role,completedAt:postedAt}});
+  const program=programOf(access.business.loyaltyProgram);
+  const day=doc.customerId&&program.enabled?businessDay(postedAt,access.business.timezone):null;
+  if(doc.customerId&&day)await recordVisit(tx,bid,doc.customerId,id,day,program);
+  await tx.sale.update({where:{id},data:{loyaltyDay:day,status:'COMPLETED',revision:{increment:1},checkoutKey:input.clientKey,checkoutHash:requestHash,completedBy:ctx.user.id,completedName:access.user.name,completedRole:access.membership.role,completedAt:postedAt}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:'sale.completed',targetId:id,changes:{}}});return present(await tx.sale.findUniqueOrThrow({where:{id},include}),access);
  }).catch(error=>{if((error as {code?:string}).code==='P2002')fail('IDEMPOTENCY_CONFLICT');throw error;});}
 }

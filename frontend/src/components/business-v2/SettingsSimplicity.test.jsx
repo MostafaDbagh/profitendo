@@ -3,6 +3,7 @@ import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import Settings from './Settings';
 import {LanguageProvider} from '../../context/LanguageContext';
+jest.mock('../operations-v2/ProductSearch',()=>()=>null);
 jest.mock('./FifoSettings',()=>({__esModule:true,default:()=> <section data-testid="fifo-settings">FIFO review</section>}));
 jest.mock('./OwnerPin',()=>({OwnerPinUnlock:()=>null}));
 jest.mock('./BusinessBackup',()=>({__esModule:true,default:()=>null}));

@@ -1,3 +1,4 @@
+import {loyaltyRouter} from '../loyalty/router.js';
 import {mySalesDay} from './day.js';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
@@ -13,6 +14,7 @@ export function salesRouter(auth:AuthService){
  router.use((req,_res,next)=>{if(!z.uuid().safeParse(bid(req)).success)throw new ApiError(400,'INVALID_ID','Invalid business');next();});
  router.param('id',(_req,_res,next,value)=>{if(!z.uuid().safeParse(value).success)throw new ApiError(400,'INVALID_ID','Invalid sale');next();});
  const page=z.coerce.number().int().min(1).max(10000).default(1);
+ router.use('/loyalty',loyaltyRouter(auth));
  router.get('/my-day',async(req,res)=>{if(Object.keys(req.query).length)throw new ApiError(422,'VALIDATION_ERROR','No filters are accepted');res.json(await mySalesDay(auth,ctx(res),bid(req)));});
  router.get('/products',async(req,res)=>{const q=z.object({locationId:z.uuid(),page,search:z.string().trim().max(100).default(''),barcode:z.string().min(1).max(100).optional()}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid search');res.json(await service.products(ctx(res),bid(req),q.data));});
  router.get('/',async(req,res)=>{const q=z.object({page,locationId:z.uuid().optional(),status:z.enum(['DRAFT','COMPLETED','CANCELLED']).optional()}).strict().safeParse(req.query);if(!q.success)throw new ApiError(422,'VALIDATION_ERROR','Invalid filters');res.json(await service.list(ctx(res),bid(req),q.data));});

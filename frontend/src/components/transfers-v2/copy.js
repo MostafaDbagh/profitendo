@@ -30,7 +30,7 @@ export const transferCopy={
  ar:{
  transfers:'تحويلات المخزون',transfersHint:'أرسل المخزون بين المستودعات والمتاجر، ثم أكّد الكميات التي وصلت فعليًا.',
  newTransfer:'تحويل جديد',editTransfer:'تعديل مسودة التحويل',transferDraftHint:'اختر موقعين مختلفين لديك صلاحية الوصول إليهما. لا تحجز المسودة المخزون ولا تنقله. الكميات بوحدة المنتج الأساسية.',
- sourceLocation:'من الموقع',destinationLocation:'إلى الموقع',chooseTransferSource:'اختر متجر الإرسال',chooseDestination:'اختر متجر الاستلام',
+ sourceLocation:'من المتجر',destinationLocation:'إلى المتجر',chooseTransferSource:'اختر متجر الإرسال',chooseDestination:'اختر متجر الاستلام',
  transferNotesPlaceholder:'مثال: التسليم للفرع قبل الافتتاح؛ السائق أحمد',transferSearchPlaceholder:'مثال: TR-20261111',transferSearch:'البحث عن تحويل',transferSaved:'حُفظت مسودة التحويل. لم يتغير المخزون.',
  transferStatusDRAFT:'مسودة',transferStatusIN_TRANSIT:'قيد النقل',transferStatusPARTIAL:'مكتمل جزئيًا',transferStatusCOMPLETED:'مغلق',transferStatusCANCELLED:'ملغي',
  dispatchTransfer:'إرسال البضاعة',cancelTransfer:'إلغاء المسودة',receiveTransfer:'تسجيل الوصول',returnTransfer:'تسجيل الإرجاع للمصدر',lossTransfer:'تسجيل الفاقد',

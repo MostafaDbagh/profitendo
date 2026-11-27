@@ -41,6 +41,9 @@ export async function exportBusinessBackup(auth: AuthService, ctx: AuthContext, 
       Partners: await collect(() => tx.partner.findMany(query())),
       PartnerTransactions: await collect(() => tx.partnerTransaction.findMany(query())),
       Suppliers: await collect(() => tx.supplier.findMany(query())),
+      Customers: await collect(() => tx.customer.findMany(query())),
+      LoyaltyVisits: await collect(() => tx.loyaltyVisit.findMany(query())),
+      LoyaltyRewards: await collect(() => tx.loyaltyReward.findMany(query())),
       Sales: await collect(() => tx.sale.findMany(query())),
       SaleLines: await collect(() => tx.saleLine.findMany(query())),
       SalePayments: await collect(() => tx.salePayment.findMany(query())),
@@ -62,7 +65,7 @@ export async function exportBusinessBackup(auth: AuthService, ctx: AuthContext, 
     const { id, name, countryCode, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate } = business;
     return {
       schemaVersion: 1, exportedAt: new Date().toISOString(),
-      business: { id, name, countryCode, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate: salesTaxRate.toString() },
+      business: { loyaltyProgram:business.loyaltyProgram,id, name, countryCode, baseCurrency, timezone, dateFormat, numberFormat, salesTaxRate: salesTaxRate.toString() },
       tables,
     };
   });

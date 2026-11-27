@@ -728,3 +728,29 @@ it('allows owner PIN sign-in only on an enabled browser and preserves MFA and de
   expect((await request(app).post('/api/auth/sessions/revoke').set(authHeaders).send({})).status).toBe(200);
   expect((await signIn(device)).body.error.code).toBe('OWNER_PIN_LOGIN_FAILED');
 });
+
+it('persists localized action and column labels per business, with owner-only revision-checked writes', async () => {
+  const shop = await db.business.create({data:{name:'Salon labels test'}});
+  businesses.push(shop.id);
+  const owner = await actor('OWNER',shop.id);
+  const cashier = await actor('CASHIER',shop.id);
+  const path = '/' + shop.id;
+  const actionLabels = {
+    ar:{addProduct:'أضف حلاقة',newSale:'تسجيل حلاقة',catalogue_productName:'الخدمة',sales_reference:'رمز الخدمة'},
+    en:{newSale:'New appointment'}
+  };
+  const payload = {revision:shop.revision, actionLabels};
+  expect((await write(path,payload,cashier)).status).toBe(403);
+  expect((await write(path,payload,ownerB)).status).toBe(403);
+  for(const invalid of [{ar:{newSale:'x'.repeat(49)}},{ar:{sales_unknown:'x'}},{fr:{newSale:'x'}}]){
+    expect((await write(path,{...payload,actionLabels:invalid},owner)).status).toBe(422);
+  }
+  const saved = await write(path,payload,owner);
+  expect(saved.status,saved.text).toBe(200);
+  expect((await get(path,cashier)).body.business.actionLabels).toEqual(actionLabels);
+  expect((await write(path,payload,owner)).status).toBe(409);
+  const reset = await write(path,{revision:saved.body.revision,actionLabels:{...actionLabels,ar:{...actionLabels.ar,newSale:''}}},owner);
+  expect(reset.status,reset.text).toBe(200);
+  expect(reset.body.actionLabels.en.newSale).toBe('New appointment');
+  expect(reset.body.actionLabels.ar.sales_reference).toBe('رمز الخدمة');
+});

@@ -11,7 +11,7 @@ const copy = {
   ar: {
     title: 'منطقة الخطر',
     action: 'حذف البيانات التشغيلية',
-    description: 'احذف نهائيًا المبيعات والمشتريات والمرتجعات والمنتجات والمخزون والمصروفات وحركات الخزينة والموردين والشركاء وحركاتهم. يبقى حسابك واشتراكك وإعداداتك وأعضاء فريقك ومواقعك وسجل التدقيق.',
+    description: 'احذف نهائيًا المبيعات والمشتريات والمرتجعات والمنتجات والمخزون والمصروفات وحركات الخزينة والموردين والشركاء وحركاتهم وسجلات العملاء وزيارات الولاء وهداياه. يبقى حسابك واشتراكك وإعداداتك وأعضاء فريقك ومواقعك وسجل التدقيق.',
     backup: 'نزّل نسخة احتياطية من القسم أعلاه قبل الحذف.',
     confirmTitle: 'هل تريد حذف بيانات هذا النشاط؟',
     confirmHint: 'لا يمكن التراجع عن الحذف. اكتب العبارة أدناه وأدخل كلمة مرور حسابك للتأكيد.',
@@ -23,7 +23,7 @@ const copy = {
   en: {
     title: 'Danger Zone',
     action: 'Delete operational data',
-    description: 'Permanently delete sales, purchases, returns, products, stock, expenses, cash activity, suppliers, partners, and partner transactions. Your account, subscription, settings, team, locations, and audit log are kept.',
+    description: 'Permanently delete sales, purchases, returns, products, stock, expenses, cash activity, suppliers, partners, partner transactions, customer records, loyalty visits, and rewards. Your account, subscription, settings, team, locations, and audit log are kept.',
     backup: 'Download a backup from the section above before deleting data.',
     confirmTitle: 'Delete this business’s data?',
     confirmHint: 'This cannot be undone. Type the phrase below and enter your current password to confirm.',

@@ -1,3 +1,4 @@
+import Customers from '../components/loyalty/Customers';
 import {PageContainer, PageLayout} from '../components/page-layout/PageLayout';
 import {LoadingState} from '../components/page-layout/PageResults';
 import RequestStatus from '../components/business-v2/RequestStatus';
@@ -39,7 +40,7 @@ import Locations from '../components/business-v2/Locations';
 import Catalogue from '../components/catalogue-v2/Catalogue';
 import Team from '../components/business-v2/Team';
 import { Audit, Roles } from '../components/business-v2/Records';
-const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['contactSupport',null,Headset], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
+const sections = [ ['dashboard',null,BarChart3], ['guidance',null,BookOpen], ['reports','reports.view',BarChart3], ['catalogue','catalogue.view',Package], ['sales','sales.view',ShoppingCart], ['customers','customers.view',Users], ['purchases','purchasing.view',ShoppingBag], ['inventory','inventory.view',Boxes], ['returns','returns.view',RotateCcw], ['expenses','payments.view',Receipt], ['payments','payments.view',Wallet], ['counts','counts.view',ClipboardCheck], ['damage','damage.view',Package], ['migration','migration.manage',Upload], ['transfers','transfers.view',ArrowLeftRight], ['suppliers','suppliers.view',Users], ['partners','business.edit',Handshake], ['accounts','business.edit',BookOpen], ['locations','locations.view',Building2], ['billing','billing.manage',ShieldCheck], ['team','team.view',Users], ['roles','roles.view',ShieldCheck], ['audit','audit.view',History], ['contactSupport',null,Headset], ['security',null,ShieldCheck], ['settings','business.view',SettingsIcon] ];
 function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls }) {
   const { data: loadedContext, error, reload } = useResource(api, `/businesses/${businessId}`);
   const [pinOverride, setPinStatus] = useState(null);
@@ -95,7 +96,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, businessControls 
   const visible = availableTabs.filter(([key]) => ['dashboard','guidance','billing','contactSupport','security','settings'].includes(key) || (ownerAsCashier && cashierTabs.includes(key)) || !hiddenTabs.includes(key));
   const current = visible.some(([key]) => key === section) ? section : 'dashboard';
   const initialAction = current === section ? params.get('action') : null;
-  const Component = { dashboard:Dashboard,guidance:GettingStarted,contactSupport:ContactSupport,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, partners:Partners, accounts:ChartAccounts, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];
+  const Component = { dashboard:Dashboard,guidance:GettingStarted,contactSupport:ContactSupport,security:Security, reports:Reports, returns:Adjustments, counts:Adjustments, damage:Adjustments, payments:Payments, expenses:Payments, migration:Migration, sales:Sales, customers:Customers, transfers:Transfers, inventory:Inventory, suppliers:Suppliers, partners:Partners, accounts:ChartAccounts, purchases:Purchases, catalogue: Catalogue, locations: Locations, billing: Subscription, settings: Settings, team: Team, roles: Roles, audit: Audit }[current];
   const ar = lang === 'ar';
   const direction = ar ? 'rtl' : 'ltr';
   const menuLabel = ar ? 'قائمة التنقل' : 'Navigation menu';

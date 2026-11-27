@@ -1,3 +1,4 @@
+import {reverseReturnedVisit} from '../loyalty/service.js';
 import {originalLayers,sliceCosts,sliceCostAmount,type CostSlice} from '../operations/fifo.js';
 import {randomUUID} from 'node:crypto';
 import type {AuthService,AuthContext,Tx} from '../auth/service.js';
@@ -95,6 +96,7 @@ export class WorkflowService{
     await tx.adjustmentLine.update({where:{id:l.id},data:{amount,tax,costAmount}});total+=scaled(amount);
    }
    await tx.adjustment.update({where:{id},data:{total:checked(total),status:'COMPLETED',revision:{increment:1},completedBy:ctx.user.id,completedName:ctx.user.name,completedAt:new Date()}});
+   if(d.kind==='CUSTOMER_RETURN'&&d.sourceId)await reverseReturnedVisit(tx,bid,d.sourceId);
   }else await tx.adjustment.update({where:{id},data:{status:'CANCELLED',revision:{increment:1}}});
   await tx.authAudit.create({data:{businessId:bid,userId:ctx.user.id,action:`adjustment.${input.action}`,targetId:id,changes:{kind:d.kind}}});return present(await tx.adjustment.findUniqueOrThrow({where:{id},include:{lines:true}}),a);
  });}
