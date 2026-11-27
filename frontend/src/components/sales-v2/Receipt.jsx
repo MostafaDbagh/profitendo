@@ -7,7 +7,7 @@ export default function Receipt({doc,c,lang}) {
  const ar=lang==='ar',amount=v=>money(v,doc,lang);
  const price=v=>currencyFormatter(ar?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:4}).format(v);
  const customerName=doc.customerName?.trim();
- const date=doc.completedAt||(doc.status==='DRAFT'?doc.expiresAt:doc.createdAt)||doc.expiresAt;
+ const date=doc.completedAt||doc.createdAt;
  const totals=[['saleSubtotal',doc.subtotal],['saleDiscount',doc.discount],...(Number(doc.taxRate??0)>0||Number(doc.tax??0)>0?[['saleTax',doc.tax??'0']]:[])];
  const footer=doc.status==='CANCELLED'?(ar?'فاتورة ملغاة — لا تُستخدم للتحصيل.':'Cancelled invoice — not for collection.'):c(doc.status==='COMPLETED'?'saleReceiptHint':'saleNoStock');
  return <article className="space-y-4 break-words text-sm text-slate-900" data-testid="sale-receipt" dir={ar?'rtl':'ltr'}>
@@ -22,7 +22,7 @@ export default function Receipt({doc,c,lang}) {
   <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
    {customerName&&<div className="flex items-baseline gap-2"><dt className="text-slate-500">{ar?'اسم العميل':'Customer name'}</dt><dd className="font-medium text-end"><bdi>{customerName}</bdi></dd></div>}
    <div className="flex items-baseline gap-2"><dt className="text-slate-500">{saleStaff(doc,c).label}</dt><dd className="text-end"><bdi className="font-semibold text-emerald-700">{saleStaff(doc,c).name}</bdi></dd></div>
-   <div className="basis-full flex flex-wrap items-baseline gap-2"><dt className="text-slate-500">{doc.status==='DRAFT'?c('saleExpiry'):(ar?'تاريخ البيع':'Sale date')}</dt><dd><bdi>{new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:doc.timezone}).format(new Date(date))}</bdi></dd></div>
+   {date&&<div className="basis-full flex flex-wrap items-baseline gap-2"><dt className="text-slate-500">{ar?'تاريخ الفاتورة':'Invoice date'}</dt><dd><bdi>{new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:doc.timezone}).format(new Date(date))}</bdi></dd></div>}
   </dl>
   <table className="w-full table-fixed text-start text-xs sm:text-sm">
    <colgroup><col/><col className="w-16 sm:w-20"/><col className="w-24 sm:w-28"/></colgroup>
