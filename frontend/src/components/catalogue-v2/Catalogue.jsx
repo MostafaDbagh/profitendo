@@ -132,13 +132,13 @@ export default function Catalogue({context,api,c,lang,reload:refreshContext,init
     {stock&&stockProduct&&<Modal title={stockProduct.name} description={lang==='ar'?'المخزون المتاح حسب الموقع':'Available stock by location'}
       {...{c,lang}} returnFocus={trigger.current} close={()=>setStockProduct(null)}>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-        <CopyableCode>{stockProduct.sku}</CopyableCode>
         <span>{c('productAvailable')}: <bdi className="font-semibold">{quantity(stockProduct.available)}</bdi> {unitLabel(stockProduct.unit,c)}</span>
+        <CopyableCode hideWhenEmpty>{stockProduct.sku}</CopyableCode>
       </div>
       {!!stockProduct.stockByLocation?.length&&<ul className="mt-1 space-y-1">
         {stockProduct.stockByLocation.map(location=>(
           <li key={location.id} className={`flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm ${location.lowStock?'bg-red-50 text-red-800':stockProduct.active?'bg-emerald-50 text-emerald-800':'bg-slate-50 text-slate-600'}`}>
-            <bdi>{location.name}</bdi>
+            <span className="min-w-0 break-words text-start"><bdi>{location.name}</bdi></span>
             <bdi className="font-semibold tabular-nums">{quantity(location.available)}</bdi>
             {location.lowStock&&<span className="sr-only">{lang==='ar'?'مخزون منخفض':'Low stock'}</span>}
           </li>

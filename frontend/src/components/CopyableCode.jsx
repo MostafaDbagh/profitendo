@@ -3,7 +3,7 @@ import { Check, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function CopyableCode({ children, kind = 'sku', className = '', href }) {
+export default function CopyableCode({ children, kind = 'sku', className = '', href, hideWhenEmpty = false }) {
   const { lang } = useLanguage();
   const [copied, setCopied] = useState(false);
   const timer = useRef(null);
@@ -11,7 +11,7 @@ export default function CopyableCode({ children, kind = 'sku', className = '', h
   const value = String(children ?? '');
   // Auto-generated storage identifiers are not user-provided product codes.
   const generatedSku = kind === 'sku' && /^PRD-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(value);
-  if (!value || generatedSku) return <span className={className}>-</span>;
+  if (!value || generatedSku) return hideWhenEmpty ? null : <span className={className}>-</span>;
   const names = { sku: ['رمز الصنف', 'SKU'], barcode: ['الباركود', 'barcode'], phone: ['رقم الهاتف', 'phone number'], email: ['البريد الإلكتروني', 'email address'] };
   const name = (names[kind] || names.sku)[lang === 'ar' ? 0 : 1];
   const label = `${lang === 'ar' ? 'نسخ' : 'Copy'} ${name}: ${value}`;
