@@ -50,8 +50,9 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  const insufficientStock=rows.some(row=>exceedsStock(row.productId));
  async function save(e){e.preventDefault();if(!shop||insufficientStock)return;setBusy(true);setError('');const content={customerName:customer,...(customerPhone||doc?.customerPhone?{customerPhone}:{}),notes,lines:rows.map(r=>({productId:r.productId,packId:r.packId,quantity:r.quantity,...discountPayload(r),discountReason:r.discountReason}))};const fingerprint=JSON.stringify({...content,locationId:shop.id});if(request.current!==fingerprint){key.current=crypto.randomUUID();request.current=fingerprint;}draft.checkpoint({clientKey:key.current,fingerprint:request.current});
  try{const result=await api(doc?`${path}/${doc.id}`:path,{method:doc?'PATCH':'POST',body:doc?{...content,revision:doc.revision}:{...content,locationId:shop.id,clientKey:key.current}});draft.clear();done(result);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <PageLayout as="div" className="mx-auto w-full max-w-screen-2xl"><header dir={lang==='ar'?'rtl':'ltr'} className="flex items-center gap-2 rounded-xl bg-[#047756] px-3 py-1 text-white">
+ return <PageLayout as="div" className="mx-auto w-full max-w-screen-2xl"><header dir={lang==='ar'?'rtl':'ltr'} className="flex h-[78px] items-center gap-2 rounded-xl bg-[#047756] px-3 text-white">
   <h1 className="shrink-0 text-xl font-bold">{doc?c('saleEdit'):lang==='ar'?'بيع':'Sale'}</h1>
+  <span aria-hidden="true" className="h-6 w-px shrink-0 bg-white/60"/>
   <div className="relative inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg ring-1 ring-inset ring-white/60 bg-[#047756] px-3 text-white focus-within:ring-2 focus-within:ring-white">
    <Store aria-hidden="true" className="h-5 w-5 shrink-0"/>
    <bdi aria-hidden="true" className="min-w-0 truncate text-sm font-semibold">{shop?.name||c('chooseLocation')}</bdi>
