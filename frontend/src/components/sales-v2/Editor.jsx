@@ -103,7 +103,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
    change(r.key,{quantity:formatQuantity(`${next/10000n}.${String(next%10000n).padStart(4,'0')}`)});
   }
   return <div key={r.key} className="border-b border-slate-200 py-2">
-   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+   <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 sm:gap-x-3">
     <bdi className="text-sm font-bold tabular-nums">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
     <button type="button" aria-expanded={expanded} aria-controls={`line-details-${i}`} onClick={()=>setExpandedLine(expanded?null:r.key)} className="min-h-11 min-w-0 max-w-full rounded-md text-start focus-visible:ring-2 focus-visible:ring-[#047756]">
      <span className="flex items-center gap-1 text-sm font-semibold"><bdi className="break-words">{r.name}</bdi><ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 text-slate-500"/></span>
@@ -111,7 +111,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
     </button>
     <div dir="ltr" className="inline-flex items-center rounded-lg border border-slate-200">
      <button type="button" className="h-11 w-9 font-bold text-[#047756] disabled:text-slate-400" aria-label={`${lang==='ar'?'تقليل الكمية':'Decrease quantity'} · ${r.name}`} disabled={!validQuantity||scale(r.quantity)<=10000n} onClick={()=>step(-10000n)}>−</button>
-     <input id={`sale-quantity-${i}`} {...selectInputOnFocus} aria-label={`${c('saleQuantity')} · ${r.name}`} className="h-10 w-12 min-w-0 rounded text-center text-sm font-semibold tabular-nums focus-visible:ring-2 focus-visible:ring-[#047756]" value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required/>
+     <input id={`sale-quantity-${i}`} {...selectInputOnFocus} aria-label={`${c('saleQuantity')} · ${r.name}`} className="sale-quantity-input h-10 w-12 min-w-0 rounded text-center text-sm font-semibold tabular-nums focus-visible:ring-2 focus-visible:ring-[#047756]" value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required/>
      <button type="button" className="h-11 w-9 font-bold text-[#047756]" aria-label={`${lang==='ar'?'زيادة الكمية':'Increase quantity'} · ${r.name}`} disabled={!validQuantity} onClick={()=>step(10000n)}>+</button>
     </div>
    </div>

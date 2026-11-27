@@ -104,6 +104,9 @@ html[dir="rtl"] textarea,
 html[dir="rtl"] select {
   text-align: right !important;
 }
+html[dir="rtl"] input.sale-quantity-input {
+  text-align: center !important;
+}
 html[dir="rtl"] input::placeholder,
 html[dir="rtl"] textarea::placeholder {
   text-align: right !important;

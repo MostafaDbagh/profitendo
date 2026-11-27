@@ -23,7 +23,7 @@ export default function SaleCatalog({api,root,path,text,shop,context,c,lang,add,
   if(!data||query!==text.trim())return <p role="status">{c('loading')}</p>;
   return <>
     {data.items.length ? <ul className="divide-y divide-slate-100">{data.items.map(p=><li key={p.id}>
-      <button type="button" disabled={busy||Number(p.available)<=0} onClick={()=>add(p)} className="flex min-h-16 w-full items-center gap-3 rounded-lg px-3 py-2 text-start hover:bg-[#047756]/5 focus-visible:ring-2 focus-visible:ring-[#047756] disabled:opacity-60">
+      <button type="button" disabled={busy||Number(p.available)<=0} onClick={()=>add(p)} className="grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg px-3 py-2 text-start hover:bg-[#047756]/5 focus-visible:ring-2 focus-visible:ring-[#047756] disabled:opacity-60">
         <span className="min-w-0"><strong className="block break-words">{p.name}</strong><small className="text-slate-500">{unitLabel(p.unit,c)}{Number(p.available)<=0&&(ar?' · نفد المخزون':' · Out of stock')}</small></span>
         <bdi>{money.format(p.sellingPrice)}</bdi><Plus aria-hidden="true" className="h-4 w-4 text-[#047756]"/>
       </button></li>)}</ul> : <div className="flex min-h-48 flex-col items-center justify-center gap-4 text-center lg:min-h-80">
