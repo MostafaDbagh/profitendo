@@ -11,9 +11,13 @@ export default function Receipt({doc,c,lang}) {
  const totals=[['saleSubtotal',doc.subtotal],['saleDiscount',doc.discount],...(Number(doc.taxRate??0)>0||Number(doc.tax??0)>0?[['saleTax',doc.tax??'0']]:[])];
  const footer=doc.status==='CANCELLED'?(ar?'فاتورة ملغاة — لا تُستخدم للتحصيل.':'Cancelled invoice — not for collection.'):c(doc.status==='COMPLETED'?'saleReceiptHint':'saleNoStock');
  return <article className="space-y-4 break-words text-sm text-slate-900" data-testid="sale-receipt" dir={ar?'rtl':'ltr'}>
-  <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
-   <div className="min-w-0"><h3 className="text-lg font-bold">{doc.businessName}</h3><p className="mt-1 text-xs text-slate-500"><bdi>{doc.locationName}</bdi> · <bdi>{doc.locationCode}</bdi></p></div>
-   <div className="space-y-1.5 text-end"><p className="text-xs text-slate-500">{ar?'فاتورة بيع':'Sales invoice'}</p><p className="font-semibold"><bdi>{doc.reference}</bdi></p><span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${doc.status==='COMPLETED'?'bg-emerald-50 text-emerald-700':doc.status==='CANCELLED'?'bg-red-50 text-red-700':'bg-slate-100 text-slate-600'}`}>{c(doc.status)}</span></div>
+  <header className="space-y-1.5 border-b border-slate-200 pb-4 text-center">
+   <h3 className="text-lg font-bold"><bdi>{doc.locationName}</bdi></h3>
+   <p className="font-semibold"><bdi>{doc.reference}</bdi></p>
+   <div className="flex flex-wrap items-center justify-center gap-2">
+    <span className="text-xs text-slate-500">{ar?'فاتورة بيع':'Sales invoice'}</span>
+    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${doc.status==='COMPLETED'?'bg-emerald-50 text-emerald-700':doc.status==='CANCELLED'?'bg-red-50 text-red-700':'bg-slate-100 text-slate-600'}`}>{c(doc.status)}</span>
+   </div>
   </header>
   <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
    {customerName&&<div className="flex items-baseline gap-2"><dt className="text-slate-500">{ar?'اسم العميل':'Customer name'}</dt><dd className="font-medium text-end"><bdi>{customerName}</bdi></dd></div>}
