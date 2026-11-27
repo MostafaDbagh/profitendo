@@ -10,7 +10,7 @@ export default function CustomizableTable({tableName, actionKey, context, api, r
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const trigger=useRef(null);
-  const title=lang==='ar'?'إعادة تسمية خلايا الجدول':'Rename table cells';
+  const title=lang==='ar'?'إعادة تسمية أعمدة الجدول':'Rename table columns';
   const fields=[{key:actionKey,label:c(actionKey)},...extraFields,...headers.map(header=>({key:columnKey(header),label:c(header)}))];
   async function save(event){
     event.preventDefault();

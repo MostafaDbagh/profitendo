@@ -170,7 +170,7 @@ test('a restored product form reuses its submission key after an unknown respons
 test('the catalogue rename action saves table and button labels together and displays them after reload', async () => {
   const onPatch=jest.fn();
   await render('ar',true,{business:{revision:3},onPatch});
-  const trigger=Array.from(host.querySelectorAll('button')).find(button=>button.textContent==='إعادة تسمية خلايا الجدول');
+  const trigger=Array.from(host.querySelectorAll('button')).find(button=>button.textContent==='إعادة تسمية أعمدة الجدول');
   act(()=>trigger.click());
   const form=document.querySelector('#label-catalogue_catalogue').form;
   act(()=>{
