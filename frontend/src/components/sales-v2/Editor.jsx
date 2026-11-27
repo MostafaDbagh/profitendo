@@ -92,7 +92,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <SaleCatalog key={shop?.id} {...{api,root,path,shop,context,c,lang,add,busy}} text={barcode} clear={()=>setBarcode('')}/>
  </div></section>
 
- <form onSubmit={save} className={`flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${rows.length ? 'h-[min(46rem,84dvh)]' : ''}`}><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-h-0 min-w-0 flex-1 space-y-1 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
+ <form onSubmit={save} className="flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-w-0 max-h-[min(32rem,48dvh)] space-y-1 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
  {rows.map((r,i)=>{
   const lineTotal=basketTotal([r],context.business);
   const pack=r.packs.find(p=>p.id===r.packId);
@@ -105,7 +105,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
   return <div key={r.key} className="border-b border-slate-200 py-2">
    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
     <bdi className="text-sm font-bold tabular-nums">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
-    <button type="button" aria-expanded={expanded} aria-controls={`line-details-${i}`} onClick={()=>setExpandedLine(expanded?null:r.key)} className="min-h-11 min-w-20 flex-1 rounded-md text-start focus-visible:ring-2 focus-visible:ring-[#047756]">
+    <button type="button" aria-expanded={expanded} aria-controls={`line-details-${i}`} onClick={()=>setExpandedLine(expanded?null:r.key)} className="min-h-11 min-w-0 max-w-full rounded-md text-start focus-visible:ring-2 focus-visible:ring-[#047756]">
      <span className="flex items-center gap-1 text-sm font-semibold"><bdi className="break-words">{r.name}</bdi><ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 text-slate-500"/></span>
      <span className="text-xs text-slate-500"><bdi>{r.quantity||'—'} × {money.format(Number(r.unitPrice)*Number(pack?.baseQuantity??1))}</bdi>{pack&&` · ${pack.name}`}</span>
     </button>
