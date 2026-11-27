@@ -152,3 +152,14 @@ input[type="button"]:disabled {
     background: white !important;
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .workspace-loading-bar {
+    animation: workspace-loading 1.2s ease-in-out infinite alternate;
+  }
+
+  @keyframes workspace-loading {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+}

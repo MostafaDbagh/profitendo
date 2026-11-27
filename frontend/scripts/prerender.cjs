@@ -29,7 +29,7 @@ async function main(){
   return template.replace(/<html\b[^>]*>/,`<html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}">`).replace('</head>',()=>head+'</head>').replace(/<div id="root"><\/div>/,()=>`<div id="root">${markup}</div>`);
  }
  await fs.writeFile(path.join(build,'app.html'),document({title:'ProfitLens — Account',description:seo.DEFAULT_METADATA.en.privateDescription}));
- await fs.writeFile(path.join(build,'404.html'),document({title:'Page not found | ProfitLens',description:'This page could not be found.',markup:'<main style="padding:3rem;font-family:sans-serif"><h1>الصفحة غير موجودة · Page not found</h1><p><a href="/">الرئيسية</a> · <a href="/en">Home</a></p></main>'}));
+ await fs.writeFile(path.join(build,'404.html'),document({title:'Page not found | ProfitLens',description:'This page could not be found.',markup:seo.renderNotFound('ar')}));
  const urls=[];
  for(const lang of ['ar','en'])for(const route of seo.PUBLIC_PATHS){
   const page=seo.renderPage(route,lang),publicPath=seo.publicPagePath(route,lang),destination=publicPath==='/'?build:path.join(build,publicPath.slice(1));

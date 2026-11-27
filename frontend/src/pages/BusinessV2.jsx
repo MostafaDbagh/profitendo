@@ -1,6 +1,6 @@
 import Customers from '../components/loyalty/Customers';
 import {PageContainer, PageLayout} from '../components/page-layout/PageLayout';
-import {LoadingState} from '../components/page-layout/PageResults';
+import WorkspaceLoader from '../components/business-v2/WorkspaceLoader';
 import RequestStatus from '../components/business-v2/RequestStatus';
 import WorkspaceErrorBoundary from '../components/business-v2/WorkspaceErrorBoundary';
 import ContactSupport from '../components/business-v2/ContactSupport';
@@ -77,7 +77,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, onShopName, busin
   const {contentRef,requestScroll}=useTabScroll(section);
   const businessName = loadedContext?.business.name;
   useEffect(() => { if (businessName) onName(businessName); }, [businessName, onName]);
-  if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <LoadingState>{c('loading')}</LoadingState>}</div>;
+  if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <WorkspaceLoader label={c('loading')} />}</div>;
   if (context.business.initialSetupPending && context.role === 'OWNER' && context.permissions['business.edit']) {
     return <DraftScope.Provider value={{...context, lang}}>
       <PageContainer dir={lang === 'ar' ? 'rtl' : 'ltr'} className="!max-w-xl lg:min-h-0 lg:overflow-y-auto">
@@ -190,7 +190,7 @@ export default function BusinessV2() {
     <h1 className="sr-only">{c('title')}</h1>
     <RequestStatus {...{api,lang}} businessId={selected}/>
     <div className="px-4 md:px-8"><Feedback error={error} c={c} retry={() => setVersion(v => v + 1)} /></div>
-    {!businesses && !error && <LoadingState className="px-4 md:px-8 text-sm text-slate-500">{c('loading')}</LoadingState>}
+    {!businesses && !error && <WorkspaceLoader label={c('loading')} />}
     {businesses?.length === 0 && params.get('tab')==='security'&&<PageContainer><Security {...{api,lang}}/></PageContainer>}
     {businesses?.length === 0 && params.get('tab')!=='security' && <div className="px-4 md:px-8 space-y-4"><p className="text-sm text-slate-500">{c('noBusiness')}</p><Link className={buttonClass} to="/billing-v2">{lang==='ar'?'الفوترة وإلغاء الاشتراك':'Billing and cancellation'}</Link><Link className={`${buttonClass} ms-2`} to="/contact">{lang==='ar'?'تواصل معنا':'Contact Us'}</Link></div>}
     {hasBusiness && <WorkspaceErrorBoundary key={selected} lang={lang}><BusinessWorkspace key={selected} businessId={selected} {...{ api, c, lang, businessControls }} onShopName={setHeaderShop} onName={onName} /></WorkspaceErrorBoundary>}
