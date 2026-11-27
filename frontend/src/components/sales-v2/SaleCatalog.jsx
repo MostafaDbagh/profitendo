@@ -23,13 +23,13 @@ export default function SaleCatalog({api,root,path,text,shop,context,c,lang,add,
   if(!data||query!==text.trim())return <p role="status">{c('loading')}</p>;
   return <>
     {data.items.length ? <ul className="divide-y divide-slate-100">{data.items.map(p=><li key={p.id}>
-      <button type="button" disabled={busy||Number(p.available)<=0} onClick={()=>add(p)} className="flex min-h-16 w-full items-center gap-3 rounded-lg px-3 py-2 text-start hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:opacity-60">
+      <button type="button" disabled={busy||Number(p.available)<=0} onClick={()=>add(p)} className="flex min-h-16 w-full items-center gap-3 rounded-lg px-3 py-2 text-start hover:bg-[#047756]/5 focus-visible:ring-2 focus-visible:ring-[#047756] disabled:opacity-60">
         <span className="min-w-0 flex-1"><strong className="block break-words">{p.name}</strong><small><bdi>{p.sku}</bdi> · {unitLabel(p.unit,c)}{Number(p.available)<=0&&(ar?' · نفد المخزون':' · Out of stock')}</small></span>
-        <bdi>{money.format(p.sellingPrice)}</bdi><Plus aria-hidden="true" className="h-4 w-4 text-emerald-700"/>
+        <bdi>{money.format(p.sellingPrice)}</bdi><Plus aria-hidden="true" className="h-4 w-4 text-[#047756]"/>
       </button></li>)}</ul> : <div className="flex min-h-48 flex-col items-center justify-center gap-4 text-center lg:min-h-80">
-      <PackageOpen aria-hidden="true" className="h-16 w-16 text-emerald-700" strokeWidth={1.3}/>
+      <PackageOpen aria-hidden="true" className="h-16 w-16 text-[#047756]" strokeWidth={1.3}/>
       <strong>{query?(ar?'لا توجد نتائج':'No results'):(ar?'لا توجد منتجات في هذا المتجر':'No products in this store')}</strong>
-      {query?<button type="button" onClick={clear}>{ar?'مسح البحث':'Clear search'}</button>:context.permissions['catalogue.create']&&context.permissions['catalogue.cost']&&<button ref={trigger} type="button" className={primaryClass} onClick={()=>setCreating(true)}>{ar?'إضافة أول منتج':'Add first product'}</button>}
+      {query?<button type="button" onClick={clear}>{ar?'مسح البحث':'Clear search'}</button>:context.permissions['catalogue.create']&&context.permissions['catalogue.cost']&&<button ref={trigger} type="button" className={`${primaryClass} !bg-[#047756] hover:!brightness-90`} onClick={()=>setCreating(true)}>{ar?'إضافة أول منتج':'Add first product'}</button>}
     </div>}
     {data.total>data.pageSize&&<Pager {...{data,setPage,c}}/>}
     {creating&&<ProductForm {...{api,c,lang}} cost path={`${root}/products`} returnFocus={trigger.current} close={()=>setCreating(false)} done={saved=>{setCreating(false);if(saved)reload();}}/>}
