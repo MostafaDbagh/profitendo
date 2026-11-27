@@ -6,6 +6,7 @@ export function money(value,doc,lang){return currencyFormatter(lang==='ar'?'ar':
 export default function Receipt({doc,c,lang}) {
  const ar=lang==='ar',amount=v=>money(v,doc,lang);
  const price=v=>currencyFormatter(ar?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:4}).format(v);
+ const customerName=doc.customerName?.trim();
  const date=doc.completedAt||(doc.status==='DRAFT'?doc.expiresAt:doc.createdAt)||doc.expiresAt;
  const totals=[['saleSubtotal',doc.subtotal],['saleDiscount',doc.discount],...(Number(doc.taxRate??0)>0||Number(doc.tax??0)>0?[['saleTax',doc.tax??'0']]:[])];
  const footer=doc.status==='CANCELLED'?(ar?'فاتورة ملغاة — لا تُستخدم للتحصيل.':'Cancelled invoice — not for collection.'):c(doc.status==='COMPLETED'?'saleReceiptHint':'saleNoStock');
@@ -14,10 +15,10 @@ export default function Receipt({doc,c,lang}) {
    <div className="min-w-0"><h3 className="text-lg font-bold">{doc.businessName}</h3><p className="mt-1 text-xs text-slate-500"><bdi>{doc.locationName}</bdi> · <bdi>{doc.locationCode}</bdi></p></div>
    <div className="space-y-1.5 text-end"><p className="text-xs text-slate-500">{ar?'فاتورة بيع':'Sales invoice'}</p><p className="font-semibold"><bdi>{doc.reference}</bdi></p><span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${doc.status==='COMPLETED'?'bg-emerald-50 text-emerald-700':doc.status==='CANCELLED'?'bg-red-50 text-red-700':'bg-slate-100 text-slate-600'}`}>{c(doc.status)}</span></div>
   </header>
-  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
-   <div className="flex justify-between gap-3"><dt className="text-slate-500">{ar?'اسم العميل':'Customer name'}</dt><dd className="font-medium text-end"><bdi>{doc.customerName?.trim()||(ar?'عميل نقدي':'Walk-in customer')}</bdi></dd></div>
-   <div className="flex justify-between gap-3"><dt className="text-slate-500">{saleStaff(doc,c).label}</dt><dd className="text-end"><bdi className="font-semibold text-emerald-700">{saleStaff(doc,c).name}</bdi></dd></div>
-   <div className="sm:col-span-2 flex flex-wrap justify-between gap-2"><dt className="text-slate-500">{doc.status==='DRAFT'?c('saleExpiry'):(ar?'تاريخ البيع':'Sale date')}</dt><dd><bdi>{new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:doc.timezone}).format(new Date(date))}</bdi></dd></div>
+  <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
+   {customerName&&<div className="flex items-baseline gap-2"><dt className="text-slate-500">{ar?'اسم العميل':'Customer name'}</dt><dd className="font-medium text-end"><bdi>{customerName}</bdi></dd></div>}
+   <div className="flex items-baseline gap-2"><dt className="text-slate-500">{saleStaff(doc,c).label}</dt><dd className="text-end"><bdi className="font-semibold text-emerald-700">{saleStaff(doc,c).name}</bdi></dd></div>
+   <div className="basis-full flex flex-wrap items-baseline gap-2"><dt className="text-slate-500">{doc.status==='DRAFT'?c('saleExpiry'):(ar?'تاريخ البيع':'Sale date')}</dt><dd><bdi>{new Intl.DateTimeFormat(lang,{dateStyle:'medium',timeStyle:'short',timeZone:doc.timezone}).format(new Date(date))}</bdi></dd></div>
   </dl>
   <table className="w-full table-fixed text-start text-xs sm:text-sm">
    <colgroup><col/><col className="w-16 sm:w-20"/><col className="w-24 sm:w-28"/></colgroup>
