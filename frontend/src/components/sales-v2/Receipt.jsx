@@ -1,11 +1,9 @@
 import { saleStaff } from './saleStaff';
 import { currencyFormatter } from '../../lib/currencyFormat';
 import { formatQuantity } from '@/lib/quantity';
-import { unitLabel } from '../catalogue-v2/units';
 export function money(value,doc,lang){return currencyFormatter(lang==='ar'?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:doc.currencyDigits}).format(value);}
 export default function Receipt({doc,c,lang}) {
  const ar=lang==='ar',amount=v=>money(v,doc,lang);
- const price=v=>currencyFormatter(ar?'ar':'en',{style:'currency',currency:doc.currency,minimumFractionDigits:doc.currencyDigits,maximumFractionDigits:4}).format(v);
  const customerName=doc.customerName?.trim();
  const date=doc.completedAt||doc.createdAt;
  const totals=[['saleSubtotal',doc.subtotal],['saleDiscount',doc.discount],...(Number(doc.taxRate??0)>0||Number(doc.tax??0)>0?[['saleTax',doc.tax??'0']]:[])];
@@ -28,9 +26,9 @@ export default function Receipt({doc,c,lang}) {
    <colgroup><col/><col className="w-16 sm:w-20"/><col className="w-24 sm:w-28"/></colgroup>
    <thead className="bg-slate-50 text-slate-500"><tr><th scope="col" className="p-2 text-start font-medium">{ar?'الصنف':'Item'}</th><th scope="col" className="p-2 text-center font-medium">{c('quantity')}</th><th scope="col" className="p-2 text-end font-medium">{ar?'الإجمالي':'Total'}</th></tr></thead>
    <tbody className="divide-y divide-slate-100">{doc.lines.map(l=><tr key={l.id} className="align-top break-inside-avoid">
-    <td className="px-2 py-3"><p className="font-medium">{l.name}</p><p className="mt-1 text-xs text-slate-500">{c('salePrice')}: <bdi>{price(l.unitPrice)}</bdi></p>{Number(l.discount)>0&&<p className="mt-1 text-xs text-slate-500">{c('saleDiscount')}: <bdi>{l.discountPercent!=null?`${Number(l.discountPercent)}%`:amount(l.discount)}</bdi>{l.discountReason&&<> · {l.discountReason}</>}</p>}</td>
-    <td className="px-1 py-3 text-center tabular-nums"><bdi>{formatQuantity(l.quantity)}</bdi><span className="mt-1 block text-xs text-slate-500">{l.packName||unitLabel(l.unit,c)}</span></td>
-    <td className="px-2 py-3 text-end font-medium tabular-nums"><bdi>{amount(l.total)}</bdi></td>
+    <td className="px-2 py-2"><span className="block truncate font-medium" title={l.name}>{l.name}</span></td>
+    <td className="whitespace-nowrap px-1 py-2 text-center tabular-nums"><bdi>{formatQuantity(l.quantity)}</bdi></td>
+    <td className="whitespace-nowrap px-2 py-2 text-end font-medium tabular-nums"><bdi>{amount(l.total)}</bdi></td>
    </tr>)}</tbody>
   </table>
   <dl className="border-t border-slate-200 pt-3 space-y-2 w-full break-inside-avoid">
