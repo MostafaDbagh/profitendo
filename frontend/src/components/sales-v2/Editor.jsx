@@ -2,6 +2,7 @@ import {PageLayout} from '../page-layout/PageLayout';
 import {LoadingState} from '../page-layout/PageResults';
 import {basketTotal} from './basketTotal';
 import {currencyFormatter} from '../../lib/currencyFormat';
+import {DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem} from '../ui/dropdown-menu';
 import SaleCatalog from './SaleCatalog';
 import {OptionalFields} from '../business-v2/Disclosure';
 import { selectInputOnFocus } from '../../lib/selectInputOnFocus';
@@ -37,6 +38,7 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  function scan(e){e.preventDefault();const value=barcode.trim();if(!value||!shop)return;setBarcode('');setPending(n=>n+1);queue.current=queue.current.then(async()=>{try{const data=await api(`${path}/products?locationId=${shop.id}&barcode=${encodeURIComponent(value)}`);if(data.items.length!==1){setBarcode(current=>current||value);return;}add(data.items[0]);setError('');}catch(e){setError(e.message);}finally{setPending(n=>n-1);}});}
  const total=basketTotal(rows,context.business);
  const money=currencyFormatter(lang,{style:'currency',currency:context.business.baseCurrency});
+ const [expandedLine,setExpandedLine]=useState(null);
  const requested=new Map();
  const available=new Map();
  for(const row of rows){
@@ -53,18 +55,24 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  return <PageLayout as="div" className="mx-auto w-full max-w-screen-2xl"><header dir={lang==='ar'?'rtl':'ltr'} className="flex h-[78px] items-center gap-2 rounded-xl bg-[#047756] px-3 text-white">
   <h1 className="shrink-0 text-xl font-bold">{doc?c('saleEdit'):lang==='ar'?'بيع':'Sale'}</h1>
   <span aria-hidden="true" className="h-6 w-px shrink-0 bg-white/60"/>
-  <div className="relative inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg ring-1 ring-inset ring-white/60 bg-[#047756] px-3 text-white focus-within:ring-2 focus-within:ring-white">
-   <Store aria-hidden="true" className="h-5 w-5 shrink-0"/>
-   <bdi aria-hidden="true" className="min-w-0 truncate text-sm font-semibold">{shop?.name||c('chooseLocation')}</bdi>
-   <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0"/>
-   <select id="sale-store" aria-label={c('chooseLocation')} title={shop?.name}
-    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"
-    value={shop?.id||''} disabled={shopLocked||shops.loading&&!doc}
-    onChange={e=>setShop(shops.items.find(item=>item.id===e.target.value)||null)}>
-    {!shop&&<option value="">{c('chooseLocation')}</option>}
-    {(doc?[shop]:shops.items).map(item=><option key={item.id} value={item.id} dir="auto">{item.name}</option>)}
-   </select>
-  </div>
+  <DropdownMenu dir={lang==='ar'?'rtl':'ltr'}>
+   <DropdownMenuTrigger id="sale-store" type="button" disabled={shopLocked||shops.loading||!shops.items.length}
+    aria-label={[c('chooseLocation'),shop?.name].filter(Boolean).join(' · ')}
+    className="group inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg bg-[#047756] px-3 text-white ring-1 ring-inset ring-white/60 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white">
+    <Store aria-hidden="true" className="h-5 w-5 shrink-0"/>
+    <bdi className="min-w-0 truncate text-sm font-semibold">{shop?.name||c('chooseLocation')}</bdi>
+    <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 group-data-[state=open]:rotate-180"/>
+   </DropdownMenuTrigger>
+   <DropdownMenuContent align="start" sideOffset={6} collisionPadding={8} aria-label={c('chooseLocation')}
+    className="w-max min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(22rem,calc(100vw-1rem))] rounded-xl border-slate-200 bg-white p-1.5 shadow-lg">
+    <DropdownMenuRadioGroup value={shop?.id||''} onValueChange={id=>setShop(shops.items.find(item=>item.id===id)||null)}>
+     {shops.items.map(item=><DropdownMenuRadioItem key={item.id} value={item.id} textValue={item.name}
+      className="min-h-11 cursor-pointer rounded-lg text-slate-700 focus:bg-slate-100 data-[state=checked]:bg-emerald-50 data-[state=checked]:text-[#047756] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#047756]">
+      <bdi className="break-words">{item.name}</bdi>
+     </DropdownMenuRadioItem>)}
+    </DropdownMenuRadioGroup>
+   </DropdownMenuContent>
+  </DropdownMenu>
   <button className="ms-auto min-h-11 shrink-0 rounded-lg border border-white/60 px-3 font-semibold" disabled={busy||pending>0} onClick={close}>{c('close')}</button>
  </header><LocalDraftNotice {...{draft,lang,busy}}/><Feedback {...{c,error}}/>
    {!doc&&<Feedback error={shops.error} c={c} retry={shops.reload}/>}
@@ -84,20 +92,45 @@ export default function Editor({context,api,c,lang,doc,done,close}){
  <SaleCatalog key={shop?.id} {...{api,root,path,shop,context,c,lang,add,busy}} text={barcode} clear={()=>setBarcode('')}/>
  </div></section>
 
- <form onSubmit={save} className={`flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${rows.length ? 'h-[min(46rem,84dvh)]' : ''}`}><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
- {rows.map((r,i)=><div key={r.key} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"><div className="grid min-w-0 gap-4 sm:grid-cols-2  xl:items-start">
- <div className="min-w-0 sm:col-span-2 "><p className="mb-2 text-xs font-medium text-slate-500">{lang==='ar'?'المنتج':'Product'}</p><h3 className="font-semibold break-words text-slate-900">{r.name}</h3><div className="mt-1 text-xs text-slate-500"><CopyableCode>{r.sku}</CopyableCode></div></div>
- <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select><div className="space-y-1"><Field id={`sale-quantity-${i}`} {...selectInputOnFocus} label={c('saleQuantity')} placeholder={lang==='ar'?'مثال: 2.5':'e.g. 2.5'} value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required />
- {available.has(r.productId)&&<span className="block text-xs text-slate-600">
-  {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
- </span>}
+ <form onSubmit={save} className={`flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${rows.length ? 'h-[min(46rem,84dvh)]' : ''}`}><h2 id="sale-basket-heading" className="font-semibold">{lang==='ar'?'سلة البيع':'Sale basket'} ({rows.length})</h2><fieldset aria-labelledby="sale-basket-heading" disabled={busy||pending>0} className="min-h-0 min-w-0 flex-1 space-y-1 overflow-y-auto">{!rows.length&&<div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500"><ShoppingBasket className="h-6 w-6 shrink-0 text-slate-400" aria-hidden="true"/><p>{lang==='ar'?'السلة فارغة':'Basket is empty'}</p></div>}
+ {rows.map((r,i)=>{
+  const lineTotal=basketTotal([r],context.business);
+  const pack=r.packs.find(p=>p.id===r.packId);
+  const expanded=expandedLine===r.key;
+  const validQuantity=/^\d{1,14}(\.\d{1,4})?$/.test(r.quantity);
+  function step(delta){
+   const next=scale(r.quantity)+delta;
+   change(r.key,{quantity:formatQuantity(`${next/10000n}.${String(next%10000n).padStart(4,'0')}`)});
+  }
+  return <div key={r.key} className="border-b border-slate-200 py-2">
+   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <bdi className="text-sm font-bold tabular-nums">{lineTotal===null?'—':money.format(lineTotal)}</bdi>
+    <button type="button" aria-expanded={expanded} aria-controls={`line-details-${i}`} onClick={()=>setExpandedLine(expanded?null:r.key)} className="min-h-11 min-w-20 flex-1 rounded-md text-start focus-visible:ring-2 focus-visible:ring-[#047756]">
+     <span className="flex items-center gap-1 text-sm font-semibold"><bdi className="break-words">{r.name}</bdi><ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 text-slate-500"/></span>
+     <span className="text-xs text-slate-500"><bdi>{r.quantity||'—'} × {money.format(Number(r.unitPrice)*Number(pack?.baseQuantity??1))}</bdi>{pack&&` · ${pack.name}`}</span>
+    </button>
+    <div dir="ltr" className="inline-flex items-center rounded-lg border border-slate-200">
+     <button type="button" className="h-11 w-9 font-bold text-[#047756] disabled:text-slate-400" aria-label={`${lang==='ar'?'تقليل الكمية':'Decrease quantity'} · ${r.name}`} disabled={!validQuantity||scale(r.quantity)<=10000n} onClick={()=>step(-10000n)}>−</button>
+     <input id={`sale-quantity-${i}`} {...selectInputOnFocus} aria-label={`${c('saleQuantity')} · ${r.name}`} className="h-10 w-12 min-w-0 rounded text-center text-sm font-semibold tabular-nums focus-visible:ring-2 focus-visible:ring-[#047756]" value={r.quantity} onChange={e=>change(r.key,{quantity:e.target.value})} inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required/>
+     <button type="button" className="h-11 w-9 font-bold text-[#047756]" aria-label={`${lang==='ar'?'زيادة الكمية':'Increase quantity'} · ${r.name}`} disabled={!validQuantity} onClick={()=>step(10000n)}>+</button>
+    </div>
+   </div>
  {exceedsStock(r.productId)&&<p role="alert" className="text-sm text-red-700">
   {lang==='ar'?'الكمية المطلوبة أكبر من المتاح في هذا الموقع.':'Requested quantity exceeds available stock at this location.'}{' '}
   {c('saleAvailable')}: <bdi>{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
- </p>}</div>
- <div><p className="mb-1.5 text-sm font-medium text-slate-700">{lang==='ar'?'سعر الوحدة الأساسية':'Base-unit price'}</p><div className="min-h-11 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700"><bdi>{r.unitPrice}</bdi> <span className="text-xs font-normal">{context.business.baseCurrency}</span></div></div>
- <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 xl:mt-7" aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
- {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 " title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}</div></div>)}
+ </p>}
+   <div id={`line-details-${i}`} hidden={!expanded} onInvalidCapture={()=>setExpandedLine(r.key)}>
+    <div className="grid items-center gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-2">
+     {r.sku&&<CopyableCode>{r.sku}</CopyableCode>}
+ <Select id={`sale-pack-${i}`} label={c('salePack')} value={r.packId||''} onChange={e=>{const packId=e.target.value||null;if(rows.some(x=>x.key!==r.key&&x.productId===r.productId&&x.packId===packId)){setError('VALIDATION_ERROR');return;}change(r.key,{packId});}}><option value="">{unitLabel(r.unit,c)}</option>{r.packs.map(p=><option key={p.id} value={p.id}>{p.name} ({formatQuantity(p.baseQuantity)} {unitLabel(r.unit,c)})</option>)}</Select> {available.has(r.productId)&&<span className="block text-xs text-slate-600">
+  {lang==='ar'?'إجمالي الكمية المتاحة في الموقع':'Total available quantity at this location'}: <bdi className="font-semibold">{formatQuantity(available.get(r.productId))}</bdi> {unitLabel(r.unit,c)}
+ </span>}
+ <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 " aria-label={`${c('saleRemove')}: ${r.name}`} onClick={()=>setRows(old=>old.filter(l=>l.key!==r.key))}><Trash2 className="h-4 w-4" aria-hidden="true"/></button>
+ {context.permissions['sales.discount']&&<OptionalFields className="sm:col-span-2 " title={lang==='ar'?'إضافة خصم (اختياري)':'Add discount (optional)'} hasValue={Boolean(Number(r.discountPercent)||Number(r.legacyDiscount)||r.discountReason)}><div className="grid gap-4 sm:grid-cols-2"><Field id={`sale-discount-${i}`} label={`${c('saleDiscount')} (%)`} placeholder="0" value={r.discountPercent} onChange={e=>change(r.key,{discountPercent:e.target.value})} onFocus={e=>{if(Number(e.currentTarget.value)===0)e.currentTarget.select();}} inputMode="decimal" pattern="(0|[1-9][0-9]?)(\.[0-9]{1,4})?|100(\.0{1,4})?" hint={lang==='ar'?'نسبة من إجمالي الصنف قبل الضريبة، من 0 إلى 100%.':'Percentage of the item subtotal before tax, from 0 to 100%.'} required/><Field id={`sale-reason-${i}`} label={c('saleReason')} placeholder={c('saleReasonPlaceholder')} value={r.discountReason} onChange={e=>change(r.key,{discountReason:e.target.value})} required={Number(r.discountPercent)>0} minLength={Number(r.discountPercent)>0?5:undefined} maxLength={500}/></div></OptionalFields>}
+    </div>
+   </div>
+  </div>;
+ })}
  <button type="button" className={`${buttonClass} border-dashed !text-[#047756]`} disabled={!shop||busy||pending>0} onClick={()=>productInput.current?.focus()}><Plus className="h-4 w-4" aria-hidden="true"/>{lang==='ar'?'إضافة صنف':'Add item'}</button>
  </fieldset><fieldset disabled={busy||pending>0} className="min-w-0 shrink-0"><OptionalFields title={lang==='ar'?'العميل والملاحظات (اختياري)':'Customer & notes (optional)'}><div className="grid sm:grid-cols-2 gap-4"><Field id="sale-customer" label={c('saleCustomer')} placeholder={c('saleCustomerPlaceholder')} value={customer} onChange={e=>setCustomer(e.target.value)} maxLength={150}/><Field id="sale-customer-phone" placeholder="0912345678" type="tel" dir="ltr" autoComplete="tel" label={lang==='ar'?'رقم هاتف العميل (اختياري)':'Customer phone number (optional)'} value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} maxLength={40}/><div className="sm:col-span-2"><Field id="sale-notes" label={c('saleNotes')} placeholder={c('saleNotesPlaceholder')} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></div></div></OptionalFields></fieldset><div className="flex flex-wrap items-center justify-between gap-3 shrink-0 rounded-xl border border-[#047756]/25 bg-white p-4"><span className="text-sm text-slate-600">{lang==='ar'?'الإجمالي':'Total'}: <bdi className="font-bold text-slate-900">{total===null?'—':money.format(total)}</bdi></span><button className={`${primaryClass} !bg-[#047756] hover:!brightness-90 min-h-11`} disabled={!shop||!rows.length||busy||pending>0||insufficientStock}>{c(busy?'saving':doc?'refreshSale':'reviewSale')}</button></div></form></div>
  </PageLayout>;
