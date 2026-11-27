@@ -10,7 +10,9 @@ export default function Customers({context,api,c,lang}){
  const {data,error,reload}=useResource(api,selected?null:`${path}/customers?search=${encodeURIComponent(search)}&page=${page}`);
  return <PageLayout title={selected?.name||c('customers')}>
   {selected?<div className={panelClass}><button className={buttonClass} onClick={()=>setSelected(null)}>{c('close')}</button><p><bdi>{selected.phone}</bdi></p><Card {...{api,c,lang,path}} id={selected.id} history/></div>:<>
-   <Field id="customer-search" label={ar?'بحث بالاسم أو الهاتف':'Search by name or phone'} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
+   <Field id="customer-search" label={ar?'بحث بالاسم أو الهاتف':'Search by name or phone'}
+    placeholder={ar?'مثال: أحمد أو 0912345678':'e.g. Alex or 0912345678'}
+    value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
    <Feedback {...{error,c}} retry={reload}/>
    <div className={panelClass}>{data?.items.map(item=><button key={item.id} className="flex min-h-11 w-full items-center justify-between border-b px-2 text-start hover:bg-emerald-50" onClick={()=>setSelected(item)}><strong>{item.name}</strong><bdi>{item.phone}</bdi></button>)}{data&&!data.total&&c('empty')}</div>
    {data&&<Pager {...{data,setPage,c}}/>}

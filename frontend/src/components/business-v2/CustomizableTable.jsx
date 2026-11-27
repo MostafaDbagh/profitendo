@@ -10,7 +10,7 @@ export default function CustomizableTable({tableName, actionKey, context, api, r
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const trigger=useRef(null);
-  const title=lang==='ar'?'إعادة التسمية':'Rename';
+  const title=lang==='ar'?'إعادة تسمية خلايا الجدول':'Rename table cells';
   const fields=[{key:actionKey,label:c(actionKey)},...extraFields,...headers.map(header=>({key:columnKey(header),label:c(header)}))];
   async function save(event){
     event.preventDefault();
@@ -26,7 +26,7 @@ export default function CustomizableTable({tableName, actionKey, context, api, r
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
   return <>
-    {permissions['business.edit']&&<button type="button" ref={trigger} className={buttonClass} onClick={()=>{setDraft({});setError('');}}>{title}</button>}
+    {permissions['business.edit']&&<button type="button" ref={trigger} className={`${buttonClass} mb-4`} onClick={()=>{setDraft({});setError('');}}>{title}</button>}
     <Table {...props} headers={headers} c={(key,...args)=>labels[columnKey(key)]||c(key,...args)}/>
     {draft&&<Modal {...{title,busy,c,lang}} close={()=>setDraft(null)} returnFocus={trigger.current}
       description={lang==='ar'?'خصّص التسميات الظاهرة في هذه الشاشة لنشاطك. امسح النص لاستعادة الاسم الأصلي.':'Customize the labels shown on this screen for your business. Clear a field to restore its default.'}>
