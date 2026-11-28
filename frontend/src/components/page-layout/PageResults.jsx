@@ -1,6 +1,6 @@
 import {createContext, useContext, useEffect, useRef} from 'react';
 import {errorText} from '../business-v2/feedbackCopy';
-import {ChevronLeft, ChevronRight, Inbox, Loader2} from 'lucide-react';
+import {CircleAlert, ChevronLeft, ChevronRight, Inbox, Loader2, RotateCcw} from 'lucide-react';
 import {useLanguage} from '../../context/LanguageContext';
 import {buttonClass, primaryClass, rowGap} from './tokens';
 
@@ -38,7 +38,7 @@ export function Pager({data, setPage, c}) {
 }
 
 export const UpgradeContext = createContext(null);
-export function Feedback({ error, notice, c, retry }) {
+export function Feedback({ error, notice, c, retry, workspace = false }) {
   const ref = useRef(null);
   const upgrade = useContext(UpgradeContext);
   const language=useLanguage();
@@ -47,9 +47,19 @@ export function Feedback({ error, notice, c, retry }) {
   const ar = lang === 'ar';
   useEffect(() => { if (error || notice) ref.current?.focus(); }, [error, notice]);
   if (!error && !notice) return null;
-  return <div ref={ref} tabIndex={-1} role={error ? 'alert' : 'status'} className={`p-3 rounded-lg border text-sm ${error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-    {error ? errorText(error,c,lang) : c(notice)}
+  if (!error) return <div ref={ref} tabIndex={-1} role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{c(notice)}</div>;
+  return <div ref={ref} tabIndex={-1} role="alert" dir={ar ? 'rtl' : 'ltr'}
+    className={workspace
+      ? 'w-full max-w-md rounded-2xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm sm:p-10'
+      : 'flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-start'}>
+    <span className={`inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ${workspace ? 'mb-5 h-12 w-12' : 'h-8 w-8'}`}>
+      <CircleAlert aria-hidden="true" className="h-5 w-5" />
+    </span>
+    <div className="min-w-0">
+      {workspace && <h2 className="mb-2 text-xl font-bold text-slate-900">{ar ? 'تعذّر فتح مساحة العمل' : 'Couldn’t open your workspace'}</h2>}
+      <p className="text-sm leading-relaxed text-slate-700">{errorText(error,c,lang)}</p>
     {limited && upgrade && <div className="mt-3 space-y-3"><p>{upgrade.canUpgrade ? (ar ? 'قم بترقية خطتك لإضافة المزيد.' : 'Upgrade your plan to add more.') : (ar ? 'تواصل مع مالك النشاط لترقية الخطة وإضافة المزيد.' : 'Contact your business owner to upgrade the plan and add more.')}</p>{upgrade.canUpgrade && <button type="button" className={primaryClass} onClick={upgrade.onUpgrade}>{ar ? 'ترقية الخطة' : 'Upgrade plan'}</button>}</div>}
-    {error && retry && !limited && error !== 'SAVE_UNCONFIRMED' && <button type="button" className="underline ms-3 font-semibold" onClick={retry}>{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
+    {error && retry && !limited && error !== 'SAVE_UNCONFIRMED' && <button type="button" className={workspace ? `mt-5 ${primaryClass}` : `mt-3 ${buttonClass}`} onClick={retry}><RotateCcw aria-hidden="true" />{c(error === 'REVISION_CONFLICT' ? 'reload' : 'retry')}</button>}
+    </div>
   </div>;
 }

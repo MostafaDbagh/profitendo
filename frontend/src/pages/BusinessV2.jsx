@@ -77,7 +77,7 @@ function BusinessWorkspace({ businessId, api, c, lang, onName, onShopName, busin
   const {contentRef,requestScroll}=useTabScroll(section);
   const businessName = loadedContext?.business.name;
   useEffect(() => { if (businessName) onName(businessName); }, [businessName, onName]);
-  if (!context) return <div className="p-5"><Feedback error={error} c={c} retry={reload} />{!error && <WorkspaceLoader label={c('loading')} />}</div>;
+  if (!context) return <div className="grid flex-1 place-items-center overflow-y-auto p-5"><Feedback workspace error={error} c={c} retry={reload} />{!error && <WorkspaceLoader label={c('loading')} />}</div>;
   if (context.business.initialSetupPending && context.role === 'OWNER' && context.permissions['business.edit']) {
     return <DraftScope.Provider value={{...context, lang}}>
       <PageContainer dir={lang === 'ar' ? 'rtl' : 'ltr'} className="!max-w-xl lg:min-h-0 lg:overflow-y-auto">
@@ -179,7 +179,7 @@ export default function BusinessV2() {
         {businesses?.length > 0 && <select id={surface === 'desktop' ? 'active-business' : 'active-business-mobile'} aria-label={c('chooseBusiness')} value={selected} onChange={e=>setSelected(e.target.value)} className="min-h-11 min-w-0 max-w-full truncate sm:max-w-64 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer" dir={lang==='ar'?'rtl':'ltr'}>{businesses.map(b=><option key={b.id} value={b.id}>{b.id === selected && headerShop?.businessId === selected && headerShop.name ? headerShop.name : b.name}</option>)}</select>}
         {businesses?.length===0&&<Link className={buttonClass} to="/business-v2?tab=security">{c('security')}</Link>}
   </>;
-  return <div className={`min-h-screen text-slate-900 ${params.get('tab')==='billing'?'bg-white':'bg-slate-50'} ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
+  return <div className={`flex min-h-dvh flex-col text-slate-900 ${params.get('tab')==='billing'?'bg-white':'bg-slate-50'} ${hasBusiness ? 'lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden print:!block print:!h-auto print:!overflow-visible' : ''}`}>
     <Seo title={`${c('title')} | ProfitLens`} path="/business-v2" noindex />
     <header dir="ltr" className={`items-center justify-between gap-3 shrink-0 border-b border-slate-200 bg-white px-4 py-3 lg:px-8 ${hasBusiness ? 'hidden lg:flex' : 'flex'}`}>
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -189,7 +189,7 @@ export default function BusinessV2() {
     </header>
     <h1 className="sr-only">{c('title')}</h1>
     <RequestStatus {...{api,lang}} businessId={selected}/>
-    <div className="px-4 md:px-8"><Feedback error={error} c={c} retry={() => setVersion(v => v + 1)} /></div>
+    {error && <main className="grid flex-1 place-items-center p-5"><Feedback workspace error={error} c={c} retry={() => setVersion(v => v + 1)} /></main>}
     {!businesses && !error && <WorkspaceLoader label={c('loading')} />}
     {businesses?.length === 0 && params.get('tab')==='security'&&<PageContainer><Security {...{api,lang}}/></PageContainer>}
     {businesses?.length === 0 && params.get('tab')!=='security' && <div className="px-4 md:px-8 space-y-4"><p className="text-sm text-slate-500">{c('noBusiness')}</p><Link className={buttonClass} to="/billing-v2">{lang==='ar'?'الفوترة وإلغاء الاشتراك':'Billing and cancellation'}</Link><Link className={`${buttonClass} ms-2`} to="/contact">{lang==='ar'?'تواصل معنا':'Contact Us'}</Link></div>}
